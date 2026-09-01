@@ -1,26 +1,62 @@
 @import "tailwindcss";
 
+/* RepOneLive broadcast identity: black / white / RepOne red. Modern sports
+   network package, high readability, minimal unnecessary animation,
+   optimized for 1080p video. */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0a0a0a;
+  --repone-black: #0a0a0a;
+  --repone-white: #ffffff;
+  --repone-red: #e0122f;
+  --repone-red-dark: #a80d24;
+  --repone-gray: #1c1c1e;
+  --repone-gray-light: #6b6b6f;
+
+  /* System font stacks — no external font CDN dependency (see reliability
+     principle: broadcast tooling should not depend on reaching an external
+     service to render text). The display stack favors condensed/bold system
+     faces for a broadcast-scoreboard feel. */
+  --font-body-raw: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display-raw: "Arial Narrow", "Helvetica Neue Condensed", "Segoe UI Semibold", Arial, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-repone-black: var(--repone-black);
+  --color-repone-white: var(--repone-white);
+  --color-repone-red: var(--repone-red);
+  --color-repone-red-dark: var(--repone-red-dark);
+  --color-repone-gray: var(--repone-gray);
+  --color-repone-gray-light: var(--repone-gray-light);
+  --font-sans: var(--font-body-raw);
+  --font-display: var(--font-display-raw);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Overlay pages render on a transparent browser-source layer, not a page. */
+.overlay-transparent {
+  background: transparent !important;
+}
+
+/* Large, touch-friendly control used across the Production Dashboard. */
+.control-btn {
+  @apply flex items-center justify-center rounded-lg border-2 border-repone-black/10
+    bg-repone-black px-4 py-5 text-lg font-bold uppercase tracking-wide text-repone-white
+    transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100;
+  min-height: 64px;
+}
+
+.control-btn-red {
+  @apply bg-repone-red border-repone-red-dark;
+}
+
+.control-btn-outline {
+  @apply bg-transparent text-repone-black border-repone-black/20;
 }
