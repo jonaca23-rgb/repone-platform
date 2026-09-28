@@ -60,3 +60,33 @@ export function formatClock(totalSeconds: number): string {
   const s = safe % 60;
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Inverse of formatClock, for judge-facing time entry (Score Keeper / Admin
+ * results forms). A judge's scorecard reads "3:45", not "225" — this lets the
+ * field accept what's actually written on paper, plus a couple of tolerant
+ * fallbacks (bare seconds, "m:ss.ms") rather than forcing one exact format.
+ *
+ * Accepted forms: "3:45", "3:45.5", "0:09", "225", "225.5". Whitespace is
+ * trimmed. Anything else (empty, garbage, negative) returns null so callers
+ * can treat it the same as "left blank."
+ */
+export function parseClockToSeconds(input: string): number | null {
+  const trimmed = input.trim();
+  if (trimmed === "") return null;
+
+  const colonMatch = trimmed.match(/^(\d+):([0-5]?\d)(?:\.(\d+))?$/);
+  if (colonMatch) {
+    const minutes = Number(colonMatch[1]);
+    const seconds = Number(colonMatch[2]);
+    const fraction = colonMatch[3] ? Number(`0.${colonMatch[3]}`) : 0;
+    return minutes * 60 + seconds + fraction;
+  }
+
+  // No colon — treat as plain seconds (keeps old "225" entries working).
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  return null;
+}

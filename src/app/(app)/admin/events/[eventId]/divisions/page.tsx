@@ -1,17 +1,22 @@
+import Link from "next/link";
 import { createClient } from "@/lib/db/server";
 import { createDivision, deleteDivision } from "@/lib/actions/divisions";
 
 export default async function DivisionsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const supabase = await createClient();
-  const { data: divisions } = await supabase
-    .from("divisions")
-    .select("id, name")
-    .eq("event_id", eventId)
-    .order("sort_order");
+  const [{ data: event }, { data: divisions }] = await Promise.all([
+    supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
+    supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
+  ]);
 
   return (
     <div>
+      <p className="mb-4 text-sm">
+        <Link href={`/admin/events/${eventId}`} className="text-repone-red underline">
+          ← {event?.name ?? "Back to Event"}
+        </Link>
+      </p>
       <h1 className="mb-6 text-2xl font-bold">Divisions</h1>
 
       <form action={createDivision.bind(null, eventId)} className="mb-8 flex items-end gap-3">

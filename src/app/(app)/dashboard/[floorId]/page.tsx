@@ -1,12 +1,22 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
+import { getSessionContext } from "@/lib/auth/session";
+import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { DashboardClient } from "./DashboardClient";
 
 export default async function DashboardPage({ params }: { params: Promise<{ floorId: string }> }) {
   const { floorId } = await params;
   const context = await getFloorContext(floorId);
   if (!context) notFound();
+
+  // Defense in depth — see the matching comment in
+  // scorekeeper/[floorId]/page.tsx. The new /producer/events/[eventId] tree
+  // only links here for events the signed-in user is assigned to produce;
+  // this catches a direct/bookmarked floor URL too.
+  const ctx = await getSessionContext();
+  if (!ctx) redirect("/login");
+  if (!(await isAssignedToEvent(ctx, context.eventId, "producer"))) redirect("/producer");
 
   const supabase = await createClient();
   const [{ data: broadcastState }, { data: sponsors }] = await Promise.all([

@@ -33,19 +33,53 @@ export type ActiveGraphic =
   | "sponsor";
 export type TimerStatus = "idle" | "running" | "paused" | "ended";
 export type TimerDirection = "count_up" | "count_down";
+export type AthleteGenderDb = "male" | "female";
+export type EntryFormat = "pair" | "team" | "custom";
+export type CompetitorEntryType = "individual" | "pair" | "team" | "custom";
+export type PaymentAccountStatus = "not_connected" | "pending" | "connected";
+export type PaymentStatus = "unpaid" | "paid" | "waived" | "refunded";
+export type PaymentMethodType = "unpaid" | "cash" | "manual_other" | "stripe";
+export type ExpenseCategory = "venue" | "equipment" | "staff_judges" | "prizes" | "marketing" | "other";
+export type LiftNameDb =
+  | "deadlift"
+  | "bench_press"
+  | "strict_press"
+  | "back_squat"
+  | "front_squat"
+  | "clean"
+  | "squat_clean"
+  | "snatch"
+  | "power_snatch"
+  | "run_400m"
+  | "run_1_mile"
+  | "run_5k";
 
 export interface Database {
   public: {
     Tables: {
       organizations: { Row: { id: string; name: string; created_at: string } };
-      events: {
+      circuits: {
         Row: {
           id: string;
           organization_id: string;
           name: string;
+          description: string | null;
+          starts_on: string | null;
+          ends_on: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          circuit_id: string | null;
+          name: string;
           status: EventStatus;
           starts_on: string | null;
           ends_on: string | null;
+          cover_image_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -67,11 +101,52 @@ export interface Database {
           last_name: string;
           affiliate: string | null;
           photo_url: string | null;
+          date_of_birth: string | null;
+          gender: AthleteGenderDb | null;
+          auth_user_id: string | null;
+          email: string;
+          phone: string | null;
           created_at: string;
         };
       };
+      athlete_lifts: {
+        Row: {
+          id: string;
+          athlete_id: string;
+          lift: LiftNameDb;
+          // Exactly one of these two is set, depending on `lift` — the 9
+          // barbell lifts use weight_lbs, the 3 run benchmarks
+          // (run_400m/run_1_mile/run_5k, added 0014) use time_seconds. See
+          // WEIGHT_LIFT_NAMES/TIME_LIFT_NAMES in src/lib/constants/lifts.ts.
+          weight_lbs: number | null;
+          time_seconds: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      athlete_benchmarks: {
+        Row: {
+          id: string;
+          athlete_id: string;
+          name: string;
+          result_display: string;
+          created_at: string;
+          updated_at: string;
+        };
+      };
       teams: {
-        Row: { id: string; organization_id: string; name: string; affiliate: string | null; created_at: string };
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          affiliate: string | null;
+          entry_format: EntryFormat;
+          team_size: number | null;
+          created_at: string;
+        };
+      };
+      team_members: {
+        Row: { id: string; team_id: string; athlete_id: string };
       };
       registrations: {
         Row: {
@@ -140,6 +215,9 @@ export interface Database {
           tiebreak_value: number | null;
           notes: string | null;
           entered_by: string | null;
+          manually_adjusted: boolean;
+          adjusted_by: string | null;
+          adjusted_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -212,6 +290,141 @@ export interface Database {
           created_at: string;
         };
       };
+      fee_schedules: {
+        Row: {
+          id: string;
+          organization_id: string;
+          event_id: string;
+          division_id: string | null;
+          entry_type: CompetitorEntryType | null;
+          name: string;
+          description: string | null;
+          amount_cents: number;
+          currency: string;
+          is_addon: boolean;
+          active: boolean;
+          created_at: string;
+        };
+      };
+      payment_accounts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          provider: string;
+          status: PaymentAccountStatus;
+          external_account_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      payments: {
+        Row: {
+          id: string;
+          registration_id: string;
+          fee_schedule_id: string | null;
+          amount_cents: number;
+          currency: string;
+          status: PaymentStatus;
+          payment_method: PaymentMethodType;
+          stripe_payment_intent_id: string | null;
+          notes: string | null;
+          recorded_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      payment_line_items: {
+        Row: {
+          id: string;
+          payment_id: string;
+          fee_schedule_id: string | null;
+          description: string;
+          amount_cents: number;
+          created_at: string;
+        };
+      };
+      expenses: {
+        Row: {
+          id: string;
+          organization_id: string;
+          event_id: string;
+          category: ExpenseCategory;
+          description: string;
+          amount_cents: number;
+          currency: string;
+          incurred_on: string | null;
+          notes: string | null;
+          recorded_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      messages: {
+        Row: {
+          id: string;
+          sender_id: string;
+          recipient_id: string;
+          body: string;
+          read_at: string | null;
+          created_at: string;
+        };
+      };
+      athlete_likes: {
+        Row: {
+          id: string;
+          liker_user_id: string;
+          athlete_id: string;
+          target_type: LikeTargetType;
+          target_id: string;
+          created_at: string;
+        };
+      };
+      event_scorekeeper_assignments: {
+        Row: {
+          id: string;
+          event_id: string;
+          scorekeeper_user_id: string;
+          assigned_by_admin_id: string | null;
+          status: EventAssignmentStatus;
+          assigned_at: string;
+          removed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      event_producer_assignments: {
+        Row: {
+          id: string;
+          event_id: string;
+          producer_user_id: string;
+          assigned_by_admin_id: string | null;
+          status: EventAssignmentStatus;
+          assigned_at: string;
+          removed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      event_commentator_assignments: {
+        Row: {
+          id: string;
+          event_id: string;
+          commentator_user_id: string;
+          assigned_by_admin_id: string | null;
+          role_label: string | null;
+          status: EventAssignmentStatus;
+          assigned_at: string;
+          removed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
     };
   };
 }
+
+export type LikeTargetType = "lift" | "benchmark" | "standing";
+// Shared status for the three event-scoped staff assignment tables
+// (0024_event_role_assignments.sql) — Scorekeeper/Producer/Commentator are
+// per-event, unlike Admin, which stays the org-wide `user_roles` row.
+export type EventAssignmentStatus = "active" | "inactive" | "removed";

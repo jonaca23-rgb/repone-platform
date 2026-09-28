@@ -1,16 +1,22 @@
+import Link from "next/link";
 import { createClient } from "@/lib/db/server";
 import { addFloor } from "@/lib/actions/venues";
 
 export default async function VenuesPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const supabase = await createClient();
-  const { data: venues } = await supabase
-    .from("venues")
-    .select("id, name, floors(id, name, sort_order)")
-    .eq("event_id", eventId);
+  const [{ data: event }, { data: venues }] = await Promise.all([
+    supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
+    supabase.from("venues").select("id, name, floors(id, name, sort_order)").eq("event_id", eventId),
+  ]);
 
   return (
     <div>
+      <p className="mb-4 text-sm">
+        <Link href={`/admin/events/${eventId}`} className="text-repone-red underline">
+          ← {event?.name ?? "Back to Event"}
+        </Link>
+      </p>
       <h1 className="mb-2 text-2xl font-bold">Venues & Floors</h1>
       <p className="mb-6 text-sm text-black/50">
         Every event gets a default venue and Floor A automatically. Add more floors here to run

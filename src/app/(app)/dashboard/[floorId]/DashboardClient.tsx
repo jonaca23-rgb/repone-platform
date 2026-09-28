@@ -61,7 +61,13 @@ export function DashboardClient({
     () => heats.findIndex((h) => h.id === state?.current_heat_id),
     [heats, state?.current_heat_id]
   );
-  const currentHeat = currentIndex >= 0 ? heats[currentIndex] : heats[0] ?? null;
+  // A fresh floor's broadcast_state.current_heat_id starts out null — nothing
+  // has explicitly selected a heat yet. Treat heat #1 as implicitly current
+  // in that case (matches what's actually displayed below) so Previous/Next
+  // navigation has a starting point instead of staying disabled forever with
+  // no way to select any heat at all.
+  const effectiveIndex = currentIndex >= 0 ? currentIndex : 0;
+  const currentHeat = heats[effectiveIndex] ?? null;
 
   const [lowerThirdAthlete, setLowerThirdAthlete] = useState<string>("");
 
@@ -112,15 +118,15 @@ export function DashboardClient({
       <div className="grid grid-cols-2 gap-3">
         <button
           className="control-btn"
-          disabled={currentIndex <= 0}
-          onClick={() => selectHeat(Math.max(0, currentIndex - 1))}
+          disabled={effectiveIndex <= 0}
+          onClick={() => selectHeat(Math.max(0, effectiveIndex - 1))}
         >
           ← Previous Heat
         </button>
         <button
           className="control-btn"
-          disabled={currentIndex < 0 || currentIndex >= heats.length - 1}
-          onClick={() => selectHeat(Math.min(heats.length - 1, currentIndex + 1))}
+          disabled={effectiveIndex >= heats.length - 1}
+          onClick={() => selectHeat(Math.min(heats.length - 1, effectiveIndex + 1))}
         >
           Next Heat →
         </button>
@@ -225,7 +231,7 @@ export function DashboardClient({
             {currentHeat.lanes
               .filter((l) => l.athleteId)
               .map((l) => (
-                <option key={l.athleteId} value={l.athleteId!}>
+                <option key={l.laneNumber} value={l.athleteId!}>
                   Lane {l.laneNumber} — {l.name}
                 </option>
               ))}
