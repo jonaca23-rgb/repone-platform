@@ -12,7 +12,11 @@ import { createClient } from "@/lib/db/server";
  * scoped to one specific event, replacing the old flat "pick any org event,
  * then a floor" two-step picker at /scorekeeper.
  */
-export default async function ScoreKeeperEventPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ScoreKeeperEventPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const ctx = await getSessionContext();
   if (!ctx) redirect("/login");
@@ -28,7 +32,9 @@ export default async function ScoreKeeperEventPage({ params }: { params: Promise
     .single();
   if (!event) notFound();
 
-  const floors = (event.venues ?? []).flatMap((v) => (v.floors ?? []).map((f) => ({ ...f, venueName: v.name })));
+  const floors = (event.venues ?? []).flatMap((v) =>
+    (v.floors ?? []).map((f) => ({ ...f, venueName: v.name })),
+  );
 
   return (
     <div className="mx-auto max-w-xl px-6 py-16">
@@ -49,11 +55,15 @@ export default async function ScoreKeeperEventPage({ params }: { params: Promise
             className="control-btn control-btn-red flex-col !items-start gap-1 py-6"
           >
             <span className="text-2xl">{f.name}</span>
-            <span className="text-sm font-normal normal-case tracking-normal opacity-80">{f.venueName}</span>
+            <span className="text-sm font-normal normal-case tracking-normal opacity-80">
+              {f.venueName}
+            </span>
           </Link>
         ))}
         {floors.length === 0 && (
-          <p className="text-white/50">No floors set up for this event yet — set one up in Admin.</p>
+          <p className="text-white/50">
+            No floors set up for this event yet — set one up in Admin.
+          </p>
         )}
       </div>
     </div>

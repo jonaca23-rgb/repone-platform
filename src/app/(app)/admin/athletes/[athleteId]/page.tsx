@@ -16,14 +16,20 @@ import { AGE_CATEGORY_LABELS, computeAgeCategory, type Gender } from "@/lib/scor
 import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
 
-export default async function AthleteDetailPage({ params }: { params: Promise<{ athleteId: string }> }) {
+export default async function AthleteDetailPage({
+  params,
+}: {
+  params: Promise<{ athleteId: string }>;
+}) {
   const { athleteId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
   const { data: athlete } = await supabase
     .from("athletes")
-    .select("id, first_name, last_name, affiliate, date_of_birth, gender, photo_url, auth_user_id, email, phone")
+    .select(
+      "id, first_name, last_name, affiliate, date_of_birth, gender, photo_url, auth_user_id, email, phone",
+    )
     .eq("id", athleteId)
     .eq("organization_id", ctx?.organizationId ?? "")
     .maybeSingle();
@@ -31,15 +37,32 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
   if (!athlete) notFound();
 
   const [{ data: lifts }, { data: benchmarks }, { data: standingsRows }] = await Promise.all([
-    supabase.from("athlete_lifts").select("lift, weight_lbs, time_seconds").eq("athlete_id", athleteId),
-    supabase.from("athlete_benchmarks").select("id, name, result_display").eq("athlete_id", athleteId).order("name"),
-    supabase.from("standings").select("event_id, division_id, wod_id, placement, points").eq("athlete_id", athleteId),
+    supabase
+      .from("athlete_lifts")
+      .select("lift, weight_lbs, time_seconds")
+      .eq("athlete_id", athleteId),
+    supabase
+      .from("athlete_benchmarks")
+      .select("id, name, result_display")
+      .eq("athlete_id", athleteId)
+      .order("name"),
+    supabase
+      .from("standings")
+      .select("event_id, division_id, wod_id, placement, points")
+      .eq("athlete_id", athleteId),
   ]);
 
   const liftByName = new Map(
-    (lifts ?? []).map((l) => [l.lift as LiftName, { weight_lbs: l.weight_lbs as number | null, time_seconds: l.time_seconds as number | null }])
+    (lifts ?? []).map((l) => [
+      l.lift as LiftName,
+      { weight_lbs: l.weight_lbs as number | null, time_seconds: l.time_seconds as number | null },
+    ]),
   );
-  const category = computeAgeCategory(athlete.date_of_birth, athlete.gender as Gender | null, new Date());
+  const category = computeAgeCategory(
+    athlete.date_of_birth,
+    athlete.gender as Gender | null,
+    new Date(),
+  );
 
   // Competition history: standings rows for this athlete, grouped by event.
   // standings.wod_id is null for the event/division "overall" row and set
@@ -50,17 +73,18 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
   const divisionIds = [...new Set((standingsRows ?? []).map((r) => r.division_id))];
   const wodIds = [...new Set((standingsRows ?? []).flatMap((r) => (r.wod_id ? [r.wod_id] : [])))];
 
-  const [{ data: historyEvents }, { data: historyDivisions }, { data: historyWods }] = await Promise.all([
-    eventIds.length
-      ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; starts_on: string | null }[] }),
-    divisionIds.length
-      ? supabase.from("divisions").select("id, name").in("id", divisionIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    wodIds.length
-      ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; sort_order: number }[] }),
-  ]);
+  const [{ data: historyEvents }, { data: historyDivisions }, { data: historyWods }] =
+    await Promise.all([
+      eventIds.length
+        ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; starts_on: string | null }[] }),
+      divisionIds.length
+        ? supabase.from("divisions").select("id, name").in("id", divisionIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      wodIds.length
+        ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; sort_order: number }[] }),
+    ]);
 
   const eventById = new Map((historyEvents ?? []).map((e) => [e.id, e]));
   const divisionById = new Map((historyDivisions ?? []).map((d) => [d.id, d]));
@@ -78,20 +102,24 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
   for (const row of standingsRows ?? []) {
     const event = eventById.get(row.event_id);
     if (!event) continue;
-    const group: HistoryGroup =
-      historyByEvent.get(row.event_id) ?? {
-        eventId: row.event_id,
-        eventName: event.name,
-        startsOn: event.starts_on,
-        divisionName: divisionById.get(row.division_id)?.name ?? "—",
-        overall: null,
-        wods: [],
-      };
+    const group: HistoryGroup = historyByEvent.get(row.event_id) ?? {
+      eventId: row.event_id,
+      eventName: event.name,
+      startsOn: event.starts_on,
+      divisionName: divisionById.get(row.division_id)?.name ?? "—",
+      overall: null,
+      wods: [],
+    };
     if (row.wod_id === null) {
       group.overall = { placement: row.placement, points: row.points };
     } else {
       const wod = wodById.get(row.wod_id);
-      group.wods.push({ wodId: row.wod_id, name: wod?.name ?? "WOD", sortOrder: wod?.sort_order ?? 0, placement: row.placement });
+      group.wods.push({
+        wodId: row.wod_id,
+        name: wod?.name ?? "WOD",
+        sortOrder: wod?.sort_order ?? 0,
+        placement: row.placement,
+      });
     }
     historyByEvent.set(row.event_id, group);
   }
@@ -107,7 +135,8 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
   // app's convention of avoiding runtime network dependencies.
   const hdrs = await headers();
   const host = hdrs.get("host") ?? "localhost:3000";
-  const protocol = hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const protocol =
+    hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const checkinUrl = `${protocol}://${host}/admin/checkin/${athleteId}`;
   const checkinQrDataUrl = await QRCode.toDataURL(checkinUrl, { width: 220, margin: 1 });
 
@@ -120,7 +149,12 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
       </p>
       <div className="mb-6 flex items-center gap-4">
         {athlete.photo_url ? (
-          <a href={athlete.photo_url} target="_blank" rel="noopener noreferrer" title="Open full-size photo">
+          <a
+            href={athlete.photo_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open full-size photo"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset */}
             <img
               src={athlete.photo_url}
@@ -138,14 +172,21 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
             {athlete.first_name} {athlete.last_name}
           </h1>
           <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
-            {category ? `${AGE_CATEGORY_LABELS[category]} (as of today)` : "No competitive age category (as of today)"}
+            {category
+              ? `${AGE_CATEGORY_LABELS[category]} (as of today)`
+              : "No competitive age category (as of today)"}
           </p>
           {athlete.auth_user_id ? (
-            <Link href={`/admin/messages/${athlete.auth_user_id}`} className="mt-2 inline-block text-sm font-semibold text-repone-red underline">
+            <Link
+              href={`/admin/messages/${athlete.auth_user_id}`}
+              className="mt-2 inline-block text-sm font-semibold text-repone-red underline"
+            >
               Message {athlete.first_name} →
             </Link>
           ) : (
-            <p className="mt-2 text-sm text-black/40">Hasn&apos;t created a RepOne account yet — can&apos;t be messaged.</p>
+            <p className="mt-2 text-sm text-black/40">
+              Hasn&apos;t created a RepOne account yet — can&apos;t be messaged.
+            </p>
           )}
         </div>
       </div>
@@ -160,9 +201,13 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
         <div>
           <h2 className="font-semibold">Check-In QR Code</h2>
           <p className="mt-1 max-w-md text-sm text-black/60">
-            Scan this at event-day registration to instantly pull up {athlete.first_name}&apos;s payment status.
+            Scan this at event-day registration to instantly pull up {athlete.first_name}&apos;s
+            payment status.
           </p>
-          <Link href={`/admin/checkin/${athleteId}`} className="mt-2 inline-block text-sm font-semibold text-repone-red underline">
+          <Link
+            href={`/admin/checkin/${athleteId}`}
+            className="mt-2 inline-block text-sm font-semibold text-repone-red underline"
+          >
             Open Check-In screen →
           </Link>
         </div>
@@ -170,7 +215,10 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
 
       <section className="mb-8 rounded-lg border border-black/10 p-4">
         <h2 className="mb-3 font-semibold">Photo</h2>
-        <form action={uploadAthletePhoto.bind(null, athleteId)} className="flex flex-wrap items-end gap-3">
+        <form
+          action={uploadAthletePhoto.bind(null, athleteId)}
+          className="flex flex-wrap items-end gap-3"
+        >
           <label className="flex flex-col gap-1 text-sm">
             Upload a photo
             <input type="file" name="photo" accept="image/*" required className="text-sm" />
@@ -179,14 +227,19 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
         </form>
         {athlete.photo_url && (
           <form action={removeAthletePhoto.bind(null, athleteId)} className="mt-3">
-            <button className="text-sm text-black/40 hover:text-repone-red">Remove current photo</button>
+            <button className="text-sm text-black/40 hover:text-repone-red">
+              Remove current photo
+            </button>
           </form>
         )}
       </section>
 
       <section className="mb-8 rounded-lg border border-black/10 p-4">
         <h2 className="mb-3 font-semibold">Profile</h2>
-        <form action={updateAthleteProfile.bind(null, athleteId)} className="flex flex-wrap items-end gap-3">
+        <form
+          action={updateAthleteProfile.bind(null, athleteId)}
+          className="flex flex-wrap items-end gap-3"
+        >
           <label className="flex flex-col gap-1 text-sm">
             First name
             <input
@@ -259,7 +312,10 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
 
       <section className="mb-8 rounded-lg border border-black/10 p-4">
         <h2 className="mb-3 font-semibold">Basic Lifts &amp; Run Times</h2>
-        <form action={saveAthleteLifts.bind(null, athleteId)} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <form
+          action={saveAthleteLifts.bind(null, athleteId)}
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+        >
           {LIFT_NAMES.map((lift) => {
             const existing = liftByName.get(lift);
             const timeLift = isTimeLift(lift);
@@ -273,7 +329,9 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
                     pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
                     placeholder="21:30"
                     name={lift}
-                    defaultValue={existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""}
+                    defaultValue={
+                      existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
+                    }
                     className="rounded-md border border-black/20 px-3 py-2"
                   />
                 ) : (
@@ -297,7 +355,10 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
 
       <section className="mb-8 rounded-lg border border-black/10 p-4">
         <h2 className="mb-3 font-semibold">Benchmark Workouts</h2>
-        <form action={upsertAthleteBenchmark.bind(null, athleteId)} className="mb-4 flex flex-wrap items-end gap-3">
+        <form
+          action={upsertAthleteBenchmark.bind(null, athleteId)}
+          className="mb-4 flex flex-wrap items-end gap-3"
+        >
           <label className="flex flex-col gap-1 text-sm">
             Benchmark
             <input
@@ -321,16 +382,22 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
 
         <div className="flex flex-col gap-2">
           {(benchmarks ?? []).map((b) => (
-            <div key={b.id} className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2">
+            <div
+              key={b.id}
+              className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2"
+            >
               <span>
-                <span className="font-semibold">{b.name}</span> <span className="text-black/60">{b.result_display}</span>
+                <span className="font-semibold">{b.name}</span>{" "}
+                <span className="text-black/60">{b.result_display}</span>
               </span>
               <form action={deleteAthleteBenchmark.bind(null, athleteId, b.id)}>
                 <button className="text-sm text-black/40 hover:text-repone-red">Remove</button>
               </form>
             </div>
           ))}
-          {benchmarks?.length === 0 && <p className="text-black/50">No benchmark times logged yet.</p>}
+          {benchmarks?.length === 0 && (
+            <p className="text-black/50">No benchmark times logged yet.</p>
+          )}
         </div>
       </section>
 
@@ -345,7 +412,9 @@ export default async function AthleteDetailPage({ params }: { params: Promise<{ 
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <p className="font-semibold">{h.eventName}</p>
-                    <p className="text-xs uppercase tracking-wide text-black/50">{h.divisionName}</p>
+                    <p className="text-xs uppercase tracking-wide text-black/50">
+                      {h.divisionName}
+                    </p>
                   </div>
                   {h.overall && (
                     <p className="text-sm font-bold text-repone-red">

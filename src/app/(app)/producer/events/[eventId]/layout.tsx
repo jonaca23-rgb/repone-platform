@@ -37,13 +37,20 @@ export default async function ProducerEventLayout({
   if (!allowed) redirect("/producer");
 
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select("id, name").eq("id", eventId).single();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, name")
+    .eq("id", eventId)
+    .single();
   if (!event) notFound();
 
   return (
     <div className="flex flex-col gap-4">
       <div className="mx-auto w-full max-w-5xl px-4 pt-6">
-        <Link href="/producer" className="text-xs uppercase tracking-wide text-white/40 hover:text-white">
+        <Link
+          href="/producer"
+          className="text-xs uppercase tracking-wide text-white/40 hover:text-white"
+        >
           ← Choose a different event
         </Link>
         <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">

@@ -27,7 +27,11 @@ function formatMoney(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export default async function AthleteCheckInPage({ params }: { params: Promise<{ athleteId: string }> }) {
+export default async function AthleteCheckInPage({
+  params,
+}: {
+  params: Promise<{ athleteId: string }>;
+}) {
   const { athleteId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -42,7 +46,9 @@ export default async function AthleteCheckInPage({ params }: { params: Promise<{
 
   const { data: registrations } = await supabase
     .from("registrations")
-    .select("id, event_id, bib_number, events(name, status), divisions(name), payments(status, amount_cents, payment_method)")
+    .select(
+      "id, event_id, bib_number, events(name, status), divisions(name), payments(status, amount_cents, payment_method)",
+    )
     .eq("athlete_id", athleteId);
 
   const typedRegistrations = (registrations ?? []) as unknown as RegistrationRow[];
@@ -112,17 +118,41 @@ export default async function AthleteCheckInPage({ params }: { params: Promise<{
                 )}
               </div>
               <div className="flex flex-wrap gap-2 border-t border-black/10 bg-white p-3">
-                <form action={markPaymentStatusForCheckin.bind(null, athleteId, r.event_id, r.id, "paid")}>
+                <form
+                  action={markPaymentStatusForCheckin.bind(
+                    null,
+                    athleteId,
+                    r.event_id,
+                    r.id,
+                    "paid",
+                  )}
+                >
                   <button className="rounded-md border border-black/20 px-3 py-1.5 text-xs font-semibold uppercase hover:border-green-600 hover:text-green-700">
                     Mark Paid
                   </button>
                 </form>
-                <form action={markPaymentStatusForCheckin.bind(null, athleteId, r.event_id, r.id, "waived")}>
+                <form
+                  action={markPaymentStatusForCheckin.bind(
+                    null,
+                    athleteId,
+                    r.event_id,
+                    r.id,
+                    "waived",
+                  )}
+                >
                   <button className="rounded-md border border-black/20 px-3 py-1.5 text-xs font-semibold uppercase hover:border-blue-600 hover:text-blue-700">
                     Waive
                   </button>
                 </form>
-                <form action={markPaymentStatusForCheckin.bind(null, athleteId, r.event_id, r.id, "unpaid")}>
+                <form
+                  action={markPaymentStatusForCheckin.bind(
+                    null,
+                    athleteId,
+                    r.event_id,
+                    r.id,
+                    "unpaid",
+                  )}
+                >
                   <button className="rounded-md border border-black/20 px-3 py-1.5 text-xs font-semibold uppercase text-black/50 hover:border-repone-red hover:text-repone-red">
                     Reset to Unpaid
                   </button>

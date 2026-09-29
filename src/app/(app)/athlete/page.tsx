@@ -42,12 +42,26 @@ export default async function AthleteDashboardPage() {
   if (!ctx.athleteId) redirect("/athlete/onboarding");
 
   const supabase = await createClient();
-  const [standing, activity, history, { data: liftRows }, { data: benchmarks }, { data: registrations }] = await Promise.all([
+  const [
+    standing,
+    activity,
+    history,
+    { data: liftRows },
+    { data: benchmarks },
+    { data: registrations },
+  ] = await Promise.all([
     getAthleteCurrentStanding(ctx.athleteId),
     getRecentActivity(ctx.athleteId, ctx.userId, ctx.organizationId ?? ""),
     getAthleteCompetitionHistory(ctx.athleteId),
-    supabase.from("athlete_lifts").select("lift, weight_lbs, time_seconds").eq("athlete_id", ctx.athleteId),
-    supabase.from("athlete_benchmarks").select("id, name, result_display").eq("athlete_id", ctx.athleteId).order("name"),
+    supabase
+      .from("athlete_lifts")
+      .select("lift, weight_lbs, time_seconds")
+      .eq("athlete_id", ctx.athleteId),
+    supabase
+      .from("athlete_benchmarks")
+      .select("id, name, result_display")
+      .eq("athlete_id", ctx.athleteId)
+      .order("name"),
     supabase
       .from("registrations")
       .select("id, event_id, bib_number, events(name, status), divisions(name), payments(status)")
@@ -55,7 +69,10 @@ export default async function AthleteDashboardPage() {
   ]);
 
   const liftByName = new Map(
-    (liftRows ?? []).map((l) => [l.lift as LiftName, { weight_lbs: l.weight_lbs as number | null, time_seconds: l.time_seconds as number | null }])
+    (liftRows ?? []).map((l) => [
+      l.lift as LiftName,
+      { weight_lbs: l.weight_lbs as number | null, time_seconds: l.time_seconds as number | null },
+    ]),
   );
 
   // See lib/db/queries.ts header comment on this codebase's convention:
@@ -75,7 +92,8 @@ export default async function AthleteDashboardPage() {
   // paid/pending banner either way.
   const hdrs = await headers();
   const host = hdrs.get("host") ?? "localhost:3000";
-  const protocol = hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const protocol =
+    hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const checkinUrl = `${protocol}://${host}/admin/checkin/${ctx.athleteId}`;
   const checkinQrDataUrl = await QRCode.toDataURL(checkinUrl, { width: 220, margin: 1 });
 
@@ -101,8 +119,8 @@ export default async function AthleteDashboardPage() {
       <section className="mb-6 rounded-lg border border-white/10 bg-repone-gray p-4">
         <h2 className="mb-1 font-semibold text-white">My Check-In Code</h2>
         <p className="mb-4 text-xs text-white/50">
-          Show this at the registration desk the day of the competition — staff scan it to check you in and see
-          your payment status below.
+          Show this at the registration desk the day of the competition — staff scan it to check you
+          in and see your payment status below.
         </p>
         <div className="flex flex-wrap items-center gap-5">
           {/* eslint-disable-next-line @next/next/no-img-element -- generated data: URI, not an optimizable asset */}
@@ -114,7 +132,8 @@ export default async function AthleteDashboardPage() {
           <div className="flex-1">
             {myRegistrations.length === 0 ? (
               <p className="text-white/50">
-                You&apos;re not registered for an upcoming event yet — this code will be ready to use once you are.
+                You&apos;re not registered for an upcoming event yet — this code will be ready to
+                use once you are.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
@@ -122,9 +141,14 @@ export default async function AthleteDashboardPage() {
                   const status: PaymentStatus = r.payments?.status ?? "unpaid";
                   const goodToGo = GOOD_STATUSES.has(status);
                   return (
-                    <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-4 py-2.5">
+                    <div
+                      key={r.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-4 py-2.5"
+                    >
                       <div>
-                        <p className="text-sm font-semibold text-white">{r.events?.name ?? "Event"}</p>
+                        <p className="text-sm font-semibold text-white">
+                          {r.events?.name ?? "Event"}
+                        </p>
                         <p className="text-xs uppercase tracking-wide text-white/50">
                           {r.divisions?.name ?? "—"}
                           {r.bib_number ? ` · Bib #${r.bib_number}` : ""}
@@ -132,7 +156,9 @@ export default async function AthleteDashboardPage() {
                       </div>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-                          goodToGo ? "bg-green-600/20 text-green-400" : "bg-repone-red/20 text-repone-red"
+                          goodToGo
+                            ? "bg-green-600/20 text-green-400"
+                            : "bg-repone-red/20 text-repone-red"
                         }`}
                       >
                         {goodToGo ? "✓ Paid" : "Pending"}
@@ -152,7 +178,9 @@ export default async function AthleteDashboardPage() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <p className="font-semibold text-white">{standing.eventName}</p>
-              <p className="text-xs uppercase tracking-wide text-white/50">{standing.divisionName}</p>
+              <p className="text-xs uppercase tracking-wide text-white/50">
+                {standing.divisionName}
+              </p>
             </div>
             <p className="text-lg font-bold text-repone-red">
               {standing.placement ? `#${standing.placement}` : "Not yet scored"}
@@ -160,7 +188,9 @@ export default async function AthleteDashboardPage() {
             </p>
           </div>
         ) : (
-          <p className="text-white/50">You&apos;re not registered for an event yet, or no results have been posted.</p>
+          <p className="text-white/50">
+            You&apos;re not registered for an event yet, or no results have been posted.
+          </p>
         )}
       </section>
 
@@ -171,16 +201,23 @@ export default async function AthleteDashboardPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {activity.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 rounded-lg border border-white/10 px-4 py-3">
+              <div
+                key={item.id}
+                className="flex items-start gap-3 rounded-lg border border-white/10 px-4 py-3"
+              >
                 <span aria-hidden className="mt-0.5 text-lg">
                   {item.type === "like" ? "♥" : "✉"}
                 </span>
                 <div>
                   <p className="text-sm text-white">
                     <span className="font-semibold">{item.actorName}</span>{" "}
-                    {item.type === "like" ? item.description : `sent you a message: "${item.description}"`}
+                    {item.type === "like"
+                      ? item.description
+                      : `sent you a message: "${item.description}"`}
                   </p>
-                  <p className="text-xs text-white/40">{new Date(item.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-white/40">
+                    {new Date(item.createdAt).toLocaleString()}
+                  </p>
                 </div>
               </div>
             ))}
@@ -191,7 +228,8 @@ export default async function AthleteDashboardPage() {
       <section className="mb-6 rounded-lg border border-white/10 bg-repone-gray p-4">
         <h2 className="mb-1 font-semibold text-white">My Lifts &amp; Run Times</h2>
         <p className="mb-3 text-xs text-white/50">
-          Enter or update your own PRs and times — no need to wait on staff. Blank fields are left as-is.
+          Enter or update your own PRs and times — no need to wait on staff. Blank fields are left
+          as-is.
         </p>
         <form action={saveMyLifts} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {LIFT_NAMES.map((lift) => {
@@ -207,7 +245,9 @@ export default async function AthleteDashboardPage() {
                     pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
                     placeholder="21:30"
                     name={lift}
-                    defaultValue={existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""}
+                    defaultValue={
+                      existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
+                    }
                     className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
                   />
                 ) : (
@@ -254,16 +294,22 @@ export default async function AthleteDashboardPage() {
         </form>
         <div className="flex flex-col gap-2">
           {(benchmarks ?? []).map((b) => (
-            <div key={b.id} className="flex items-center justify-between rounded-lg border border-white/10 px-4 py-2.5">
+            <div
+              key={b.id}
+              className="flex items-center justify-between rounded-lg border border-white/10 px-4 py-2.5"
+            >
               <span className="text-sm text-white">
-                <span className="font-semibold">{b.name}</span> <span className="text-white/50">{b.result_display}</span>
+                <span className="font-semibold">{b.name}</span>{" "}
+                <span className="text-white/50">{b.result_display}</span>
               </span>
               <form action={deleteMyBenchmark.bind(null, b.id)}>
                 <button className="text-sm text-white/40 hover:text-repone-red">Remove</button>
               </form>
             </div>
           ))}
-          {(benchmarks ?? []).length === 0 && <p className="text-white/50">No benchmark times logged yet.</p>}
+          {(benchmarks ?? []).length === 0 && (
+            <p className="text-white/50">No benchmark times logged yet.</p>
+          )}
         </div>
       </section>
 
@@ -278,7 +324,9 @@ export default async function AthleteDashboardPage() {
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <p className="font-semibold text-white">{h.eventName}</p>
-                    <p className="text-xs uppercase tracking-wide text-white/50">{h.divisionName}</p>
+                    <p className="text-xs uppercase tracking-wide text-white/50">
+                      {h.divisionName}
+                    </p>
                   </div>
                   {h.overall && (
                     <p className="text-sm font-bold text-repone-red">
@@ -290,7 +338,10 @@ export default async function AthleteDashboardPage() {
                 {h.wods.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {h.wods.map((w) => (
-                      <span key={w.wodId} className="inline-flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1 text-xs font-semibold text-white/70">
+                      <span
+                        key={w.wodId}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1 text-xs font-semibold text-white/70"
+                      >
                         {w.name}: {w.placement ? `#${w.placement}` : "—"}
                       </span>
                     ))}

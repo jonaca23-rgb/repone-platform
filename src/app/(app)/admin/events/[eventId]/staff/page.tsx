@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
-import { getEventStaffCandidates, getDisplayNamesByUserId, type StaffCandidate } from "@/lib/auth/eventStaffCandidates";
+import {
+  getEventStaffCandidates,
+  getDisplayNamesByUserId,
+  type StaffCandidate,
+} from "@/lib/auth/eventStaffCandidates";
 import {
   assignEventScorekeeper,
   removeEventScorekeeper,
@@ -35,30 +39,41 @@ export default async function EventStaffPage({ params }: { params: Promise<{ eve
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
-  const { data: event } = await supabase.from("events").select("id, name").eq("id", eventId).single();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, name")
+    .eq("id", eventId)
+    .single();
   if (!event) notFound();
 
-  const [candidates, { data: scorekeepers }, { data: producers }, { data: commentators }] = await Promise.all([
-    getEventStaffCandidates(ctx?.organizationId ?? null),
-    supabase
-      .from("event_scorekeeper_assignments")
-      .select("id, scorekeeper_user_id")
-      .eq("event_id", eventId)
-      .eq("status", "active"),
-    supabase
-      .from("event_producer_assignments")
-      .select("id, producer_user_id")
-      .eq("event_id", eventId)
-      .eq("status", "active"),
-    supabase
-      .from("event_commentator_assignments")
-      .select("id, commentator_user_id, role_label")
-      .eq("event_id", eventId)
-      .eq("status", "active"),
-  ]);
+  const [candidates, { data: scorekeepers }, { data: producers }, { data: commentators }] =
+    await Promise.all([
+      getEventStaffCandidates(ctx?.organizationId ?? null),
+      supabase
+        .from("event_scorekeeper_assignments")
+        .select("id, scorekeeper_user_id")
+        .eq("event_id", eventId)
+        .eq("status", "active"),
+      supabase
+        .from("event_producer_assignments")
+        .select("id, producer_user_id")
+        .eq("event_id", eventId)
+        .eq("status", "active"),
+      supabase
+        .from("event_commentator_assignments")
+        .select("id, commentator_user_id, role_label")
+        .eq("event_id", eventId)
+        .eq("status", "active"),
+    ]);
 
-  const scorekeeperRows: AssignmentRow[] = (scorekeepers ?? []).map((s) => ({ id: s.id, user_id: s.scorekeeper_user_id }));
-  const producerRows: AssignmentRow[] = (producers ?? []).map((p) => ({ id: p.id, user_id: p.producer_user_id }));
+  const scorekeeperRows: AssignmentRow[] = (scorekeepers ?? []).map((s) => ({
+    id: s.id,
+    user_id: s.scorekeeper_user_id,
+  }));
+  const producerRows: AssignmentRow[] = (producers ?? []).map((p) => ({
+    id: p.id,
+    user_id: p.producer_user_id,
+  }));
   const commentatorRows: AssignmentRow[] = (commentators ?? []).map((c) => ({
     id: c.id,
     user_id: c.commentator_user_id,
@@ -69,18 +84,23 @@ export default async function EventStaffPage({ params }: { params: Promise<{ eve
   // for the dropdown, but assignment rows only store a user_id — resolve
   // those the same way so an already-assigned athlete shows their real name
   // instead of "Unknown".
-  const assignedUserIds = [...scorekeeperRows, ...producerRows, ...commentatorRows].map((r) => r.user_id);
+  const assignedUserIds = [...scorekeeperRows, ...producerRows, ...commentatorRows].map(
+    (r) => r.user_id,
+  );
   const resolvedNames = await getDisplayNamesByUserId(assignedUserIds);
   const candidateLabelById = new Map(candidates.map((c) => [c.userId, c.label]));
   const nameById = new Map(
-    assignedUserIds.map((id) => [id, candidateLabelById.get(id) ?? resolvedNames.get(id) ?? "Unknown account"])
+    assignedUserIds.map((id) => [
+      id,
+      candidateLabelById.get(id) ?? resolvedNames.get(id) ?? "Unknown account",
+    ]),
   );
 
   return (
     <div className="flex flex-col gap-8">
       <p className="text-sm text-black/50">
-        Assign existing staff or athlete accounts to <strong>{event.name}</strong>. Each role only gets access to
-        this event — not every event in the org.
+        Assign existing staff or athlete accounts to <strong>{event.name}</strong>. Each role only
+        gets access to this event — not every event in the org.
       </p>
 
       <StaffRoleSection
@@ -146,7 +166,10 @@ function StaffRoleSection({
 
       <div className="mb-4 flex flex-col gap-2">
         {rows.map((r) => (
-          <div key={r.id} className="flex items-center justify-between rounded-lg bg-black/5 px-4 py-2">
+          <div
+            key={r.id}
+            className="flex items-center justify-between rounded-lg bg-black/5 px-4 py-2"
+          >
             <span className="font-semibold">
               {nameById.get(r.user_id) ?? "Unknown"}
               {showRoleLabel && r.role_label ? (
@@ -166,7 +189,9 @@ function StaffRoleSection({
       </div>
 
       {available.length === 0 ? (
-        <p className="text-sm text-black/40">No other staff or athlete accounts available to assign.</p>
+        <p className="text-sm text-black/40">
+          No other staff or athlete accounts available to assign.
+        </p>
       ) : (
         <form action={assignAction} className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-sm">
@@ -191,7 +216,10 @@ function StaffRoleSection({
               </select>
             </label>
           )}
-          <button type="submit" className="rounded-md bg-repone-red px-4 py-2 font-semibold text-white">
+          <button
+            type="submit"
+            className="rounded-md bg-repone-red px-4 py-2 font-semibold text-white"
+          >
             Assign
           </button>
         </form>

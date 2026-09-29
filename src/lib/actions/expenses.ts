@@ -5,7 +5,14 @@ import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
 import type { ExpenseCategory } from "@/lib/db/database.types";
 
-const CATEGORIES: ExpenseCategory[] = ["venue", "equipment", "staff_judges", "prizes", "marketing", "other"];
+const CATEGORIES: ExpenseCategory[] = [
+  "venue",
+  "equipment",
+  "staff_judges",
+  "prizes",
+  "marketing",
+  "other",
+];
 
 function readCategory(formData: FormData): ExpenseCategory {
   const raw = String(formData.get("category") ?? "other");
@@ -15,7 +22,8 @@ function readCategory(formData: FormData): ExpenseCategory {
 function readAmountCents(formData: FormData): number {
   const raw = String(formData.get("amount_dollars") ?? "").trim();
   const dollars = Number(raw);
-  if (!raw || Number.isNaN(dollars) || dollars < 0) throw new Error("Enter a valid expense amount.");
+  if (!raw || Number.isNaN(dollars) || dollars < 0)
+    throw new Error("Enter a valid expense amount.");
   return Math.round(dollars * 100);
 }
 

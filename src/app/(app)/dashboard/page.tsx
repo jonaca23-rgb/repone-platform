@@ -17,8 +17,18 @@ export default async function DashboardPickerPage() {
 
   const supabase = await createClient();
   const { data: venues } = eventIds.length
-    ? await supabase.from("venues").select("id, name, event_id, floors(id, name)").in("event_id", eventIds)
-    : { data: [] as Array<{ id: string; name: string; event_id: string; floors: { id: string; name: string }[] }> };
+    ? await supabase
+        .from("venues")
+        .select("id, name, event_id, floors(id, name)")
+        .in("event_id", eventIds)
+    : {
+        data: [] as Array<{
+          id: string;
+          name: string;
+          event_id: string;
+          floors: { id: string; name: string }[];
+        }>,
+      };
 
   const eventNameById = new Map(events.map((e) => [e.id, e.name]));
 
@@ -40,11 +50,12 @@ export default async function DashboardPickerPage() {
                 {v.name} — {f.name}
               </span>
             </Link>
-          ))
+          )),
         )}
         {events.length === 0 && (
           <p className="text-white/50">
-            No events assigned to you yet — ask an admin to add you as a producer from that event&apos;s Staff tab.
+            No events assigned to you yet — ask an admin to add you as a producer from that
+            event&apos;s Staff tab.
           </p>
         )}
       </div>

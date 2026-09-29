@@ -29,7 +29,9 @@ export async function createSponsor(formData: FormData) {
   });
   if (error) {
     if (error.message.includes("sponsors_category_exclusive_uidx")) {
-      throw new Error(`Another active sponsor already holds exclusive category "${category}" for this event.`);
+      throw new Error(
+        `Another active sponsor already holds exclusive category "${category}" for this event.`,
+      );
     }
     throw new Error(error.message);
   }

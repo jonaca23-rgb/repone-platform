@@ -26,7 +26,9 @@ export function LiveEventClient({
         {floors.map((floor) => (
           <FloorNowCompeting key={floor.floorId} floor={floor} />
         ))}
-        {floors.length === 0 && <p className="text-white/50">No floors set up for this event yet.</p>}
+        {floors.length === 0 && (
+          <p className="text-white/50">No floors set up for this event yet.</p>
+        )}
       </section>
 
       <section className="flex flex-col gap-8">
@@ -34,14 +36,20 @@ export function LiveEventClient({
         {divisions.map((division) => (
           <DivisionLeaderboard key={division.id} division={division} />
         ))}
-        {divisions.length === 0 && <p className="text-white/50">No divisions set up for this event yet.</p>}
+        {divisions.length === 0 && (
+          <p className="text-white/50">No divisions set up for this event yet.</p>
+        )}
       </section>
     </div>
   );
 }
 
 function FloorNowCompeting({ floor }: { floor: EventLiveFloor }) {
-  const { state, connected, currentHeat } = useFloorOverlay(floor.floorId, floor.initialBroadcastState, floor.heats);
+  const { state, connected, currentHeat } = useFloorOverlay(
+    floor.floorId,
+    floor.initialBroadcastState,
+    floor.heats,
+  );
   const timer = useLiveTimer({
     status: state?.timer_status ?? "idle",
     direction: state?.timer_direction ?? "count_down",
@@ -71,7 +79,9 @@ function FloorNowCompeting({ floor }: { floor: EventLiveFloor }) {
               {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
               {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
             </p>
-            <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">{currentHeat.division.name}</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
+              {currentHeat.division.name}
+            </p>
             <div className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-3">
               {currentHeat.lanes
                 .filter((l) => l.name)
@@ -96,9 +106,13 @@ function DivisionLeaderboard({ division }: { division: { id: string; name: strin
 
   return (
     <div>
-      <h3 className="mb-2 font-semibold uppercase tracking-wide text-repone-red">{division.name}</h3>
+      <h3 className="mb-2 font-semibold uppercase tracking-wide text-repone-red">
+        {division.name}
+      </h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-white/40">No scored results yet — standings fill in as heats are finished.</p>
+        <p className="text-sm text-white/40">
+          No scored results yet — standings fill in as heats are finished.
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-max border-collapse text-sm">

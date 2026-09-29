@@ -21,10 +21,15 @@ export default async function AthleteDirectoryPage() {
   return (
     <div>
       <h1 className="mb-1 text-2xl font-bold text-white">Athletes</h1>
-      <p className="mb-6 max-w-xl text-sm text-white/60">Everyone else competing with RepOne Platform.</p>
+      <p className="mb-6 max-w-xl text-sm text-white/60">
+        Everyone else competing with RepOne Platform.
+      </p>
 
       <div className="mb-6 flex flex-wrap gap-3">
-        <Link href="/athlete/directory/new" className="control-btn control-btn-red px-5 py-2.5 text-sm">
+        <Link
+          href="/athlete/directory/new"
+          className="control-btn control-btn-red px-5 py-2.5 text-sm"
+        >
           + Add New Athlete
         </Link>
         <Link href="/athlete/messages" className="control-btn px-5 py-2.5 text-sm">

@@ -15,7 +15,9 @@ export function AthleteDirectoryList({ athletes }: { athletes: DirectoryAthlete[
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return athletes;
-    return athletes.filter((a) => `${a.firstName} ${a.lastName} ${a.affiliate ?? ""}`.toLowerCase().includes(q));
+    return athletes.filter((a) =>
+      `${a.firstName} ${a.lastName} ${a.affiliate ?? ""}`.toLowerCase().includes(q),
+    );
   }, [athletes, query]);
 
   return (
@@ -37,7 +39,11 @@ export function AthleteDirectoryList({ athletes }: { athletes: DirectoryAthlete[
           >
             {a.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset
-              <img src={a.photoUrl} alt="" className="h-12 w-12 rounded-full object-cover object-top" />
+              <img
+                src={a.photoUrl}
+                alt=""
+                className="h-12 w-12 rounded-full object-cover object-top"
+              />
             ) : (
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/40 text-xs text-white/40">
                 No photo
@@ -52,7 +58,9 @@ export function AthleteDirectoryList({ athletes }: { athletes: DirectoryAthlete[
           </Link>
         ))}
         {filtered.length === 0 && (
-          <p className="text-white/50">{athletes.length === 0 ? "No other athletes yet." : "No athletes match your search."}</p>
+          <p className="text-white/50">
+            {athletes.length === 0 ? "No other athletes yet." : "No athletes match your search."}
+          </p>
         )}
       </div>
     </div>

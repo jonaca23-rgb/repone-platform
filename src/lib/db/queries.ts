@@ -13,9 +13,21 @@ export interface FloorHeat {
   // created_at drives the WOD running order (see lib/scoring/divisionOrder.ts)
   // — it's the only signal for "which WOD was entered first," since a WOD's
   // name (unlike a division's) carries no ordering information.
-  wod: { id: string; name: string; description: string | null; scoring_type: string; time_cap_seconds: number | null; created_at: string };
+  wod: {
+    id: string;
+    name: string;
+    description: string | null;
+    scoring_type: string;
+    time_cap_seconds: number | null;
+    created_at: string;
+  };
   division: { id: string; name: string };
-  lanes: Array<{ laneNumber: number; athleteId: string | null; name: string | null; affiliate: string | null }>;
+  lanes: Array<{
+    laneNumber: number;
+    athleteId: string | null;
+    name: string | null;
+    affiliate: string | null;
+  }>;
 }
 
 // Shapes matching the actual runtime rows PostgREST returns for these selects.
@@ -68,7 +80,7 @@ export async function getFloorContext(floorId: string) {
   const { data: heatsRaw } = await supabase
     .from("heats")
     .select(
-      "id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(lane_number, athlete_id, athletes(first_name, last_name, affiliate))"
+      "id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(lane_number, athlete_id, athletes(first_name, last_name, affiliate))",
     )
     .eq("floor_id", floorId);
   const heats = (heatsRaw ?? []) as unknown as RawHeatRow[];
@@ -100,8 +112,8 @@ export async function getFloorContext(floorId: string) {
     .sort((a, b) =>
       compareHeatsForRunningOrder(
         { wodCreatedAt: a.wod.created_at, divisionName: a.division.name, heatNumber: a.heatNumber },
-        { wodCreatedAt: b.wod.created_at, divisionName: b.division.name, heatNumber: b.heatNumber }
-      )
+        { wodCreatedAt: b.wod.created_at, divisionName: b.division.name, heatNumber: b.heatNumber },
+      ),
     );
 
   return { floorId, eventId, eventName, heats: floorHeats };
@@ -138,7 +150,11 @@ export interface EventLiveContext {
 export async function getEventLiveContext(eventId: string): Promise<EventLiveContext | null> {
   const supabase = await createClient();
 
-  const { data: event } = await supabase.from("events").select("id, name, status, circuit_id").eq("id", eventId).single();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, name, status, circuit_id")
+    .eq("id", eventId)
+    .single();
   if (!event) return null;
 
   const { data: circuit } = event.circuit_id
@@ -150,7 +166,11 @@ export async function getEventLiveContext(eventId: string): Promise<EventLiveCon
   const venueNameById = new Map((venues ?? []).map((v) => [v.id, v.name]));
 
   const { data: floorsRaw } = venueIds.length
-    ? await supabase.from("floors").select("id, name, venue_id").in("venue_id", venueIds).order("sort_order")
+    ? await supabase
+        .from("floors")
+        .select("id, name, venue_id")
+        .in("venue_id", venueIds)
+        .order("sort_order")
     : { data: [] as { id: string; name: string; venue_id: string }[] };
   const floors = floorsRaw ?? [];
 
@@ -159,13 +179,18 @@ export async function getEventLiveContext(eventId: string): Promise<EventLiveCon
   // name-based running order as heats below (see lib/scoring/divisionOrder.ts)
   // instead, so the division tabs on the public Live Leaderboard match the
   // same Scale-then-Rx, Male-then-Female order as the heat listings.
-  const { data: divisionsRaw } = await supabase.from("divisions").select("id, name").eq("event_id", eventId);
-  const divisions = (divisionsRaw ?? []).slice().sort((a, b) => compareDivisionNames(a.name, b.name));
+  const { data: divisionsRaw } = await supabase
+    .from("divisions")
+    .select("id, name")
+    .eq("event_id", eventId);
+  const divisions = (divisionsRaw ?? [])
+    .slice()
+    .sort((a, b) => compareDivisionNames(a.name, b.name));
 
   const { data: heatsRaw } = await supabase
     .from("heats")
     .select(
-      "id, floor_id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(lane_number, athlete_id, athletes(first_name, last_name, affiliate))"
+      "id, floor_id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(lane_number, athlete_id, athletes(first_name, last_name, affiliate))",
     )
     .eq("event_id", eventId);
   const heatsAll = (heatsRaw ?? []) as unknown as (RawHeatRow & { floor_id: string })[];
@@ -209,14 +234,20 @@ export async function getEventLiveContext(eventId: string): Promise<EventLiveCon
       floorId: f.id,
       floorName: f.name,
       venueName: venueNameById.get(f.venue_id) ?? "",
-      heats: (heatsByFloor.get(f.id) ?? [])
-        .slice()
-        .sort((a, b) =>
-          compareHeatsForRunningOrder(
-            { wodCreatedAt: a.wod.created_at, divisionName: a.division.name, heatNumber: a.heatNumber },
-            { wodCreatedAt: b.wod.created_at, divisionName: b.division.name, heatNumber: b.heatNumber }
-          )
+      heats: (heatsByFloor.get(f.id) ?? []).slice().sort((a, b) =>
+        compareHeatsForRunningOrder(
+          {
+            wodCreatedAt: a.wod.created_at,
+            divisionName: a.division.name,
+            heatNumber: a.heatNumber,
+          },
+          {
+            wodCreatedAt: b.wod.created_at,
+            divisionName: b.division.name,
+            heatNumber: b.heatNumber,
+          },
         ),
+      ),
       initialBroadcastState: broadcastByFloor.get(f.id) ?? null,
     })),
     divisions,

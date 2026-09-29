@@ -39,7 +39,13 @@ export type CompetitorEntryType = "individual" | "pair" | "team" | "custom";
 export type PaymentAccountStatus = "not_connected" | "pending" | "connected";
 export type PaymentStatus = "unpaid" | "paid" | "waived" | "refunded";
 export type PaymentMethodType = "unpaid" | "cash" | "manual_other" | "stripe";
-export type ExpenseCategory = "venue" | "equipment" | "staff_judges" | "prizes" | "marketing" | "other";
+export type ExpenseCategory =
+  | "venue"
+  | "equipment"
+  | "staff_judges"
+  | "prizes"
+  | "marketing"
+  | "other";
 export type LiftNameDb =
   | "deadlift"
   | "bench_press"
@@ -85,7 +91,13 @@ export interface Database {
         };
       };
       venues: {
-        Row: { id: string; event_id: string; name: string; address: string | null; created_at: string };
+        Row: {
+          id: string;
+          event_id: string;
+          name: string;
+          address: string | null;
+          created_at: string;
+        };
       };
       floors: {
         Row: { id: string; venue_id: string; name: string; sort_order: number; created_at: string };

@@ -17,14 +17,20 @@ export default async function LiveEventsPage() {
     .in("status", ["scheduled", "live"])
     .order("starts_on", { ascending: true, nullsFirst: false });
 
-  const circuitIds = Array.from(new Set((events ?? []).map((e) => e.circuit_id).filter((id): id is string => !!id)));
+  const circuitIds = Array.from(
+    new Set((events ?? []).map((e) => e.circuit_id).filter((id): id is string => !!id)),
+  );
   const { data: circuits } = circuitIds.length
     ? await supabase.from("circuits").select("id, name").in("id", circuitIds)
     : { data: [] as { id: string; name: string }[] };
   const circuitNameById = new Map((circuits ?? []).map((c) => [c.id, c.name]));
 
   const fmt = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   const dateRange = (startsOn: string | null, endsOn: string | null) => {
     if (!startsOn) return "Date TBD";
     if (!endsOn || endsOn === startsOn) return fmt(startsOn);
@@ -69,7 +75,9 @@ export default async function LiveEventsPage() {
               </p>
               <p className="mt-0.5 text-lg font-bold">{e.name}</p>
               {e.circuit_id && (
-                <p className="mt-1 text-sm text-white/50">Part of {circuitNameById.get(e.circuit_id) ?? "a circuit"}</p>
+                <p className="mt-1 text-sm text-white/50">
+                  Part of {circuitNameById.get(e.circuit_id) ?? "a circuit"}
+                </p>
               )}
             </div>
           </Link>

@@ -13,7 +13,11 @@ import { getDisplayNamesByUserId } from "@/lib/auth/eventStaffCandidates";
 // as a commentator (see lib/auth/eventStaffCandidates.ts), a profiles-only
 // query here would show "Unnamed staff account" for any commentator who is
 // actually an athlete.
-export default async function ProducerEventCommentaryPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ProducerEventCommentaryPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const supabase = await createClient();
 
@@ -36,8 +40,13 @@ export default async function ProducerEventCommentaryPage({ params }: { params: 
       </Link>
       <div className="flex flex-col gap-1.5">
         {(assignments ?? []).map((a) => (
-          <div key={a.id} className="flex items-center justify-between rounded-lg bg-repone-gray px-4 py-2.5">
-            <span className="font-semibold text-white">{nameById.get(a.commentator_user_id) ?? "Unknown account"}</span>
+          <div
+            key={a.id}
+            className="flex items-center justify-between rounded-lg bg-repone-gray px-4 py-2.5"
+          >
+            <span className="font-semibold text-white">
+              {nameById.get(a.commentator_user_id) ?? "Unknown account"}
+            </span>
             {a.role_label && (
               <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-repone-red">
                 {a.role_label.replace(/_/g, " ")}

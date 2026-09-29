@@ -4,7 +4,11 @@ import { getSessionContext } from "@/lib/auth/session";
 import { getThread, markThreadRead, resolveCounterparts } from "@/lib/db/messages";
 import { sendMessage } from "@/lib/actions/messages";
 
-export default async function AdminThreadPage({ params }: { params: Promise<{ counterpartId: string }> }) {
+export default async function AdminThreadPage({
+  params,
+}: {
+  params: Promise<{ counterpartId: string }>;
+}) {
   const { counterpartId } = await params;
   const ctx = await getSessionContext();
   if (!ctx) redirect("/login");
@@ -24,7 +28,9 @@ export default async function AdminThreadPage({ params }: { params: Promise<{ co
         </Link>
       </p>
       <h1 className="mb-1 text-xl font-bold">{counterpart.name}</h1>
-      {counterpart.sublabel ? <p className="mb-6 text-sm text-black/50">{counterpart.sublabel}</p> : null}
+      {counterpart.sublabel ? (
+        <p className="mb-6 text-sm text-black/50">{counterpart.sublabel}</p>
+      ) : null}
 
       <div className="mb-6 flex flex-col gap-3">
         {thread.map((m) => (
@@ -33,7 +39,9 @@ export default async function AdminThreadPage({ params }: { params: Promise<{ co
             className={`max-w-md rounded-lg px-4 py-2 ${m.fromMe ? "ml-auto bg-repone-red text-white" : "border border-black/10 bg-black/5"}`}
           >
             <p className="whitespace-pre-wrap text-sm">{m.body}</p>
-            <p className={`mt-1 text-xs ${m.fromMe ? "opacity-70" : "text-black/40"}`}>{new Date(m.createdAt).toLocaleString()}</p>
+            <p className={`mt-1 text-xs ${m.fromMe ? "opacity-70" : "text-black/40"}`}>
+              {new Date(m.createdAt).toLocaleString()}
+            </p>
           </div>
         ))}
         {thread.length === 0 && <p className="text-black/50">No messages yet — say hello.</p>}

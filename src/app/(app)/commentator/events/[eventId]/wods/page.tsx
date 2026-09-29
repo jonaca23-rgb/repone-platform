@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { getEventLiveContext } from "@/lib/db/queries";
 
-export default async function CommentatorEventWodsPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function CommentatorEventWodsPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();
@@ -10,7 +14,7 @@ export default async function CommentatorEventWodsPage({ params }: { params: Pro
   // dedupe by id so it's listed once.
   const wodById = new Map(context.floors.flatMap((f) => f.heats.map((h) => [h.wod.id, h.wod])));
   const wods = Array.from(wodById.values()).sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
 
   return (

@@ -5,7 +5,11 @@ import { ProgramOverlayClient } from "./ProgramOverlayClient";
 
 // The primary "one browser source does it all" overlay: shows whichever
 // graphic the Production Dashboard's [ SHOW ... ] buttons last selected.
-export default async function ProgramOverlayPage({ params }: { params: Promise<{ floorId: string }> }) {
+export default async function ProgramOverlayPage({
+  params,
+}: {
+  params: Promise<{ floorId: string }>;
+}) {
   const { floorId } = await params;
   const context = await getFloorContext(floorId);
   if (!context) notFound();

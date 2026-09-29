@@ -35,7 +35,7 @@ const ASSIGNMENT_USER_COLUMN: Record<EventStaffRole, string> = {
 export async function isAssignedToEvent(
   ctx: SessionContext | null,
   eventId: string,
-  role: EventStaffRole
+  role: EventStaffRole,
 ): Promise<boolean> {
   if (!ctx) return false;
   if (hasAnyRole(ctx, ["admin"])) return true;
@@ -65,7 +65,10 @@ export interface AssignedEvent {
  * event in the org for an admin (same as today's floor pickers), or just
  * the events this specific user holds an active assignment for otherwise.
  */
-export async function getAssignedEvents(ctx: SessionContext | null, role: EventStaffRole): Promise<AssignedEvent[]> {
+export async function getAssignedEvents(
+  ctx: SessionContext | null,
+  role: EventStaffRole,
+): Promise<AssignedEvent[]> {
   if (!ctx) return [];
   const supabase = await createClient();
 

@@ -24,7 +24,12 @@ export interface DashboardHeat {
   heatCount: number | null;
   wod: { id: string; name: string; scoring_type: string; time_cap_seconds: number | null };
   division: { id: string; name: string };
-  lanes: Array<{ laneNumber: number; athleteId: string | null; name: string | null; affiliate: string | null }>;
+  lanes: Array<{
+    laneNumber: number;
+    athleteId: string | null;
+    name: string | null;
+    affiliate: string | null;
+  }>;
 }
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
@@ -59,7 +64,7 @@ export function DashboardClient({
 
   const currentIndex = useMemo(
     () => heats.findIndex((h) => h.id === state?.current_heat_id),
-    [heats, state?.current_heat_id]
+    [heats, state?.current_heat_id],
   );
   // A fresh floor's broadcast_state.current_heat_id starts out null — nothing
   // has explicitly selected a heat yet. Treat heat #1 as implicitly current
@@ -109,9 +114,14 @@ export function DashboardClient({
             {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
             {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
           </p>
-          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">{currentHeat.division.name}</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
+            {currentHeat.division.name}
+          </p>
         </div>
-        <span className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`} title={connected ? "Live" : "Reconnecting…"} />
+        <span
+          className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
+          title={connected ? "Live" : "Reconnecting…"}
+        />
       </div>
 
       {/* Heat nav */}
@@ -135,7 +145,10 @@ export function DashboardClient({
       {/* Lanes */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {currentHeat.lanes.map((lane) => (
-          <div key={lane.laneNumber} className="flex items-center gap-3 rounded-lg bg-repone-gray px-4 py-3">
+          <div
+            key={lane.laneNumber}
+            className="flex items-center gap-3 rounded-lg bg-repone-gray px-4 py-3"
+          >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-repone-red font-bold">
               {lane.laneNumber}
             </span>
@@ -171,9 +184,11 @@ export function DashboardClient({
                 startTimer(
                   floorId,
                   countDirection,
-                  countDirection === "count_down" ? currentHeat.wod.time_cap_seconds ?? 600 : currentHeat.wod.time_cap_seconds ?? 0,
-                  eventId
-                )
+                  countDirection === "count_down"
+                    ? (currentHeat.wod.time_cap_seconds ?? 600)
+                    : (currentHeat.wod.time_cap_seconds ?? 0),
+                  eventId,
+                ),
               )
             }
           >
@@ -181,7 +196,13 @@ export function DashboardClient({
           </button>
           <button
             className="control-btn"
-            onClick={() => go(() => (state?.timer_status === "paused" ? resumeTimer(floorId, eventId) : pauseTimer(floorId, eventId)))}
+            onClick={() =>
+              go(() =>
+                state?.timer_status === "paused"
+                  ? resumeTimer(floorId, eventId)
+                  : pauseTimer(floorId, eventId),
+              )
+            }
           >
             {state?.timer_status === "paused" ? "Resume" : "Pause"}
           </button>
@@ -189,10 +210,16 @@ export function DashboardClient({
             Reset
           </button>
           <div className="flex gap-2">
-            <button className="control-btn flex-1" onClick={() => go(() => adjustTimer(floorId, -10, eventId))}>
+            <button
+              className="control-btn flex-1"
+              onClick={() => go(() => adjustTimer(floorId, -10, eventId))}
+            >
               −10s
             </button>
-            <button className="control-btn flex-1" onClick={() => go(() => adjustTimer(floorId, 10, eventId))}>
+            <button
+              className="control-btn flex-1"
+              onClick={() => go(() => adjustTimer(floorId, 10, eventId))}
+            >
               +10s
             </button>
           </div>
@@ -212,7 +239,10 @@ export function DashboardClient({
               Show {g.label}
             </button>
           ))}
-          <button className="control-btn control-btn-outline border-white/30 !bg-transparent !text-white col-span-2 sm:col-span-3" onClick={() => go(() => clearGraphics(floorId, eventId))}>
+          <button
+            className="control-btn control-btn-outline border-white/30 !bg-transparent !text-white col-span-2 sm:col-span-3"
+            onClick={() => go(() => clearGraphics(floorId, eventId))}
+          >
             Clear Graphics
           </button>
         </div>
@@ -220,7 +250,9 @@ export function DashboardClient({
 
       {/* Lower third */}
       <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">Lower Third</p>
+        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">
+          Lower Third
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={lowerThirdAthlete}
@@ -243,7 +275,10 @@ export function DashboardClient({
           >
             Show
           </button>
-          <button className="control-btn w-fit px-6" onClick={() => go(() => setLowerThird(floorId, null, eventId))}>
+          <button
+            className="control-btn w-fit px-6"
+            onClick={() => go(() => setLowerThird(floorId, null, eventId))}
+          >
             Hide
           </button>
         </div>
@@ -258,13 +293,21 @@ export function DashboardClient({
               key={s.id}
               className={`control-btn ${state?.active_sponsor_id === s.id ? "control-btn-red" : ""}`}
               onClick={() =>
-                go(() => setActiveSponsor(floorId, state?.active_sponsor_id === s.id ? null : s.id, eventId))
+                go(() =>
+                  setActiveSponsor(
+                    floorId,
+                    state?.active_sponsor_id === s.id ? null : s.id,
+                    eventId,
+                  ),
+                )
               }
             >
               {s.business_name}
             </button>
           ))}
-          {sponsors.length === 0 && <p className="text-sm text-white/40">No active sponsors for this event.</p>}
+          {sponsors.length === 0 && (
+            <p className="text-sm text-white/40">No active sponsors for this event.</p>
+          )}
         </div>
       </div>
     </div>

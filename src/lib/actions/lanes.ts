@@ -16,7 +16,7 @@ export async function assignLane(
   heatId: string,
   laneId: string,
   _prevState: { error: string },
-  formData: FormData
+  formData: FormData,
 ): Promise<{ error: string }> {
   const athlete_id = String(formData.get("athlete_id") ?? "") || null;
 
@@ -52,11 +52,13 @@ export async function assignLane(
         .eq("heats.wod_id", thisHeatTyped.wod_id)
         .eq("heats.division_id", thisHeatTyped.division_id)
         .neq("id", laneId);
-      const conflict = (conflictLanes as unknown as Array<{
-        lane_number: number;
-        heat_id: string;
-        heats: { heat_number: number };
-      }> | null)?.[0];
+      const conflict = (
+        conflictLanes as unknown as Array<{
+          lane_number: number;
+          heat_id: string;
+          heats: { heat_number: number };
+        }> | null
+      )?.[0];
 
       if (conflict) {
         const categoryName = thisHeatTyped.divisions?.name ?? "this division";
@@ -76,7 +78,9 @@ export async function assignLane(
     // 0013_prevent_cross_heat_duplicate_lane_assignment.sql catching a race
     // the check above missed.
     if (error.code === "23505") {
-      return { error: "This athlete is already registered in another lane/heat for this category." };
+      return {
+        error: "This athlete is already registered in another lane/heat for this category.",
+      };
     }
     return { error: error.message };
   }

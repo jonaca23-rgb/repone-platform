@@ -13,12 +13,21 @@ export default function LiveLayout({ children }: { children: React.ReactNode }) 
           {/* Public visitors have no admin session, so "Home" here means the
               site's public landing page ("/"), not /admin like the
               authenticated sections' Home buttons. */}
-          <Link href="/" className="text-xs font-bold uppercase tracking-wide text-white/50 hover:text-white">
+          <Link
+            href="/"
+            className="text-xs font-bold uppercase tracking-wide text-white/50 hover:text-white"
+          >
             🏠 Home
           </Link>
           <Link href="/live" className="shrink-0 hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
-            <img src="/repone-live-logo.png" alt="RepOne Live" className="h-9 w-auto sm:h-10" width={375} height={240} />
+            <img
+              src="/repone-live-logo.png"
+              alt="RepOne Live"
+              className="h-9 w-auto sm:h-10"
+              width={375}
+              height={240}
+            />
           </Link>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -30,7 +39,10 @@ export default function LiveLayout({ children }: { children: React.ReactNode }) 
           >
             ▶ Watch Live on YouTube
           </a>
-          <Link href="/login" className="text-xs font-bold uppercase tracking-wide text-white/50 hover:text-white">
+          <Link
+            href="/login"
+            className="text-xs font-bold uppercase tracking-wide text-white/50 hover:text-white"
+          >
             Organizer Sign In
           </Link>
         </div>

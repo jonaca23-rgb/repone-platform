@@ -7,8 +7,8 @@ export default function CommentatorEventNotesPage() {
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
       <p className="text-white/50">
-        Commentator notes (storylines, interview prompts, sponsor talking points) are planned for a follow-up — not
-        built yet.
+        Commentator notes (storylines, interview prompts, sponsor talking points) are planned for a
+        follow-up — not built yet.
       </p>
     </div>
   );

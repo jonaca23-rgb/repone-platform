@@ -11,7 +11,7 @@ async function logAction(
   eventId: string | null,
   floorId: string,
   action: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ) {
   const ctx = await getSessionContext();
   await supabase.from("operator_actions").insert({
@@ -35,24 +35,44 @@ export async function setCurrentHeat(floorId: string, heatId: string, eventId: s
   revalidatePath("/dashboard");
 }
 
-export async function setActiveGraphic(floorId: string, graphic: ActiveGraphic, eventId: string | null) {
+export async function setActiveGraphic(
+  floorId: string,
+  graphic: ActiveGraphic,
+  eventId: string | null,
+) {
   const supabase = await createClient();
-  const { error } = await supabase.from("broadcast_state").update({ active_graphic: graphic }).eq("floor_id", floorId);
+  const { error } = await supabase
+    .from("broadcast_state")
+    .update({ active_graphic: graphic })
+    .eq("floor_id", floorId);
   if (error) throw new Error(error.message);
   await logAction(supabase, eventId, floorId, "graphic_show", { graphic });
 }
 
-export async function setLowerThird(floorId: string, athleteId: string | null, eventId: string | null) {
+export async function setLowerThird(
+  floorId: string,
+  athleteId: string | null,
+  eventId: string | null,
+) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("broadcast_state")
-    .update({ lower_third_athlete_id: athleteId, active_graphic: athleteId ? "lower_third" : "none" })
+    .update({
+      lower_third_athlete_id: athleteId,
+      active_graphic: athleteId ? "lower_third" : "none",
+    })
     .eq("floor_id", floorId);
   if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, athleteId ? "lower_third_show" : "lower_third_hide", { athleteId });
+  await logAction(supabase, eventId, floorId, athleteId ? "lower_third_show" : "lower_third_hide", {
+    athleteId,
+  });
 }
 
-export async function setActiveSponsor(floorId: string, sponsorId: string | null, eventId: string | null) {
+export async function setActiveSponsor(
+  floorId: string,
+  sponsorId: string | null,
+  eventId: string | null,
+) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("broadcast_state")
@@ -81,7 +101,7 @@ export async function startTimer(
   floorId: string,
   direction: TimerDirection,
   durationSeconds: number,
-  eventId: string | null
+  eventId: string | null,
 ) {
   const supabase = await createClient();
   const nowIso = new Date().toISOString();
@@ -104,7 +124,9 @@ export async function pauseTimer(floorId: string, eventId: string | null) {
   const supabase = await createClient();
   const { data: state } = await supabase
     .from("broadcast_state")
-    .select("timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time")
+    .select(
+      "timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time",
+    )
     .eq("floor_id", floorId)
     .single();
   if (!state || state.timer_status !== "running") return;
@@ -117,7 +139,7 @@ export async function pauseTimer(floorId: string, eventId: string | null) {
       elapsedAtAnchor: state.timer_elapsed_at_anchor,
       anchorTimeMs: state.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
     },
-    Date.now()
+    Date.now(),
   );
 
   await supabase
@@ -151,7 +173,9 @@ export async function adjustTimer(floorId: string, deltaSeconds: number, eventId
   const supabase = await createClient();
   const { data: state } = await supabase
     .from("broadcast_state")
-    .select("timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time")
+    .select(
+      "timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time",
+    )
     .eq("floor_id", floorId)
     .single();
   if (!state) return;
@@ -165,7 +189,7 @@ export async function adjustTimer(floorId: string, deltaSeconds: number, eventId
       elapsedAtAnchor: state.timer_elapsed_at_anchor,
       anchorTimeMs: state.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
     },
-    nowMs
+    nowMs,
   );
 
   // For count_down, "+" adds time on the clock (less elapsed); for count_up, "+" adds elapsed.

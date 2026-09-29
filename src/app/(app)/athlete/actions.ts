@@ -15,7 +15,10 @@ import { friendlyAthleteWriteError, nullIfBlank, requireEmail } from "@/lib/db/a
  * happens one step later in completeAthleteOnboarding, once we know there's
  * a session to attach it to (see the comment there for why).
  */
-export async function athleteSignUp(_prevState: { error: string; message?: string }, formData: FormData) {
+export async function athleteSignUp(
+  _prevState: { error: string; message?: string },
+  formData: FormData,
+) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Email and password are required." };
@@ -70,7 +73,8 @@ export async function athleteSignIn(_prevState: { error: string }, formData: For
 export async function athleteSignInWithGoogle() {
   const hdrs = await headers();
   const host = hdrs.get("host") ?? "localhost:3000";
-  const protocol = hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const protocol =
+    hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({

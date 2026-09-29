@@ -39,7 +39,9 @@ export function ProgramOverlayClient({
     elapsedAtAnchor: state?.timer_elapsed_at_anchor ?? 0,
     anchorTimeMs: state?.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
   });
-  const standings = useStandings(state?.active_graphic === "leaderboard" ? currentHeat?.division.id ?? null : null);
+  const standings = useStandings(
+    state?.active_graphic === "leaderboard" ? (currentHeat?.division.id ?? null) : null,
+  );
   const lowerThirdAthlete = useAthleteLookup(state?.lower_third_athlete_id ?? null, eventId);
   const activeSponsor = sponsors.find((s) => s.id === state?.active_sponsor_id) ?? null;
 
@@ -59,7 +61,11 @@ export function ProgramOverlayClient({
       {graphic === "lanes" && currentHeat && (
         <LanesBoard
           fullScreen
-          lanes={currentHeat.lanes.map((l) => ({ laneNumber: l.laneNumber, name: l.name, affiliate: l.affiliate }))}
+          lanes={currentHeat.lanes.map((l) => ({
+            laneNumber: l.laneNumber,
+            name: l.name,
+            affiliate: l.affiliate,
+          }))}
         />
       )}
       {graphic === "wod" && currentHeat && (
@@ -70,12 +76,18 @@ export function ProgramOverlayClient({
           timeCapSeconds={currentHeat.wod.time_cap_seconds}
         />
       )}
-      {graphic === "timer" && <TimerDisplay fullScreen seconds={timer.displaySeconds} atLimit={timer.atLimit} />}
+      {graphic === "timer" && (
+        <TimerDisplay fullScreen seconds={timer.displaySeconds} atLimit={timer.atLimit} />
+      )}
       {graphic === "leaderboard" && currentHeat && (
         <div className="flex h-screen w-screen items-center justify-center bg-repone-black">
           <Leaderboard
             title={`${currentHeat.division.name} — Overall`}
-            rows={standings.map((s) => ({ placement: s.placement, name: s.name, value: `${s.points ?? "—"} pts` }))}
+            rows={standings.map((s) => ({
+              placement: s.placement,
+              name: s.name,
+              value: `${s.points ?? "—"} pts`,
+            }))}
           />
         </div>
       )}

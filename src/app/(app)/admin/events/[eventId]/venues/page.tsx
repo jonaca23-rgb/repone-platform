@@ -7,7 +7,10 @@ export default async function VenuesPage({ params }: { params: Promise<{ eventId
   const supabase = await createClient();
   const [{ data: event }, { data: venues }] = await Promise.all([
     supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
-    supabase.from("venues").select("id, name, floors(id, name, sort_order)").eq("event_id", eventId),
+    supabase
+      .from("venues")
+      .select("id, name, floors(id, name, sort_order)")
+      .eq("event_id", eventId),
   ]);
 
   return (
@@ -31,7 +34,10 @@ export default async function VenuesPage({ params }: { params: Promise<{ eventId
               {(v.floors ?? [])
                 .sort((a, b) => a.sort_order - b.sort_order)
                 .map((f) => (
-                  <span key={f.id} className="rounded-full bg-repone-black px-4 py-1.5 text-sm font-semibold text-white">
+                  <span
+                    key={f.id}
+                    className="rounded-full bg-repone-black px-4 py-1.5 text-sm font-semibold text-white"
+                  >
                     {f.name}
                   </span>
                 ))}
@@ -39,9 +45,16 @@ export default async function VenuesPage({ params }: { params: Promise<{ eventId
             <form action={addFloor.bind(null, eventId, v.id)} className="flex items-end gap-3">
               <label className="flex flex-col gap-1 text-sm">
                 New floor name
-                <input name="name" required placeholder="Floor B" className="rounded-md border border-black/20 px-3 py-2" />
+                <input
+                  name="name"
+                  required
+                  placeholder="Floor B"
+                  className="rounded-md border border-black/20 px-3 py-2"
+                />
               </label>
-              <button className="control-btn control-btn-outline px-5 py-2.5 text-sm">Add Floor</button>
+              <button className="control-btn control-btn-outline px-5 py-2.5 text-sm">
+                Add Floor
+              </button>
             </form>
           </div>
         ))}

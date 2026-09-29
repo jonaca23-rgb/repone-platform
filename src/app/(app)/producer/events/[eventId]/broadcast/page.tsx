@@ -13,7 +13,11 @@ import { redirect } from "next/navigation";
 // says what, if anything, Broadcast should show that Production doesn't
 // (e.g. a stripped-down graphics-only trigger panel with no heat/lane
 // chrome) — flagged in architecture/rbac-audit-and-plan.md.
-export default async function ProducerEventBroadcastPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ProducerEventBroadcastPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   redirect(`/producer/events/${eventId}/production`);
 }

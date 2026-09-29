@@ -14,7 +14,11 @@ interface LikeInfo {
   likedByMe: boolean;
 }
 
-async function getLikesFor(targetType: LikeTargetType, targetIds: string[], viewerUserId: string | null): Promise<Map<string, LikeInfo>> {
+async function getLikesFor(
+  targetType: LikeTargetType,
+  targetIds: string[],
+  viewerUserId: string | null,
+): Promise<Map<string, LikeInfo>> {
   const map = new Map<string, LikeInfo>();
   if (targetIds.length === 0) return map;
 
@@ -61,23 +65,46 @@ export interface BenchmarkEntry {
 
 export async function getAthleteLiftsAndBenchmarks(
   athleteId: string,
-  viewerUserId: string | null
+  viewerUserId: string | null,
 ): Promise<{ lifts: LiftEntry[]; benchmarks: BenchmarkEntry[] }> {
   const supabase = await createClient();
   const [{ data: liftRows }, { data: benchmarkRows }] = await Promise.all([
-    supabase.from("athlete_lifts").select("id, lift, weight_lbs, time_seconds").eq("athlete_id", athleteId),
-    supabase.from("athlete_benchmarks").select("id, name, result_display").eq("athlete_id", athleteId).order("name"),
+    supabase
+      .from("athlete_lifts")
+      .select("id, lift, weight_lbs, time_seconds")
+      .eq("athlete_id", athleteId),
+    supabase
+      .from("athlete_benchmarks")
+      .select("id, name, result_display")
+      .eq("athlete_id", athleteId)
+      .order("name"),
   ]);
 
   const [liftLikes, benchmarkLikes] = await Promise.all([
-    getLikesFor("lift", (liftRows ?? []).map((l) => l.id), viewerUserId),
-    getLikesFor("benchmark", (benchmarkRows ?? []).map((b) => b.id), viewerUserId),
+    getLikesFor(
+      "lift",
+      (liftRows ?? []).map((l) => l.id),
+      viewerUserId,
+    ),
+    getLikesFor(
+      "benchmark",
+      (benchmarkRows ?? []).map((b) => b.id),
+      viewerUserId,
+    ),
   ]);
 
   const lifts: LiftEntry[] = (liftRows ?? []).map((l) => {
     const lift = l.lift as LiftName;
-    const valueDisplay = isTimeLift(lift) ? formatClock(l.time_seconds ?? 0) : `${l.weight_lbs} lbs`;
-    return { id: l.id, lift, label: LIFT_LABELS[lift] ?? lift, valueDisplay, like: likeInfoFor(liftLikes, l.id) };
+    const valueDisplay = isTimeLift(lift)
+      ? formatClock(l.time_seconds ?? 0)
+      : `${l.weight_lbs} lbs`;
+    return {
+      id: l.id,
+      lift,
+      label: LIFT_LABELS[lift] ?? lift,
+      valueDisplay,
+      like: likeInfoFor(liftLikes, l.id),
+    };
   });
 
   const benchmarks: BenchmarkEntry[] = (benchmarkRows ?? []).map((b) => ({
@@ -92,7 +119,10 @@ export async function getAthleteLiftsAndBenchmarks(
 
 /** Same shape helper for standings (competition-history) likes — used on the
  * directory profile page alongside getAthleteCompetitionHistory. */
-export async function getStandingLikes(standingIds: string[], viewerUserId: string | null): Promise<Map<string, LikeInfo>> {
+export async function getStandingLikes(
+  standingIds: string[],
+  viewerUserId: string | null,
+): Promise<Map<string, LikeInfo>> {
   return getLikesFor("standing", standingIds, viewerUserId);
 }
 
@@ -114,7 +144,9 @@ export interface CurrentStanding {
  * else, then falls back to their most recently started event. Returns null
  * if they aren't registered anywhere or nothing's been scored yet.
  */
-export async function getAthleteCurrentStanding(athleteId: string): Promise<CurrentStanding | null> {
+export async function getAthleteCurrentStanding(
+  athleteId: string,
+): Promise<CurrentStanding | null> {
   const supabase = await createClient();
   const { data: registrations } = await supabase
     .from("registrations")
@@ -133,7 +165,9 @@ export async function getAthleteCurrentStanding(athleteId: string): Promise<Curr
   const live = withEvents.find((r) => r.events!.status === "live");
   const chosen =
     live ??
-    withEvents.sort((a, b) => (b.events!.starts_on ?? "").localeCompare(a.events!.starts_on ?? ""))[0] ??
+    withEvents.sort((a, b) =>
+      (b.events!.starts_on ?? "").localeCompare(a.events!.starts_on ?? ""),
+    )[0] ??
     null;
   if (!chosen || !chosen.events) return null;
 
@@ -168,7 +202,9 @@ export interface ActivityItem {
   description: string;
 }
 
-async function describeLikeTargets(likes: { id: string; target_type: LikeTargetType; target_id: string }[]): Promise<Map<string, string>> {
+async function describeLikeTargets(
+  likes: { id: string; target_type: LikeTargetType; target_id: string }[],
+): Promise<Map<string, string>> {
   const supabase = await createClient();
   const descriptions = new Map<string, string>();
 
@@ -177,7 +213,9 @@ async function describeLikeTargets(likes: { id: string; target_type: LikeTargetT
   const standingIds = likes.filter((l) => l.target_type === "standing").map((l) => l.target_id);
 
   const [{ data: lifts }, { data: benchmarks }, { data: standings }] = await Promise.all([
-    liftIds.length ? supabase.from("athlete_lifts").select("id, lift").in("id", liftIds) : Promise.resolve({ data: [] as { id: string; lift: string }[] }),
+    liftIds.length
+      ? supabase.from("athlete_lifts").select("id, lift").in("id", liftIds)
+      : Promise.resolve({ data: [] as { id: string; lift: string }[] }),
     benchmarkIds.length
       ? supabase.from("athlete_benchmarks").select("id, name").in("id", benchmarkIds)
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
@@ -198,20 +236,32 @@ async function describeLikeTargets(likes: { id: string; target_type: LikeTargetT
     const wodIds = [...new Set((standings ?? []).flatMap((s) => (s.wod_id ? [s.wod_id] : [])))];
     const [{ data: events }, { data: wods }] = await Promise.all([
       supabase.from("events").select("id, name").in("id", eventIds),
-      wodIds.length ? supabase.from("wods").select("id, name").in("id", wodIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      wodIds.length
+        ? supabase.from("wods").select("id, name").in("id", wodIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     ]);
     const eventById = new Map((events ?? []).map((e) => [e.id, e.name]));
     const wodById = new Map((wods ?? []).map((w) => [w.id, w.name]));
     for (const s of standings ?? []) {
       const eventName = eventById.get(s.event_id) ?? "an event";
-      descriptions.set(s.id, s.wod_id ? `your ${wodById.get(s.wod_id) ?? "WOD"} result at ${eventName}` : `your overall placement at ${eventName}`);
+      descriptions.set(
+        s.id,
+        s.wod_id
+          ? `your ${wodById.get(s.wod_id) ?? "WOD"} result at ${eventName}`
+          : `your overall placement at ${eventName}`,
+      );
     }
   }
 
   return descriptions;
 }
 
-export async function getRecentActivity(athleteId: string, userId: string, organizationId: string, limit = 10): Promise<ActivityItem[]> {
+export async function getRecentActivity(
+  athleteId: string,
+  userId: string,
+  organizationId: string,
+  limit = 10,
+): Promise<ActivityItem[]> {
   const supabase = await createClient();
 
   const [{ data: likeRows }, { data: messageRows }] = await Promise.all([
@@ -232,7 +282,9 @@ export async function getRecentActivity(athleteId: string, userId: string, organ
   const likes = likeRows ?? [];
   const messages = messageRows ?? [];
 
-  const actorIds = [...new Set([...likes.map((l) => l.liker_user_id), ...messages.map((m) => m.sender_id)])];
+  const actorIds = [
+    ...new Set([...likes.map((l) => l.liker_user_id), ...messages.map((m) => m.sender_id)]),
+  ];
   const [actorLabels, targetDescriptions] = await Promise.all([
     resolveCounterparts(actorIds, organizationId),
     describeLikeTargets(likes),
@@ -254,5 +306,7 @@ export async function getRecentActivity(athleteId: string, userId: string, organ
     description: m.body,
   }));
 
-  return [...likeItems, ...messageItems].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  return [...likeItems, ...messageItems]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
 }

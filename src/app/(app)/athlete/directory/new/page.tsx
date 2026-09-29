@@ -25,12 +25,15 @@ export default async function AddAthletePage() {
 
       <h1 className="mb-1 text-2xl font-bold text-white">Add New Athlete</h1>
       <p className="mb-6 text-sm text-white/60">
-        Add someone to the roster. They can create their own RepOne account later — using this same email — to log
-        in and manage their own profile. An email is required for every athlete, and the same email or phone can&apos;t
-        be added twice.
+        Add someone to the roster. They can create their own RepOne account later — using this same
+        email — to log in and manage their own profile. An email is required for every athlete, and
+        the same email or phone can&apos;t be added twice.
       </p>
 
-      <form action={createAthleteFromPortal} className="flex flex-col gap-4 rounded-lg border border-white/10 bg-repone-gray p-5">
+      <form
+        action={createAthleteFromPortal}
+        className="flex flex-col gap-4 rounded-lg border border-white/10 bg-repone-gray p-5"
+      >
         <label className="flex flex-col gap-1 text-sm text-white/70">
           First name
           <input

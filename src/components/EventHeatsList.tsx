@@ -21,7 +21,9 @@ export function EventHeatsList({ floors }: { floors: EventLiveFloor[] }) {
                 <div
                   key={h.id}
                   className={`flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-2.5 ${
-                    h.id === liveHeatId ? "bg-repone-red/20 ring-1 ring-repone-red" : "bg-repone-gray"
+                    h.id === liveHeatId
+                      ? "bg-repone-red/20 ring-1 ring-repone-red"
+                      : "bg-repone-gray"
                   }`}
                 >
                   <div>
@@ -32,12 +34,16 @@ export function EventHeatsList({ floors }: { floors: EventLiveFloor[] }) {
                     <span className="ml-2 text-sm text-white/60">{h.division.name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                    {h.id === liveHeatId && <span className="font-bold text-repone-red">● Live</span>}
+                    {h.id === liveHeatId && (
+                      <span className="font-bold text-repone-red">● Live</span>
+                    )}
                     {h.endedAt && <span className="text-white/40">Finished</span>}
                   </div>
                 </div>
               ))}
-              {floor.heats.length === 0 && <p className="text-sm text-white/40">No heats scheduled on this floor yet.</p>}
+              {floor.heats.length === 0 && (
+                <p className="text-sm text-white/40">No heats scheduled on this floor yet.</p>
+              )}
             </div>
           </section>
         );

@@ -20,14 +20,18 @@ export async function enterResult(
   divisionId: string,
   scoringType: ScoringTypeDb,
   floorId: string | null,
-  formData: FormData
+  formData: FormData,
 ) {
   const ctx = await getSessionContext();
   const competitorType = String(formData.get("competitor_type") ?? "athlete");
   const competitorId = String(formData.get("competitor_id") ?? "");
   if (!competitorId) throw new Error("Competitor is required.");
 
-  const status = String(formData.get("status") ?? "completed") as "completed" | "dns" | "dnf" | "dq";
+  const status = String(formData.get("status") ?? "completed") as
+    | "completed"
+    | "dns"
+    | "dnf"
+    | "dq";
   const manuallyAdjusted = formData.get("manual_adjustment") === "on";
 
   const row: Record<string, unknown> = {
@@ -41,7 +45,7 @@ export async function enterResult(
     tiebreak_value: numOrNull(formData.get("tiebreak_value")),
     notes: String(formData.get("notes") ?? "") || null,
     manually_adjusted: manuallyAdjusted,
-    adjusted_by: manuallyAdjusted ? ctx?.userId ?? null : null,
+    adjusted_by: manuallyAdjusted ? (ctx?.userId ?? null) : null,
     adjusted_at: manuallyAdjusted ? new Date().toISOString() : null,
   };
 
@@ -92,7 +96,7 @@ export async function saveHeatResults(
   scoringType: ScoringTypeDb,
   floorId: string | null,
   athleteIds: string[],
-  formData: FormData
+  formData: FormData,
 ) {
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -117,7 +121,7 @@ export async function saveHeatResults(
       tiebreak_value: numOrNull(formData.get(`tiebreak_value__${athleteId}`)),
       notes: String(formData.get(`notes__${athleteId}`) ?? "") || null,
       manually_adjusted: manuallyAdjusted,
-      adjusted_by: manuallyAdjusted ? ctx?.userId ?? null : null,
+      adjusted_by: manuallyAdjusted ? (ctx?.userId ?? null) : null,
       adjusted_at: manuallyAdjusted ? new Date().toISOString() : null,
     };
 
@@ -138,7 +142,9 @@ export async function saveHeatResults(
   });
 
   if (rows.length > 0) {
-    const { error } = await supabase.from("results").upsert(rows, { onConflict: "heat_id,athlete_id" });
+    const { error } = await supabase
+      .from("results")
+      .upsert(rows, { onConflict: "heat_id,athlete_id" });
     if (error) throw new Error(error.message);
 
     await recomputeWodStandings(wodId, divisionId);

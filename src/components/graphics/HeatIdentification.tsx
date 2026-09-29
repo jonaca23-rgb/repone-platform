@@ -24,7 +24,9 @@ export function HeatIdentification({
           Heat {heatNumber}
           {heatCount ? ` of ${heatCount}` : ""}
         </p>
-        <p className="mt-2 text-2xl font-medium uppercase tracking-wide text-repone-red">{divisionName}</p>
+        <p className="mt-2 text-2xl font-medium uppercase tracking-wide text-repone-red">
+          {divisionName}
+        </p>
       </div>
     );
   }
@@ -38,7 +40,9 @@ export function HeatIdentification({
             {wodName} — Heat {heatNumber}
             {heatCount ? ` / ${heatCount}` : ""}
           </p>
-          <p className="text-sm font-semibold uppercase tracking-widest text-repone-red">{divisionName}</p>
+          <p className="text-sm font-semibold uppercase tracking-widest text-repone-red">
+            {divisionName}
+          </p>
         </div>
       </div>
     </div>

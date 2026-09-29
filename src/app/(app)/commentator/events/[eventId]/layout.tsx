@@ -39,11 +39,16 @@ export default async function CommentatorEventLayout({
   // is_event_commentator itself, so the two roles' assignment rows stay
   // clean and separately auditable.
   const allowed =
-    (await isAssignedToEvent(ctx, eventId, "commentator")) || (await isAssignedToEvent(ctx, eventId, "producer"));
+    (await isAssignedToEvent(ctx, eventId, "commentator")) ||
+    (await isAssignedToEvent(ctx, eventId, "producer"));
   if (!allowed) redirect("/commentator");
 
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select("id, name").eq("id", eventId).single();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, name")
+    .eq("id", eventId)
+    .single();
   if (!event) notFound();
 
   return (
@@ -54,7 +59,10 @@ export default async function CommentatorEventLayout({
           already brings its own mx-auto max-w-5xl px-4 py-6 wrapper, so
           duplicating that here would double the padding. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-6">
-        <Link href="/commentator" className="text-xs uppercase tracking-wide text-white/40 hover:text-white">
+        <Link
+          href="/commentator"
+          className="text-xs uppercase tracking-wide text-white/40 hover:text-white"
+        >
           ← Choose a different event
         </Link>
         <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">

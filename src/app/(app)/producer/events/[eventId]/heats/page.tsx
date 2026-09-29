@@ -2,7 +2,11 @@ import { notFound } from "next/navigation";
 import { getEventLiveContext } from "@/lib/db/queries";
 import { EventHeatsList } from "@/components/EventHeatsList";
 
-export default async function ProducerEventHeatsPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ProducerEventHeatsPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();

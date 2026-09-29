@@ -51,7 +51,11 @@ export async function createFeeSchedule(eventId: string, formData: FormData) {
   revalidatePath(`/admin/events/${eventId}/fees`);
 }
 
-export async function toggleFeeScheduleActive(eventId: string, feeScheduleId: string, active: boolean) {
+export async function toggleFeeScheduleActive(
+  eventId: string,
+  feeScheduleId: string,
+  active: boolean,
+) {
   const supabase = await createClient();
   const { error } = await supabase.from("fee_schedules").update({ active }).eq("id", feeScheduleId);
   if (error) throw new Error(error.message);

@@ -6,7 +6,11 @@ import { EventHeatsList } from "@/components/EventHeatsList";
 // "follow along" experience lives on the Dashboard tab; this tab is for
 // glancing ahead at what's coming up next, same running order the
 // Dashboard/Score Keeper/overlays all share (lib/scoring/divisionOrder.ts).
-export default async function CommentatorEventHeatsPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function CommentatorEventHeatsPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();

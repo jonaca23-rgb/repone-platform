@@ -23,7 +23,9 @@ export default async function CheckInPickerPage({
     .limit(50);
 
   if (query) {
-    athletesQuery = athletesQuery.or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,affiliate.ilike.%${query}%`);
+    athletesQuery = athletesQuery.or(
+      `first_name.ilike.%${query}%,last_name.ilike.%${query}%,affiliate.ilike.%${query}%`,
+    );
   }
 
   const { data: athletes } = await athletesQuery;
@@ -32,8 +34,8 @@ export default async function CheckInPickerPage({
     <div className="max-w-2xl">
       <h1 className="mb-2 text-2xl font-bold">Check-In</h1>
       <p className="mb-6 text-sm text-black/50">
-        Scan an athlete&apos;s QR code from their profile, or find them here by name or box to see their green/red
-        payment status at the registration desk.
+        Scan an athlete&apos;s QR code from their profile, or find them here by name or box to see
+        their green/red payment status at the registration desk.
       </p>
 
       <form className="mb-6 flex flex-wrap items-end gap-3">
@@ -70,12 +72,16 @@ export default async function CheckInPickerPage({
               <span className="font-semibold hover:text-repone-red">
                 {a.first_name} {a.last_name}
               </span>
-              {a.affiliate ? <span className="ml-2 text-sm text-black/40">{a.affiliate}</span> : null}
+              {a.affiliate ? (
+                <span className="ml-2 text-sm text-black/40">{a.affiliate}</span>
+              ) : null}
             </span>
           </Link>
         ))}
         {athletes?.length === 0 && (
-          <p className="text-black/50">{query ? `No athletes match "${query}".` : "No athletes yet."}</p>
+          <p className="text-black/50">
+            {query ? `No athletes match "${query}".` : "No athletes yet."}
+          </p>
         )}
       </div>
     </div>

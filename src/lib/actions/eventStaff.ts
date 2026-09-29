@@ -11,7 +11,8 @@ import { hasAnyRole } from "@/lib/auth/session";
 // gives a clear error instead of a silent RLS-denied failure.
 async function requireAdmin() {
   const ctx = await getSessionContext();
-  if (!ctx || !hasAnyRole(ctx, ["admin"])) throw new Error("Only an admin can manage event staff assignments.");
+  if (!ctx || !hasAnyRole(ctx, ["admin"]))
+    throw new Error("Only an admin can manage event staff assignments.");
   return ctx;
 }
 
@@ -46,7 +47,9 @@ async function assign(role: EventStaffRole, eventId: string, userId: string, rol
   // Re-assigning someone previously removed just flips status back to
   // active on their existing row (unique(event_id, <role>_user_id)) rather
   // than erroring on a duplicate or leaving two rows behind.
-  const { error } = await supabase.from(TABLE[role]).upsert(row, { onConflict: `event_id,${USER_COLUMN[role]}` });
+  const { error } = await supabase
+    .from(TABLE[role])
+    .upsert(row, { onConflict: `event_id,${USER_COLUMN[role]}` });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/events/${eventId}/staff`);

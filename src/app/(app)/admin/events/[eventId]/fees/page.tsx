@@ -28,7 +28,8 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
       .order("created_at", { ascending: false }),
   ]);
 
-  const divisionName = (id: string | null) => (id ? divisions?.find((d) => d.id === id)?.name : null);
+  const divisionName = (id: string | null) =>
+    id ? divisions?.find((d) => d.id === id)?.name : null;
 
   return (
     <div>
@@ -39,11 +40,11 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
       </p>
       <h1 className="mb-2 text-2xl font-bold">Registration Fees</h1>
       <p className="mb-6 max-w-3xl text-sm text-black/50">
-        Define what this event charges — this is the price menu the Payments page uses to record who owes
-        what. <strong>No online payment is taken here.</strong> Nothing on this page talks to Stripe or any
-        payment processor; fees are recorded manually until online checkout is built. Leave Division or
-        Entry Type blank to apply a fee broadly (e.g. blank entry type = charges the same amount whether
-        it&apos;s an individual, pair, team, or custom entry).
+        Define what this event charges — this is the price menu the Payments page uses to record who
+        owes what. <strong>No online payment is taken here.</strong> Nothing on this page talks to
+        Stripe or any payment processor; fees are recorded manually until online checkout is built.
+        Leave Division or Entry Type blank to apply a fee broadly (e.g. blank entry type = charges
+        the same amount whether it&apos;s an individual, pair, team, or custom entry).
       </p>
 
       <form
@@ -52,7 +53,12 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
       >
         <label className="flex flex-col gap-1 text-sm">
           Fee name
-          <input name="name" required placeholder="Individual Registration" className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="name"
+            required
+            placeholder="Individual Registration"
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Amount (USD)
@@ -68,7 +74,11 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Division
-          <select name="division_id" defaultValue="" className="rounded-md border border-black/20 px-3 py-2">
+          <select
+            name="division_id"
+            defaultValue=""
+            className="rounded-md border border-black/20 px-3 py-2"
+          >
             <option value="">— any division —</option>
             {(divisions ?? []).map((d) => (
               <option key={d.id} value={d.id}>
@@ -79,7 +89,11 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Entry type
-          <select name="entry_type" defaultValue="" className="rounded-md border border-black/20 px-3 py-2">
+          <select
+            name="entry_type"
+            defaultValue=""
+            className="rounded-md border border-black/20 px-3 py-2"
+          >
             <option value="">— any entry type —</option>
             {Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -90,7 +104,11 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Description
-          <input name="description" placeholder="Optional" className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="description"
+            placeholder="Optional"
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex items-center gap-2 self-end text-sm">
           <input name="is_addon" type="checkbox" />
@@ -101,7 +119,10 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
 
       <div className="flex flex-col gap-2">
         {(feeSchedules ?? []).map((f) => (
-          <div key={f.id} className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3">
+          <div
+            key={f.id}
+            className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3"
+          >
             <div>
               <p className="font-semibold">
                 {f.name} <span className="ml-2 text-repone-red">{formatMoney(f.amount_cents)}</span>
@@ -113,7 +134,9 @@ export default async function EventFeesPage({ params }: { params: Promise<{ even
               </p>
               <p className="text-xs uppercase tracking-wide text-black/50">
                 {divisionName(f.division_id) ?? "Any division"} ·{" "}
-                {f.entry_type ? ENTRY_TYPE_LABELS[f.entry_type as CompetitorEntryType] : "Any entry type"}
+                {f.entry_type
+                  ? ENTRY_TYPE_LABELS[f.entry_type as CompetitorEntryType]
+                  : "Any entry type"}
               </p>
               {f.description ? <p className="mt-1 text-sm text-black/50">{f.description}</p> : null}
             </div>

@@ -47,7 +47,15 @@ export async function updateWod(eventId: string, wodId: string, formData: FormDa
   const supabase = await createClient();
   const { error } = await supabase
     .from("wods")
-    .update({ name, description, rules, scoring_type, tiebreak_type, time_cap_seconds, lower_is_better })
+    .update({
+      name,
+      description,
+      rules,
+      scoring_type,
+      tiebreak_type,
+      time_cap_seconds,
+      lower_is_better,
+    })
     .eq("id", wodId);
   if (error) throw new Error(error.message);
 

@@ -28,7 +28,11 @@ export function LeaderboardOverlayClient({
     <div className="flex h-screen w-screen items-center justify-end p-8">
       <Leaderboard
         title={`${currentHeat.division.name} — Overall`}
-        rows={standings.map((s) => ({ placement: s.placement, name: s.name, value: `${s.points ?? "—"} pts` }))}
+        rows={standings.map((s) => ({
+          placement: s.placement,
+          name: s.name,
+          value: `${s.points ?? "—"} pts`,
+        }))}
       />
     </div>
   );

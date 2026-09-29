@@ -24,7 +24,7 @@ export function DeleteEventButton({
       onSubmit={(e) => {
         if (
           !window.confirm(
-            `Delete "${eventName}"? This permanently removes its divisions, registrations, heats, results, standings, fees, and payment records. This cannot be undone.`
+            `Delete "${eventName}"? This permanently removes its divisions, registrations, heats, results, standings, fees, and payment records. This cannot be undone.`,
           )
         ) {
           e.preventDefault();

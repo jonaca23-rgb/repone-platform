@@ -13,7 +13,8 @@ export default async function AdminMessagesPage() {
     <div>
       <h1 className="mb-2 text-2xl font-bold">Messages</h1>
       <p className="mb-6 text-sm text-black/50">
-        Direct messages with athletes. Start a new conversation from an athlete&apos;s profile on the
+        Direct messages with athletes. Start a new conversation from an athlete&apos;s profile on
+        the
         <Link href="/admin/athletes" className="ml-1 text-repone-red underline">
           Athlete Roster
         </Link>
@@ -30,7 +31,11 @@ export default async function AdminMessagesPage() {
             <div className="min-w-0">
               <p className="font-semibold">
                 {c.counterpartName}
-                {c.counterpartSublabel ? <span className="ml-2 text-sm font-normal text-black/40">{c.counterpartSublabel}</span> : null}
+                {c.counterpartSublabel ? (
+                  <span className="ml-2 text-sm font-normal text-black/40">
+                    {c.counterpartSublabel}
+                  </span>
+                ) : null}
               </p>
               <p className="truncate text-sm text-black/50">
                 {c.lastMessageFromMe ? "You: " : ""}
@@ -38,7 +43,9 @@ export default async function AdminMessagesPage() {
               </p>
             </div>
             {c.unreadCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-repone-red px-2 py-0.5 text-xs font-bold text-white">{c.unreadCount}</span>
+              <span className="shrink-0 rounded-full bg-repone-red px-2 py-0.5 text-xs font-bold text-white">
+                {c.unreadCount}
+              </span>
             ) : null}
           </Link>
         ))}

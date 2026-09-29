@@ -56,10 +56,7 @@ function tiebreak(a: RawResult, b: RawResult): number {
  *   number (lower total is better across the event — swap this mapping in one
  *   place if a different points table is needed later).
  */
-export function rankWodResults(
-  results: RawResult[],
-  config: WodScoringConfig
-): RankedResult[] {
+export function rankWodResults(results: RawResult[], config: WodScoringConfig): RankedResult[] {
   const completed = results.filter((r) => (r.status ?? "completed") === "completed");
   const notCompleted = results.filter((r) => (r.status ?? "completed") !== "completed");
 
