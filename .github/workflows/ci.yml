@@ -53,6 +53,8 @@ jobs:
       - run: pnpm dev:accounts
       - name: Database access rules (RLS, grants, storage)
         run: pnpm db:rls-check
+      - name: Standings rewrites are atomic
+        run: pnpm db:standings-check
       - name: Generated types match the schema
         run: |
           pnpm -s db:types

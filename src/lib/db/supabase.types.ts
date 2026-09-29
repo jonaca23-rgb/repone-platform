@@ -1645,6 +1645,10 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: boolean
       }
+      replace_standings: {
+        Args: { p_division_id: string; p_rows: Json; p_wod_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       active_graphic:

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/db/server";
+import { recomputeOverallStandings } from "./standings";
 
 export async function createHeat(eventId: string, formData: FormData) {
   const floor_id = String(formData.get("floor_id") ?? "");
@@ -61,7 +62,17 @@ export async function deleteHeat(eventId: string, heatId: string) {
  */
 export async function finishHeat(eventId: string, heatId: string, floorId: string | null) {
   const supabase = await createClient();
-  await supabase.from("heats").update({ ended_at: new Date().toISOString() }).eq("id", heatId);
+  const { data: heat, error } = await supabase
+    .from("heats")
+    .update({ ended_at: new Date().toISOString() })
+    .eq("id", heatId)
+    .select("division_id")
+    .single();
+  if (error) throw new Error(`Could not finish heat: ${error.message}`);
+
+  // The last heat finishing completes the WOD for this division, which is
+  // when competitors with no result start counting as last overall.
+  await recomputeOverallStandings(heat.division_id);
 
   revalidatePath(`/admin/events/${eventId}/heats`);
   revalidatePath(`/overlay`);
