@@ -1,3 +1,4 @@
+import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { computeAgeCategory, type AgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { ROLE_LABELS } from "@/lib/constants/roles";
@@ -57,11 +58,16 @@ export async function getAthleteProfile(
   const supabase = await createClient();
   const { data } = await supabase
     .from("athletes")
-    .select("id, first_name, last_name, affiliate, photo_url, date_of_birth, gender, auth_user_id")
+    .select("id, first_name, last_name, affiliate, photo_url, gender, auth_user_id")
     .eq("id", athleteId)
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (!data) return null;
+  // Date of birth is only returned to staff or the athlete themselves, so
+  // another athlete viewing this profile sees no age category.
+  const dateOfBirth = (await getAthletePrivateDetails(supabase, [athleteId])).get(
+    athleteId,
+  )?.dateOfBirth;
 
   return {
     id: data.id,
@@ -69,7 +75,7 @@ export async function getAthleteProfile(
     lastName: data.last_name,
     affiliate: data.affiliate,
     photoUrl: data.photo_url,
-    ageCategory: computeAgeCategory(data.date_of_birth, data.gender as Gender | null, new Date()),
+    ageCategory: computeAgeCategory(dateOfBirth, data.gender as Gender | null, new Date()),
     authUserId: data.auth_user_id,
   };
 }

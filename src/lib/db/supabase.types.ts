@@ -1592,6 +1592,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      athlete_private_details: {
+        Args: { p_athlete_ids: string[] }
+        Returns: {
+          date_of_birth: string
+          email: string
+          id: string
+          phone: string
+        }[]
+      }
       bootstrap_athlete: {
         Args: {
           p_affiliate: string
@@ -1609,6 +1618,14 @@ export type Database = {
         Args: { p_athlete_id: string; p_liker: string }
         Returns: boolean
       }
+      can_manage_athlete_photo: {
+        Args: { p_object_name: string }
+        Returns: boolean
+      }
+      can_manage_event_photo: {
+        Args: { p_object_name: string }
+        Returns: boolean
+      }
       can_message: {
         Args: { p_recipient: string; p_sender: string }
         Returns: boolean
@@ -1624,6 +1641,10 @@ export type Database = {
       is_event_commentator: { Args: { p_event_id: string }; Returns: boolean }
       is_event_producer: { Args: { p_event_id: string }; Returns: boolean }
       is_event_scorekeeper: { Args: { p_event_id: string }; Returns: boolean }
+      is_org_event_staff: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       active_graphic:
