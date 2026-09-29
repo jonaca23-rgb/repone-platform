@@ -1,14 +1,13 @@
 # RepOne Platform
 
 Sports data, scoring, and broadcast-graphics platform for RepOneLive competitions.
-See `/architecture` in the attached claude.ai project (or ask Claude) for the full
-Current State / Gap Analysis / Proposed Architecture writeup this build follows.
 
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript, Tailwind v4)
 - **Supabase** (Postgres, Auth, Realtime, Storage)
 - **Vitest** for the scoring engine and timer math unit tests
+- **pnpm**, local Supabase via the Supabase CLI on Podman, Biome (format), ESLint (lint)
 
 ## What's implemented (Phase 1–5 slice)
 
@@ -28,26 +27,70 @@ Current State / Gap Analysis / Proposed Architecture writeup this build follows.
   standalone `timer`, `heat`, `lanes`, `wod`, `lower-third`, `leaderboard`,
   `sponsor` layers. All transparent-background, all Realtime-synced.
 
-## Local setup
+## Running it locally
 
-1. Create a Supabase project.
-2. Run the SQL in `supabase/migrations/` (in order) against it, then
-   `supabase/seed.sql` if you want sample data.
-3. Copy `.env.local.example` to `.env.local` and fill in your project's URL
-   and anon key.
-4. `npm install`
-5. `npm run dev`
-6. Visit `/admin`, create your organization (first screen), create an event,
-   then Divisions → WODs → Heats & Lanes → Athletes. Sign-up for the first
-   user has to happen via Supabase Auth directly (dashboard or `supabase
-   auth` CLI) — there's no public sign-up screen yet, by design.
-7. Point OBS/vMix/YoloBox browser sources at `/overlay/<floorId>/program`
-   (and any of the standalone layers) — `/overlay/<floorId>` lists every URL
-   for that floor.
-
-## Tests
+Requirements: Node 24, pnpm 10 (`corepack enable`), the Supabase CLI, and a
+container runtime (Podman or Docker). With Podman, `scripts/supabase.sh`
+points the Supabase CLI at the Podman machine's socket for you.
 
 ```
-npm test    # scoring engine + timer math
-npm run build
+pnpm install
+pnpm dev          # Podman -> local Supabase -> .env.local -> seeds -> dev accounts -> Next.js
 ```
+
+`pnpm dev` is safe to run every time: each step is skipped when already done.
+The first run applies every migration in `supabase/migrations/` and
+`supabase/seed.sql`, loads the QA circuit (`supabase/seed_qa_circuit.sql`), and
+prints one login per role (password `Repone1234!`):
+
+| Account | Lands on |
+|---|---|
+| admin@repone.test | `/admin`, org admin |
+| scorekeeper@repone.test | `/scorekeeper`, assigned to every event |
+| producer@repone.test | `/producer`, `/dashboard` |
+| commentator@repone.test | `/commentator` |
+| athlete@repone.test | `/athlete`, linked to seeded athlete Maria Rivera |
+| new-athlete@repone.test | `/athlete`, not onboarded yet |
+
+Ports are offset so this runs beside other local Supabase projects:
+
+| Service | URL |
+|---|---|
+| App | http://localhost:3200 |
+| Supabase API | http://127.0.0.1:54521 |
+| Postgres | postgresql://postgres:postgres@127.0.0.1:54522/postgres |
+| Studio | http://127.0.0.1:54523 |
+| Mailpit (auth emails) | http://127.0.0.1:54524 |
+
+### Scripts
+
+| Command | What it does |
+|---|---|
+| `pnpm dev` | Bring up the whole stack, then `next dev` on :3200 |
+| `pnpm dev:setup` | Clean slate: reset DB, re-apply migrations + seeds, regenerate types, recreate accounts |
+| `pnpm dev:next` | Only `next dev` (stack already running) |
+| `pnpm db:start` / `db:stop` / `db:status` | Local Supabase lifecycle |
+| `pnpm db:reset` | Wipe and re-apply migrations + `seed.sql` |
+| `pnpm db:seed:qa` | Load the QA circuit if it isn't there |
+| `pnpm db:types` | Regenerate `src/lib/db/supabase.types.ts` from the local schema |
+| `pnpm dev:accounts` | Create/reset the dev logins (local only) |
+| `pnpm env:local` | Write `.env.local` from `supabase status` (`--force` to overwrite) |
+| `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
+| `pnpm format` | Biome formatter |
+
+### Schema changes
+
+Add a new file `supabase/migrations/NNNN_description.sql`, then
+`pnpm db:reset && pnpm db:types` and commit both the migration and the
+regenerated types (CI fails if they drift).
+
+### Broadcast overlays
+
+Point OBS/vMix/YoloBox browser sources at `/overlay/<floorId>/program` (and
+any of the standalone layers). `/overlay/<floorId>` lists every URL for that
+floor. The seeded floor is `00000000-0000-0000-0000-000000000030`.
+
+## Status
+
+Not in production. See `docs/audit/2026-09-28-initial-audit.md` for the
+current audit and the prioritized fix list.

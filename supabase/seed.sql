@@ -25,13 +25,13 @@ insert into wods (id, event_id, name, description, rules, scoring_type, time_cap
    'For Time: 21-15-9 Thrusters (95/65) and Pull-ups', 'Rx weights as listed. Scale to 65/45 if needed.',
    'for_time', 900, 'reps', true, 1);
 
-insert into athletes (id, organization_id, first_name, last_name, affiliate) values
-  ('00000000-0000-0000-0000-000000000061', '00000000-0000-0000-0000-000000000001', 'Maria', 'Rivera', 'CrossFit Aprieta'),
-  ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000001', 'Sofia', 'Delgado', 'Box 787'),
-  ('00000000-0000-0000-0000-000000000063', '00000000-0000-0000-0000-000000000001', 'Camila', 'Ortiz', 'CrossFit San Juan'),
-  ('00000000-0000-0000-0000-000000000064', '00000000-0000-0000-0000-000000000001', 'Valentina', 'Cruz', 'Box 787'),
-  ('00000000-0000-0000-0000-000000000065', '00000000-0000-0000-0000-000000000001', 'Isabella', 'Vega', 'CrossFit Aprieta'),
-  ('00000000-0000-0000-0000-000000000066', '00000000-0000-0000-0000-000000000001', 'Gabriela', 'Torres', 'CrossFit San Juan');
+insert into athletes (id, organization_id, first_name, last_name, affiliate, email) values
+  ('00000000-0000-0000-0000-000000000061', '00000000-0000-0000-0000-000000000001', 'Maria', 'Rivera', 'CrossFit Aprieta', 'maria@example.test'),
+  ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000001', 'Sofia', 'Delgado', 'Box 787', 'sofia@example.test'),
+  ('00000000-0000-0000-0000-000000000063', '00000000-0000-0000-0000-000000000001', 'Camila', 'Ortiz', 'CrossFit San Juan', 'camila@example.test'),
+  ('00000000-0000-0000-0000-000000000064', '00000000-0000-0000-0000-000000000001', 'Valentina', 'Cruz', 'Box 787', 'valentina@example.test'),
+  ('00000000-0000-0000-0000-000000000065', '00000000-0000-0000-0000-000000000001', 'Isabella', 'Vega', 'CrossFit Aprieta', 'isabella@example.test'),
+  ('00000000-0000-0000-0000-000000000066', '00000000-0000-0000-0000-000000000001', 'Gabriela', 'Torres', 'CrossFit San Juan', 'gabriela@example.test');
 
 insert into registrations (event_id, division_id, athlete_id) values
   ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000040', '00000000-0000-0000-0000-000000000061'),

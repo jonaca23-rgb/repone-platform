@@ -1,0 +1,59 @@
+# CI for pull requests and main.
+#   check: lint, typecheck, unit tests, formatting.
+#   db:    boots a clean local Supabase, applies every migration + seed, loads
+#          the QA circuit and dev accounts, and fails if the committed
+#          src/lib/db/supabase.types.ts no longer matches the schema.
+# No deploy job yet: the project has no production environment.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm format:check
+
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.95.4
+      - run: pnpm install --frozen-lockfile
+      - name: Start Supabase (applies migrations + seed.sql)
+        run: supabase start
+      - run: ./scripts/seed-qa.sh
+      - run: pnpm env:local
+      - run: pnpm dev:accounts
+      - name: Generated types match the schema
+        run: |
+          pnpm -s db:types
+          git diff --exit-code src/lib/db/supabase.types.ts || {
+            echo "::error::src/lib/db/supabase.types.ts is stale — run 'pnpm db:types' and commit it."
+            exit 1
+          }
