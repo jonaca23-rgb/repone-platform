@@ -1,29 +1,59 @@
-import type { RankedResult, StandingEntry } from "./types";
+import type { StandingEntry } from "./types";
+
+export interface WodResultsForStandings {
+  wodId: string;
+  results: Array<{ competitorId: string; placement: number | null; wodPoints: number | null }>;
+  /**
+   * Every heat of this WOD in the division has finished. Only then does a
+   * competitor with no result at all count as last: while the WOD is still
+   * running, they may simply not have reached their heat yet.
+   */
+  complete?: boolean;
+}
 
 /**
  * Aggregates per-WOD ranked results into overall standings for a division.
- * Lower total points wins (consistent with rankWodResults awarding placement-as-points).
- * A competitor missing a WOD entirely (no result row at all) is treated as if they
- * scored last place + 1 for that WOD once `fieldSizeByWod` is supplied — pass an empty
- * map to simply omit missing WODs from the total instead.
+ * Lower total points wins (rankWodResults awards placement-as-points).
+ *
+ * A competitor who didn't finish a WOD (dns/dnf/dq, so no points) scores one
+ * place after that WOD's last finisher: finishers + 1. So does a competitor
+ * with no result in a WOD that is `complete`. Pass `competitorIds` (everyone
+ * registered in the division) so competitors with no result row at all are
+ * included; anyone with no counted WOD yet is left off the board.
  */
 export function computeOverallStandings(
-  perWodRanked: Array<{ wodId: string; results: RankedResult[] }>,
-  options?: { fieldSizeByWod?: Record<string, number> },
+  perWodRanked: WodResultsForStandings[],
+  options?: { competitorIds?: string[] },
 ): StandingEntry[] {
+  const competitorIds = new Set(options?.competitorIds ?? []);
+  for (const { results } of perWodRanked) {
+    for (const r of results) competitorIds.add(r.competitorId);
+  }
+
   const totals = new Map<string, StandingEntry>();
 
-  for (const { wodId, results } of perWodRanked) {
-    for (const r of results) {
-      const entry = totals.get(r.competitorId) ?? {
-        competitorId: r.competitorId,
+  for (const { wodId, results, complete } of perWodRanked) {
+    const byCompetitor = new Map(results.map((r) => [r.competitorId, r]));
+    const finishers = results.filter((r) => r.wodPoints !== null).length;
+    const pointsAfterLastFinisher = finishers + 1;
+
+    for (const competitorId of competitorIds) {
+      const result = byCompetitor.get(competitorId);
+      if (!result && !complete) continue;
+
+      const entry = totals.get(competitorId) ?? {
+        competitorId,
         totalPoints: 0,
         placements: [],
         overallPlacement: null,
       };
-      entry.placements.push({ wodId, placement: r.placement, points: r.wodPoints });
-      entry.totalPoints += r.wodPoints ?? (options?.fieldSizeByWod?.[wodId] ?? 0) + 1;
-      totals.set(r.competitorId, entry);
+      entry.placements.push({
+        wodId,
+        placement: result?.placement ?? null,
+        points: result?.wodPoints ?? null,
+      });
+      entry.totalPoints += result?.wodPoints ?? pointsAfterLastFinisher;
+      totals.set(competitorId, entry);
     }
   }
 
