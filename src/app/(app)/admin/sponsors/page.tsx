@@ -21,7 +21,10 @@ export default async function SponsorsPage() {
       .select("id, business_name, tier, category, category_exclusive, active, event_id")
       .eq("organization_id", ctx?.organizationId ?? "")
       .order("created_at", { ascending: false }),
-    supabase.from("events").select("id, name").eq("organization_id", ctx?.organizationId ?? ""),
+    supabase
+      .from("events")
+      .select("id, name")
+      .eq("organization_id", ctx?.organizationId ?? ""),
   ]);
 
   return (
@@ -32,10 +35,17 @@ export default async function SponsorsPage() {
         &quot;Official Physical Therapy Partner&quot;) are enforced at the database level per event.
       </p>
 
-      <form action={createSponsor} className="mb-8 grid grid-cols-2 gap-3 rounded-lg border border-black/10 p-4 sm:grid-cols-3">
+      <form
+        action={createSponsor}
+        className="mb-8 grid grid-cols-2 gap-3 rounded-lg border border-black/10 p-4 sm:grid-cols-3"
+      >
         <label className="flex flex-col gap-1 text-sm">
           Business name
-          <input name="business_name" required className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="business_name"
+            required
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Tier
@@ -60,7 +70,11 @@ export default async function SponsorsPage() {
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Category
-          <input name="category" placeholder="Physical Therapy" className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="category"
+            placeholder="Physical Therapy"
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex items-center gap-2 self-end text-sm">
           <input name="category_exclusive" type="checkbox" />
@@ -77,7 +91,10 @@ export default async function SponsorsPage() {
 
       <div className="flex flex-col gap-2">
         {(sponsors ?? []).map((s) => (
-          <div key={s.id} className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3">
+          <div
+            key={s.id}
+            className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3"
+          >
             <div>
               <p className="font-semibold">
                 {s.business_name}
@@ -87,7 +104,9 @@ export default async function SponsorsPage() {
                   </span>
                 ) : null}
               </p>
-              <p className="text-xs uppercase tracking-wide text-black/50">{TIER_LABELS[s.tier as SponsorTier]}</p>
+              <p className="text-xs uppercase tracking-wide text-black/50">
+                {TIER_LABELS[s.tier as SponsorTier]}
+              </p>
             </div>
             <form action={toggleSponsorActive.bind(null, s.id, !s.active)}>
               <button

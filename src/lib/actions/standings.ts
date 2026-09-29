@@ -1,7 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/db/server";
-import { rankWodResults, computeOverallStandings, type RawResult, type WodScoringConfig } from "@/lib/scoring";
+import {
+  rankWodResults,
+  computeOverallStandings,
+  type RawResult,
+  type WodScoringConfig,
+} from "@/lib/scoring";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -57,7 +62,11 @@ export async function recomputeWodStandings(wodId: string, divisionId: string) {
   await writeStandings(supabase, {
     wodId,
     divisionId,
-    rows: ranked.map((r) => ({ competitorId: r.competitorId, placement: r.placement, points: r.wodPoints })),
+    rows: ranked.map((r) => ({
+      competitorId: r.competitorId,
+      placement: r.placement,
+      points: r.wodPoints,
+    })),
   });
 
   await recomputeOverallStandings(divisionId);
@@ -80,7 +89,10 @@ export async function recomputeOverallStandings(divisionId: string) {
     .eq("division_id", divisionId)
     .not("wod_id", "is", null);
 
-  const byWod = new Map<string, { competitorId: string; placement: number | null; wodPoints: number | null }[]>();
+  const byWod = new Map<
+    string,
+    { competitorId: string; placement: number | null; wodPoints: number | null }[]
+  >();
   for (const row of perWod ?? []) {
     const wodId = row.wod_id as string;
     const list = byWod.get(wodId) ?? [];
@@ -93,7 +105,7 @@ export async function recomputeOverallStandings(divisionId: string) {
   }
 
   const overall = computeOverallStandings(
-    Array.from(byWod.entries()).map(([wodId, results]) => ({ wodId, results }))
+    Array.from(byWod.entries()).map(([wodId, results]) => ({ wodId, results })),
   );
 
   await writeStandings(supabase, {
@@ -115,11 +127,15 @@ async function writeStandings(
     divisionId: string;
     rows: Array<{ competitorId: string; placement: number | null; points: number | null }>;
     eventId?: string;
-  }
+  },
 ) {
   let eventId = args.eventId;
   if (!eventId) {
-    const { data: division } = await supabase.from("divisions").select("event_id").eq("id", args.divisionId).single();
+    const { data: division } = await supabase
+      .from("divisions")
+      .select("event_id")
+      .eq("id", args.divisionId)
+      .single();
     eventId = division?.event_id;
   }
   if (!eventId) return;

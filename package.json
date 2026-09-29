@@ -3,11 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "./scripts/dev.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:start": "./scripts/supabase.sh start",
+    "db:stop": "./scripts/supabase.sh stop",
+    "db:status": "./scripts/supabase.sh status",
+    "db:reset": "./scripts/supabase.sh db reset",
+    "dev:next": "next dev --port 3200",
+    "dev:setup": "pnpm db:start && pnpm db:reset && ./scripts/seed-qa.sh && pnpm env:local && pnpm db:types && pnpm dev:accounts",
+    "dev:accounts": "tsx scripts/dev-accounts.ts",
+    "env:local": "tsx scripts/env-local.ts",
+    "db:seed:qa": "./scripts/seed-qa.sh",
+    "db:types": "./scripts/supabase.sh gen types typescript --local > src/lib/db/supabase.types.ts",
+    "typecheck": "next typegen && tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
@@ -21,15 +35,19 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^18.0.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.11"
-  }
+  },
+  "packageManager": "pnpm@10.33.2"
 }

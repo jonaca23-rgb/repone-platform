@@ -23,7 +23,7 @@ function lastDivisionCookieName(eventId: string) {
 export async function registerAthlete(
   eventId: string,
   _prevState: { error: string },
-  formData: FormData
+  formData: FormData,
 ): Promise<{ error: string }> {
   const division_id = String(formData.get("division_id") ?? "");
   const athlete_id = String(formData.get("athlete_id") ?? "");
@@ -51,12 +51,16 @@ export async function registerAthlete(
   if (error) {
     // 23505 = unique_violation — DB-level backstop from
     // 0012_prevent_duplicate_lane_and_registration_assignments.sql.
-    if (error.code === "23505") return { error: "This athlete is already registered in this division/category." };
+    if (error.code === "23505")
+      return { error: "This athlete is already registered in this division/category." };
     return { error: error.message };
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(lastDivisionCookieName(eventId), division_id, { maxAge: 60 * 60 * 24 * 180, sameSite: "lax" });
+  cookieStore.set(lastDivisionCookieName(eventId), division_id, {
+    maxAge: 60 * 60 * 24 * 180,
+    sameSite: "lax",
+  });
 
   revalidatePath(`/admin/events/${eventId}/athletes`);
   return { error: "" };
@@ -65,7 +69,7 @@ export async function registerAthlete(
 export async function registerTeam(
   eventId: string,
   _prevState: { error: string },
-  formData: FormData
+  formData: FormData,
 ): Promise<{ error: string }> {
   const division_id = String(formData.get("division_id") ?? "");
   const team_id = String(formData.get("team_id") ?? "");
@@ -87,12 +91,16 @@ export async function registerTeam(
     .from("registrations")
     .insert({ event_id: eventId, division_id, team_id, bib_number });
   if (error) {
-    if (error.code === "23505") return { error: "This team is already registered in this division/category." };
+    if (error.code === "23505")
+      return { error: "This team is already registered in this division/category." };
     return { error: error.message };
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(lastDivisionCookieName(eventId), division_id, { maxAge: 60 * 60 * 24 * 180, sameSite: "lax" });
+  cookieStore.set(lastDivisionCookieName(eventId), division_id, {
+    maxAge: 60 * 60 * 24 * 180,
+    sameSite: "lax",
+  });
 
   revalidatePath(`/admin/events/${eventId}/athletes`);
   return { error: "" };

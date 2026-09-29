@@ -22,7 +22,9 @@ export function WodCard({
       <p className="font-[family-name:var(--font-display)] text-3xl font-bold uppercase tracking-widest text-repone-red">
         {name}
       </p>
-      {description ? <p className="mt-4 whitespace-pre-line text-xl leading-relaxed">{description}</p> : null}
+      {description ? (
+        <p className="mt-4 whitespace-pre-line text-xl leading-relaxed">{description}</p>
+      ) : null}
       {timeCap ? (
         <p className="mt-4 text-sm font-bold uppercase tracking-widest text-white/60">{timeCap}</p>
       ) : null}

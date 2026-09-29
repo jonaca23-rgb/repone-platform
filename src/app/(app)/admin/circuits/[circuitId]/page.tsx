@@ -19,7 +19,11 @@ import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
  * circuit only works cleanly if the same division names — e.g. "Rx Male" —
  * are reused at every stop).
  */
-export default async function CircuitDetailPage({ params }: { params: Promise<{ circuitId: string }> }) {
+export default async function CircuitDetailPage({
+  params,
+}: {
+  params: Promise<{ circuitId: string }>;
+}) {
   const { circuitId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -60,11 +64,25 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
         .select("division_id, athlete_id, team_id, placement, points")
         .in("division_id", divisionIds)
         .is("wod_id", null)
-    : { data: [] as { division_id: string; athlete_id: string | null; team_id: string | null; placement: number | null; points: number | null }[] };
+    : {
+        data: [] as {
+          division_id: string;
+          athlete_id: string | null;
+          team_id: string | null;
+          placement: number | null;
+          points: number | null;
+        }[],
+      };
 
   // Group standings rows by normalized division name, then by event, so each
   // division-name group can be fed through computeOverallStandings.
-  type Row = { eventId: string; competitorId: string; isTeam: boolean; placement: number | null; points: number | null };
+  type Row = {
+    eventId: string;
+    competitorId: string;
+    isTeam: boolean;
+    placement: number | null;
+    points: number | null;
+  };
   const rowsByDivisionName = new Map<string, { displayName: string; rows: Row[] }>();
 
   for (const r of standingsRows ?? []) {
@@ -72,8 +90,10 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
     const competitorId = r.athlete_id ?? r.team_id;
     if (!division || !competitorId) continue;
     const key = division.name.trim().toLowerCase();
-    const group: { displayName: string; rows: Row[] } =
-      rowsByDivisionName.get(key) ?? { displayName: division.name.trim(), rows: [] };
+    const group: { displayName: string; rows: Row[] } = rowsByDivisionName.get(key) ?? {
+      displayName: division.name.trim(),
+      rows: [],
+    };
     group.rows.push({
       eventId: division.event_id,
       competitorId,
@@ -92,7 +112,10 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
   }
   const [{ data: athletes }, { data: teams }] = await Promise.all([
     athleteIds.size
-      ? supabase.from("athletes").select("id, first_name, last_name").in("id", Array.from(athleteIds))
+      ? supabase
+          .from("athletes")
+          .select("id, first_name, last_name")
+          .in("id", Array.from(athleteIds))
       : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
     teamIds.size
       ? supabase.from("teams").select("id, name").in("id", Array.from(teamIds))
@@ -106,12 +129,16 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
     const byEvent = new Map<string, RankedResult[]>();
     for (const row of group.rows) {
       const list = byEvent.get(row.eventId) ?? [];
-      list.push({ competitorId: row.competitorId, placement: row.placement, wodPoints: row.points });
+      list.push({
+        competitorId: row.competitorId,
+        placement: row.placement,
+        wodPoints: row.points,
+      });
       byEvent.set(row.eventId, list);
     }
 
     const overall = computeOverallStandings(
-      Array.from(byEvent.entries()).map(([eventId, results]) => ({ wodId: eventId, results }))
+      Array.from(byEvent.entries()).map(([eventId, results]) => ({ wodId: eventId, results })),
     );
 
     return {
@@ -131,12 +158,19 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
           {circuit.description && <p className="text-sm text-black/50">{circuit.description}</p>}
           {(circuit.starts_on || circuit.ends_on) && (
             <p className="text-sm text-black/40">
-              {circuit.starts_on ?? "—"} {circuit.ends_on && circuit.ends_on !== circuit.starts_on ? `→ ${circuit.ends_on}` : ""}
+              {circuit.starts_on ?? "—"}{" "}
+              {circuit.ends_on && circuit.ends_on !== circuit.starts_on
+                ? `→ ${circuit.ends_on}`
+                : ""}
             </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <Link href={`/live/circuits/${circuitId}`} target="_blank" className="text-sm text-repone-red hover:underline">
+          <Link
+            href={`/live/circuits/${circuitId}`}
+            target="_blank"
+            className="text-sm text-repone-red hover:underline"
+          >
             Public Leaderboard (share this link) →
           </Link>
           <Link href="/admin/circuits" className="text-sm text-black/50 hover:text-repone-red">
@@ -149,18 +183,29 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
         <h2 className="mb-3 font-semibold">Events in this circuit</h2>
         <div className="mb-4 flex flex-col gap-2">
           {(circuitEvents ?? []).map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-md bg-black/5 px-3 py-2">
-              <Link href={`/admin/events/${e.id}`} className="text-sm font-medium hover:text-repone-red">
+            <div
+              key={e.id}
+              className="flex items-center justify-between rounded-md bg-black/5 px-3 py-2"
+            >
+              <Link
+                href={`/admin/events/${e.id}`}
+                className="text-sm font-medium hover:text-repone-red"
+              >
                 {e.name}
                 <span className="ml-2 text-xs uppercase text-black/40">{e.status}</span>
               </Link>
               <form action={removeEventFromCircuit.bind(null, circuitId, e.id)}>
-                <button className="text-xs text-black/40 hover:text-repone-red">Remove from circuit</button>
+                <button className="text-xs text-black/40 hover:text-repone-red">
+                  Remove from circuit
+                </button>
               </form>
             </div>
           ))}
           {circuitEvents?.length === 0 && (
-            <p className="text-sm text-black/50">No events yet — add a standalone event below, or create a new event and select this circuit.</p>
+            <p className="text-sm text-black/50">
+              No events yet — add a standalone event below, or create a new event and select this
+              circuit.
+            </p>
           )}
         </div>
 
@@ -182,9 +227,9 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
 
       <h2 className="mb-3 text-lg font-semibold">Cumulative leaderboard</h2>
       <p className="mb-4 text-sm text-black/50">
-        Lower total is better — same placement-as-points method used to combine WODs into one event&apos;s
-        standings, applied here across events. Only divisions with at least one completed, scored event
-        show up below.
+        Lower total is better — same placement-as-points method used to combine WODs into one
+        event&apos;s standings, applied here across events. Only divisions with at least one
+        completed, scored event show up below.
       </p>
 
       <div className="flex flex-col gap-8">
@@ -207,7 +252,9 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
                 </thead>
                 <tbody>
                   {division.standings.map((entry) => {
-                    const placementByEvent = new Map(entry.placements.map((p) => [p.wodId, p.placement]));
+                    const placementByEvent = new Map(
+                      entry.placements.map((p) => [p.wodId, p.placement]),
+                    );
                     return (
                       <tr key={entry.competitorId} className="border-b border-black/5">
                         <td className="py-2 pr-4 font-semibold">{entry.overallPlacement}</td>
@@ -228,8 +275,8 @@ export default async function CircuitDetailPage({ params }: { params: Promise<{ 
         ))}
         {divisionLeaderboards.length === 0 && (
           <p className="text-black/50">
-            No scored results yet across this circuit&apos;s events — the leaderboard fills in as each
-            event&apos;s heats are finished.
+            No scored results yet across this circuit&apos;s events — the leaderboard fills in as
+            each event&apos;s heats are finished.
           </p>
         )}
       </div>

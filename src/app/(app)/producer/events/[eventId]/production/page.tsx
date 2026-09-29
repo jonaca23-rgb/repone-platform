@@ -3,7 +3,11 @@ import { getEventLiveContext } from "@/lib/db/queries";
 import { createClient } from "@/lib/db/server";
 import { EventProducerProduction } from "./EventProducerProduction";
 
-export default async function ProducerEventProductionPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ProducerEventProductionPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();

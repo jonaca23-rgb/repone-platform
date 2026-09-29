@@ -16,7 +16,9 @@ export function AthleteSignUpForm() {
       </p>
 
       {state.message ? (
-        <p className="rounded-md border border-white/20 bg-black/40 p-3 text-sm text-white/80">{state.message}</p>
+        <p className="rounded-md border border-white/20 bg-black/40 p-3 text-sm text-white/80">
+          {state.message}
+        </p>
       ) : (
         <>
           <form action={athleteSignInWithGoogle}>
@@ -36,37 +38,37 @@ export function AthleteSignUpForm() {
           </div>
 
           <form action={formAction} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm text-white/80">
-            Email
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-white/80">
-            Password
-            <input
-              name="password"
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-            />
-          </label>
+            <label className="flex flex-col gap-1 text-sm text-white/80">
+              Email
+              <input
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-white/80">
+              Password
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+                className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
+              />
+            </label>
 
-          {state.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
+            {state.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
-          >
-            {pending ? "Creating account…" : "Create Account"}
-          </button>
+            <button
+              type="submit"
+              disabled={pending}
+              className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
+            >
+              {pending ? "Creating account…" : "Create Account"}
+            </button>
           </form>
         </>
       )}

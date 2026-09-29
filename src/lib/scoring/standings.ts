@@ -9,7 +9,7 @@ import type { RankedResult, StandingEntry } from "./types";
  */
 export function computeOverallStandings(
   perWodRanked: Array<{ wodId: string; results: RankedResult[] }>,
-  options?: { fieldSizeByWod?: Record<string, number> }
+  options?: { fieldSizeByWod?: Record<string, number> },
 ): StandingEntry[] {
   const totals = new Map<string, StandingEntry>();
 

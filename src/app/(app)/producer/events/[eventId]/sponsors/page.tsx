@@ -7,7 +7,11 @@ import { createClient } from "@/lib/db/server";
 // shows on the broadcast happens from the Production tab's existing graphic
 // controls (broadcast_state.active_graphic); this page is the reference
 // list plus a link there.
-export default async function ProducerEventSponsorsPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ProducerEventSponsorsPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const supabase = await createClient();
 
@@ -29,14 +33,19 @@ export default async function ProducerEventSponsorsPage({ params }: { params: Pr
       </p>
       <div className="flex flex-col gap-1.5">
         {(sponsors ?? []).map((s) => (
-          <div key={s.id} className="flex items-center justify-between rounded-lg bg-repone-gray px-4 py-2.5">
+          <div
+            key={s.id}
+            className="flex items-center justify-between rounded-lg bg-repone-gray px-4 py-2.5"
+          >
             <span className="font-semibold text-white">{s.business_name}</span>
             <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-repone-red">
               {s.tier.replace(/_/g, " ")}
             </span>
           </div>
         ))}
-        {(sponsors ?? []).length === 0 && <p className="text-white/50">No active sponsors for this event.</p>}
+        {(sponsors ?? []).length === 0 && (
+          <p className="text-white/50">No active sponsors for this event.</p>
+        )}
       </div>
     </div>
   );

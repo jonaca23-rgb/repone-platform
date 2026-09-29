@@ -30,12 +30,17 @@ const MAX_HISTORY_EVENTS = 3;
  * needed, same "load everything for the floor up front" pattern
  * ScoreKeeperPage already uses for results/standings.
  */
-export async function getCommentatorAthleteDetails(athleteIds: string[]): Promise<Record<string, CommentatorAthleteDetails>> {
+export async function getCommentatorAthleteDetails(
+  athleteIds: string[],
+): Promise<Record<string, CommentatorAthleteDetails>> {
   const uniqueIds = [...new Set(athleteIds)];
   if (uniqueIds.length === 0) return {};
 
   const supabase = await createClient();
-  const { data: athleteRows } = await supabase.from("athletes").select("id, date_of_birth, gender").in("id", uniqueIds);
+  const { data: athleteRows } = await supabase
+    .from("athletes")
+    .select("id, date_of_birth, gender")
+    .in("id", uniqueIds);
   const bioById = new Map((athleteRows ?? []).map((a) => [a.id, a]));
 
   const entries = await Promise.all(
@@ -45,7 +50,9 @@ export async function getCommentatorAthleteDetails(athleteIds: string[]): Promis
         getAthleteCompetitionHistory(athleteId),
       ]);
       const bio = bioById.get(athleteId);
-      const ageCategory = bio ? computeAgeCategory(bio.date_of_birth, bio.gender as Gender | null, new Date()) : null;
+      const ageCategory = bio
+        ? computeAgeCategory(bio.date_of_birth, bio.gender as Gender | null, new Date())
+        : null;
       const details: CommentatorAthleteDetails = {
         ageCategoryLabel: ageCategory ? AGE_CATEGORY_LABELS[ageCategory] : null,
         lifts,
@@ -53,7 +60,7 @@ export async function getCommentatorAthleteDetails(athleteIds: string[]): Promis
         history: history.slice(0, MAX_HISTORY_EVENTS),
       };
       return [athleteId, details] as const;
-    })
+    }),
   );
 
   return Object.fromEntries(entries);

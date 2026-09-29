@@ -19,7 +19,9 @@ export default async function ProducerPickerPage() {
       <h1 className="mb-1 font-[family-name:var(--font-display)] text-3xl font-bold uppercase tracking-wide">
         Select an Event to Produce
       </h1>
-      <p className="mb-6 text-sm text-white/50">Only events you&apos;re assigned to produce show up here.</p>
+      <p className="mb-6 text-sm text-white/50">
+        Only events you&apos;re assigned to produce show up here.
+      </p>
       <div className="flex flex-col gap-4">
         {events.map((e) => (
           <Link
@@ -35,7 +37,8 @@ export default async function ProducerPickerPage() {
         ))}
         {events.length === 0 && (
           <p className="text-white/50">
-            No events assigned to you yet — ask an admin to add you as a producer from that event&apos;s Staff tab.
+            No events assigned to you yet — ask an admin to add you as a producer from that
+            event&apos;s Staff tab.
           </p>
         )}
       </div>

@@ -7,7 +7,11 @@ import { getEventLiveContext } from "@/lib/db/queries";
 // Production tab, which is today's existing Production Dashboard screen).
 // Quick status + links into the other tabs; the actual live-running work
 // happens on Production/Broadcast.
-export default async function ProducerEventDashboardPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function ProducerEventDashboardPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();
@@ -24,7 +28,8 @@ export default async function ProducerEventDashboardPage({ params }: { params: P
       <div className="rounded-xl bg-repone-gray p-5">
         <p className="text-xs uppercase tracking-widest text-white/50">Floors</p>
         <p className="mt-1 text-2xl font-bold text-white">
-          {context.floors.length} <span className="text-sm font-normal text-white/50">({liveFloors.length} live)</span>
+          {context.floors.length}{" "}
+          <span className="text-sm font-normal text-white/50">({liveFloors.length} live)</span>
         </p>
       </div>
       <div className="rounded-xl bg-repone-gray p-5">

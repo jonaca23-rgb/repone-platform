@@ -21,7 +21,13 @@ export function LanesOverlayClient({
 
   return (
     <div className="flex h-screen w-screen items-center justify-start p-8">
-      <LanesBoard lanes={currentHeat.lanes.map((l) => ({ laneNumber: l.laneNumber, name: l.name, affiliate: l.affiliate }))} />
+      <LanesBoard
+        lanes={currentHeat.lanes.map((l) => ({
+          laneNumber: l.laneNumber,
+          name: l.name,
+          affiliate: l.affiliate,
+        }))}
+      />
     </div>
   );
 }

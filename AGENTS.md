@@ -7,3 +7,27 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Local development
+
+`pnpm dev` brings up the whole stack (Podman → local Supabase → `.env.local` →
+seeds → dev accounts → `next dev` on :3200). `pnpm dev:setup` is the clean
+slate. Dev logins are all `*@repone.test` / `Repone1234!` (see README).
+The project is not in production: there is no remote database to preserve, so
+schema changes go in `supabase/migrations/` and are verified with
+`pnpm db:reset && pnpm db:types`.
+
+# Shipping a change
+
+1. **Branch from an up-to-date `main`**, named with a type prefix and a short
+   kebab-case description: `fix/…`, `feat/…`, `chore/…`, `docs/…`,
+   `refactor/…`. Never commit directly to `main`.
+2. **`pnpm check` passes** (lint, types, unit tests) before every commit. Say
+   so if it was skipped or failed; do not commit around it.
+3. **Commit only what belongs to the change.** Stage files by name, not
+   `git add -A`.
+4. **Commit messages:** a plain sentence as the title saying what is now true
+   (no `fix:`/`feat:` prefixes), then a body explaining why.
+5. **Push and open a PR against `main`** with `gh pr create`, saying what
+   changed, why, and how it was verified.
+6. **Stop at the PR link.** The owner reviews and merges; agents do not merge.

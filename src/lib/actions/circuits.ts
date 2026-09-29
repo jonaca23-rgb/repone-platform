@@ -54,7 +54,10 @@ export async function addEventToCircuit(circuitId: string, formData: FormData) {
   if (!eventId) throw new Error("Choose an event to add.");
 
   const supabase = await createClient();
-  const { error } = await supabase.from("events").update({ circuit_id: circuitId }).eq("id", eventId);
+  const { error } = await supabase
+    .from("events")
+    .update({ circuit_id: circuitId })
+    .eq("id", eventId);
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/circuits/${circuitId}`);

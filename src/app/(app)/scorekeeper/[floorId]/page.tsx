@@ -3,9 +3,17 @@ import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
-import { ScoreKeeperClient, type ScoreKeeperResult, type ScoreKeeperStanding } from "./ScoreKeeperClient";
+import {
+  ScoreKeeperClient,
+  type ScoreKeeperResult,
+  type ScoreKeeperStanding,
+} from "./ScoreKeeperClient";
 
-export default async function ScoreKeeperPage({ params }: { params: Promise<{ floorId: string }> }) {
+export default async function ScoreKeeperPage({
+  params,
+}: {
+  params: Promise<{ floorId: string }>;
+}) {
   const { floorId } = await params;
   const context = await getFloorContext(floorId);
   if (!context) notFound();
@@ -31,8 +39,11 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
   // standings once per WOD+division, not once per heat.
   const wodDivisionPairs = Array.from(
     new Map(
-      context.heats.map((h) => [`${h.wod.id}:${h.division.id}`, { wodId: h.wod.id, divisionId: h.division.id }])
-    ).values()
+      context.heats.map((h) => [
+        `${h.wod.id}:${h.division.id}`,
+        { wodId: h.wod.id, divisionId: h.division.id },
+      ]),
+    ).values(),
   );
 
   const supabase = await createClient();
@@ -48,8 +59,8 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
           .select("placement, points, athlete_id, athletes(first_name, last_name)")
           .eq("division_id", pair.divisionId)
           .eq("wod_id", pair.wodId)
-          .order("placement", { ascending: true, nullsFirst: false })
-      )
+          .order("placement", { ascending: true, nullsFirst: false }),
+      ),
     ),
   ]);
 
@@ -75,7 +86,7 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
         points: r.points,
         athlete_id: r.athlete_id,
         name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : "—",
-      }))
+      })),
     );
   });
 

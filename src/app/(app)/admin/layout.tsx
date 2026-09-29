@@ -25,7 +25,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link href="/admin" className="shrink-0 hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
-            <img src="/repone-logo.png" alt="RepOne" className="h-9 w-auto sm:h-10" width={472} height={240} />
+            <img
+              src="/repone-logo.png"
+              alt="RepOne"
+              className="h-9 w-auto sm:h-10"
+              width={472}
+              height={240}
+            />
           </Link>
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm font-bold uppercase tracking-wide text-white/80">
             <Link href="/admin" className="hover:text-white">
@@ -36,7 +42,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {item.label}
               </Link>
             ))}
-            <MessagesNavLink href="/admin/messages" userId={ctx.userId} initialUnread={unreadCount} />
+            <MessagesNavLink
+              href="/admin/messages"
+              userId={ctx.userId}
+              initialUnread={unreadCount}
+            />
             <Link
               href="/scorekeeper"
               className="rounded-full bg-repone-red/10 px-3 py-1 text-repone-red hover:bg-repone-red/20"

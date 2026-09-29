@@ -45,7 +45,9 @@ export function CommentatorClient({
   const [following, setFollowing] = useState(true);
   const [manualHeatId, setManualHeatId] = useState<string | null>(null);
 
-  const activeHeatId = following ? liveHeatId ?? heats[0]?.id ?? null : manualHeatId ?? heats[0]?.id ?? null;
+  const activeHeatId = following
+    ? (liveHeatId ?? heats[0]?.id ?? null)
+    : (manualHeatId ?? heats[0]?.id ?? null);
   const heat = heats.find((h) => h.id === activeHeatId) ?? heats[0] ?? null;
 
   const heatIndex = heat ? heats.findIndex((h) => h.id === heat.id) : -1;
@@ -87,7 +89,9 @@ export function CommentatorClient({
             {heat.wod.name} · Heat {heat.heatNumber}
             {heat.heatCount ? ` / ${heat.heatCount}` : ""}
           </p>
-          <p className="text-base font-semibold uppercase tracking-wide text-repone-red">{heat.division.name}</p>
+          <p className="text-base font-semibold uppercase tracking-wide text-repone-red">
+            {heat.division.name}
+          </p>
         </div>
         <span
           className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
@@ -124,13 +128,17 @@ export function CommentatorClient({
             type="button"
             className="control-btn w-fit px-4 py-3 text-xs disabled:opacity-30"
             disabled={heatIndex === -1 || heatIndex >= heats.length - 1}
-            onClick={() => heatIndex >= 0 && heatIndex < heats.length - 1 && goToHeat(heats[heatIndex + 1].id)}
+            onClick={() =>
+              heatIndex >= 0 && heatIndex < heats.length - 1 && goToHeat(heats[heatIndex + 1].id)
+            }
           >
             Next →
           </button>
         </div>
         {following ? (
-          <span className="text-xs font-semibold uppercase tracking-wide text-repone-red">Following live heat</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-repone-red">
+            Following live heat
+          </span>
         ) : (
           <button
             className="control-btn w-fit px-4 py-3 text-xs"
@@ -149,7 +157,11 @@ export function CommentatorClient({
       <div className="flex flex-col gap-4">
         {lanes.map((lane) => {
           const details = detailsByAthleteId[lane.athleteId!];
-          const hasStats = details && (details.lifts.length > 0 || details.benchmarks.length > 0 || details.history.length > 0);
+          const hasStats =
+            details &&
+            (details.lifts.length > 0 ||
+              details.benchmarks.length > 0 ||
+              details.history.length > 0);
           return (
             <div key={lane.laneNumber} className="rounded-xl bg-repone-gray p-5">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -170,20 +182,30 @@ export function CommentatorClient({
               </div>
 
               {!hasStats ? (
-                <p className="text-sm text-white/40">No lifts, benchmarks, or competition history on file yet.</p>
+                <p className="text-sm text-white/40">
+                  No lifts, benchmarks, or competition history on file yet.
+                </p>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {(details!.lifts.length > 0 || details!.benchmarks.length > 0) && (
                     <div>
-                      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-white/40">Lifts &amp; Benchmarks</p>
+                      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-white/40">
+                        Lifts &amp; Benchmarks
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {details!.lifts.map((l) => (
-                          <span key={l.id} className="rounded-full bg-black/40 px-3 py-1 text-sm text-white">
+                          <span
+                            key={l.id}
+                            className="rounded-full bg-black/40 px-3 py-1 text-sm text-white"
+                          >
                             {l.label}: <span className="font-semibold">{l.valueDisplay}</span>
                           </span>
                         ))}
                         {details!.benchmarks.map((b) => (
-                          <span key={b.id} className="rounded-full bg-black/40 px-3 py-1 text-sm text-white">
+                          <span
+                            key={b.id}
+                            className="rounded-full bg-black/40 px-3 py-1 text-sm text-white"
+                          >
                             {b.name}: <span className="font-semibold">{b.resultDisplay}</span>
                           </span>
                         ))}
@@ -192,19 +214,26 @@ export function CommentatorClient({
                   )}
                   {details!.history.length > 0 && (
                     <div>
-                      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-white/40">Previous Standings</p>
+                      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-white/40">
+                        Previous Standings
+                      </p>
                       <div className="flex flex-col gap-1.5">
                         {details!.history.map((h) => (
                           <div key={h.eventId} className="text-sm text-white">
                             <span className="font-semibold">{h.eventName}</span>
                             <span className="text-white/50"> ({h.divisionName})</span>
                             {h.overall?.placement && (
-                              <span className="ml-2 font-semibold text-repone-red">#{h.overall.placement} overall</span>
+                              <span className="ml-2 font-semibold text-repone-red">
+                                #{h.overall.placement} overall
+                              </span>
                             )}
                             {h.wods.length > 0 && (
                               <div className="mt-0.5 flex flex-wrap gap-1.5">
                                 {h.wods.map((w) => (
-                                  <span key={w.wodId} className="rounded-full bg-black/40 px-2 py-0.5 text-xs text-white/70">
+                                  <span
+                                    key={w.wodId}
+                                    className="rounded-full bg-black/40 px-2 py-0.5 text-xs text-white/70"
+                                  >
                                     {w.name}: {w.placement ? `#${w.placement}` : "—"}
                                   </span>
                                 ))}
@@ -220,7 +249,9 @@ export function CommentatorClient({
             </div>
           );
         })}
-        {lanes.length === 0 && <p className="text-sm text-white/50">No athletes assigned to lanes for this heat yet.</p>}
+        {lanes.length === 0 && (
+          <p className="text-sm text-white/50">No athletes assigned to lanes for this heat yet.</p>
+        )}
       </div>
     </div>
   );

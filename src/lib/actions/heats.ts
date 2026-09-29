@@ -20,7 +20,15 @@ export async function createHeat(eventId: string, formData: FormData) {
   const supabase = await createClient();
   const { data: heat, error } = await supabase
     .from("heats")
-    .insert({ event_id: eventId, floor_id, wod_id, division_id, heat_number, heat_count, scheduled_start })
+    .insert({
+      event_id: eventId,
+      floor_id,
+      wod_id,
+      division_id,
+      heat_number,
+      heat_count,
+      scheduled_start,
+    })
     .select("id")
     .single();
 
@@ -110,7 +118,7 @@ export async function generateHeats(eventId: string, formData: FormData) {
   if (existingErr) throw new Error(existingErr.message);
   if ((existingHeats ?? []).length > 0) {
     throw new Error(
-      "Heats already exist for this WOD/Division — remove them first (or use Add Single Heat) before generating a new set, so no one ends up double-booked."
+      "Heats already exist for this WOD/Division — remove them first (or use Add Single Heat) before generating a new set, so no one ends up double-booked.",
     );
   }
 
@@ -124,7 +132,9 @@ export async function generateHeats(eventId: string, formData: FormData) {
 
   const participants = (registrations ?? []).filter((r) => r.athlete_id || r.team_id);
   if (participants.length === 0) {
-    throw new Error("No registered athletes/teams found for this division — register participants first.");
+    throw new Error(
+      "No registered athletes/teams found for this division — register participants first.",
+    );
   }
 
   const heatCount = Math.ceil(participants.length / lanes_per_heat);

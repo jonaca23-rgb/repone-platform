@@ -8,7 +8,11 @@ import { DeleteEventButton } from "@/app/(app)/admin/DeleteEventButton";
 function formatDateRange(startsOn: string | null, endsOn: string | null) {
   if (!startsOn) return "Date TBD";
   const fmt = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   if (!endsOn || endsOn === startsOn) return fmt(startsOn);
   return `${fmt(startsOn)} — ${fmt(endsOn)}`;
 }
@@ -60,22 +64,42 @@ export default async function AdminHomePage() {
         <h1 className="text-2xl font-bold">Events</h1>
       </div>
 
-      <form action={createEvent} className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border border-black/10 p-4">
+      <form
+        action={createEvent}
+        className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border border-black/10 p-4"
+      >
         <label className="flex flex-col gap-1 text-sm">
           Event name
-          <input name="name" required className="rounded-md border border-black/20 px-3 py-2" placeholder="Aprieta Entry Level" />
+          <input
+            name="name"
+            required
+            className="rounded-md border border-black/20 px-3 py-2"
+            placeholder="Aprieta Entry Level"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Starts
-          <input name="starts_on" type="date" className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="starts_on"
+            type="date"
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Ends
-          <input name="ends_on" type="date" className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="ends_on"
+            type="date"
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Single Event or Circuit?
-          <select name="circuit_choice" defaultValue="" className="rounded-md border border-black/20 px-3 py-2">
+          <select
+            name="circuit_choice"
+            defaultValue=""
+            className="rounded-md border border-black/20 px-3 py-2"
+          >
             <option value="">Single Event (standalone)</option>
             <option value="new">Start a new circuit…</option>
             {(circuits ?? []).map((c) => (
@@ -106,7 +130,11 @@ export default async function AdminHomePage() {
               <div className="relative aspect-video w-full bg-repone-black">
                 {e.cover_image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset
-                  <img src={e.cover_image_url} alt={e.name} className="h-full w-full object-cover" />
+                  <img
+                    src={e.cover_image_url}
+                    alt={e.name}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <span className="px-4 text-center text-sm font-semibold uppercase tracking-wide text-white/30">
@@ -140,12 +168,20 @@ export default async function AdminHomePage() {
                   action={uploadEventCoverPhoto.bind(null, e.id)}
                   className="mt-2 flex flex-wrap items-center gap-2"
                 >
-                  <input type="file" name="cover_photo" accept="image/*" required className="max-w-[180px] text-xs" />
+                  <input
+                    type="file"
+                    name="cover_photo"
+                    accept="image/*"
+                    required
+                    className="max-w-[180px] text-xs"
+                  />
                   <button className="control-btn control-btn-red px-3 py-1.5 text-xs">Save</button>
                 </form>
                 {e.cover_image_url && (
                   <form action={removeEventCoverPhoto.bind(null, e.id)} className="mt-2">
-                    <button className="text-xs text-black/40 hover:text-repone-red">Remove photo</button>
+                    <button className="text-xs text-black/40 hover:text-repone-red">
+                      Remove photo
+                    </button>
                   </form>
                 )}
               </details>

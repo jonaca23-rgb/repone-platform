@@ -4,7 +4,11 @@ import { getAthleteSessionContext } from "@/lib/auth/session";
 import { getThread, markThreadRead, resolveCounterparts } from "@/lib/db/messages";
 import { sendMessage } from "@/lib/actions/messages";
 
-export default async function AthleteThreadPage({ params }: { params: Promise<{ counterpartId: string }> }) {
+export default async function AthleteThreadPage({
+  params,
+}: {
+  params: Promise<{ counterpartId: string }>;
+}) {
   const { counterpartId } = await params;
   const ctx = await getAthleteSessionContext();
   if (!ctx) redirect("/athlete/login");
@@ -27,7 +31,9 @@ export default async function AthleteThreadPage({ params }: { params: Promise<{ 
         </Link>
       </p>
       <h1 className="mb-1 text-xl font-bold text-white">{counterpart.name}</h1>
-      {counterpart.sublabel ? <p className="mb-6 text-sm text-white/50">{counterpart.sublabel}</p> : null}
+      {counterpart.sublabel ? (
+        <p className="mb-6 text-sm text-white/50">{counterpart.sublabel}</p>
+      ) : null}
 
       <div className="mb-6 flex flex-col gap-3">
         {thread.map((m) => (

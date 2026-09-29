@@ -81,7 +81,8 @@ const MAX_COVER_PHOTO_BYTES = 8 * 1024 * 1024;
  */
 export async function uploadEventCoverPhoto(eventId: string, formData: FormData) {
   const file = formData.get("cover_photo");
-  if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image file to upload.");
+  if (!(file instanceof File) || file.size === 0)
+    throw new Error("Choose an image file to upload.");
   if (!file.type.startsWith("image/")) throw new Error("Please upload an image file.");
   if (file.size > MAX_COVER_PHOTO_BYTES) throw new Error("Image must be under 8MB.");
 
@@ -109,7 +110,10 @@ export async function uploadEventCoverPhoto(eventId: string, formData: FormData)
 
 export async function removeEventCoverPhoto(eventId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("events").update({ cover_image_url: null }).eq("id", eventId);
+  const { error } = await supabase
+    .from("events")
+    .update({ cover_image_url: null })
+    .eq("id", eventId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/admin");
@@ -133,7 +137,11 @@ export async function updateEventStatus(eventId: string, status: EventStatus) {
  */
 export async function deleteEvent(eventId: string) {
   const supabase = await createClient();
-  const { data: existing } = await supabase.from("events").select("circuit_id").eq("id", eventId).single();
+  const { data: existing } = await supabase
+    .from("events")
+    .select("circuit_id")
+    .eq("id", eventId)
+    .single();
 
   const { error } = await supabase.from("events").delete().eq("id", eventId);
   if (error) throw new Error(error.message);

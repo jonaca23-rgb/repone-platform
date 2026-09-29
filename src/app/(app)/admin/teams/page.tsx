@@ -32,17 +32,22 @@ export default async function TeamsPage() {
   const typedMembers = (members ?? []) as unknown as Array<{
     id: string;
     team_id: string;
-    athletes: { id: string; first_name: string; last_name: string; affiliate: string | null } | null;
+    athletes: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      affiliate: string | null;
+    } | null;
   }>;
 
   return (
     <div>
       <h1 className="mb-2 text-2xl font-bold">Teams</h1>
       <p className="mb-6 text-sm text-black/50">
-        Your organization&apos;s team pool — pairs, teams, or any custom competitor format built from
-        athletes on your roster. Register a team into a division from that event&apos;s Athletes &amp;
-        Registrations page. Entry format and headcount here are for display and fee-matching only —
-        no roster size is ever enforced.
+        Your organization&apos;s team pool — pairs, teams, or any custom competitor format built
+        from athletes on your roster. Register a team into a division from that event&apos;s
+        Athletes &amp; Registrations page. Entry format and headcount here are for display and
+        fee-matching only — no roster size is ever enforced.
       </p>
 
       <form
@@ -51,7 +56,12 @@ export default async function TeamsPage() {
       >
         <label className="flex flex-col gap-1 text-sm">
           Team name
-          <input name="name" required placeholder="Box Wolves" className="rounded-md border border-black/20 px-3 py-2" />
+          <input
+            name="name"
+            required
+            placeholder="Box Wolves"
+            className="rounded-md border border-black/20 px-3 py-2"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Box / affiliate
@@ -59,7 +69,11 @@ export default async function TeamsPage() {
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Entry format
-          <select name="entry_format" defaultValue="team" className="rounded-md border border-black/20 px-3 py-2">
+          <select
+            name="entry_format"
+            defaultValue="team"
+            className="rounded-md border border-black/20 px-3 py-2"
+          >
             {Object.entries(ENTRY_FORMAT_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -92,15 +106,20 @@ export default async function TeamsPage() {
                 <div>
                   <p className="font-semibold">
                     {t.name}
-                    {t.affiliate ? <span className="ml-2 text-sm font-normal text-black/40">{t.affiliate}</span> : null}
+                    {t.affiliate ? (
+                      <span className="ml-2 text-sm font-normal text-black/40">{t.affiliate}</span>
+                    ) : null}
                   </p>
                   <p className="text-xs uppercase tracking-wide text-black/50">
                     {ENTRY_FORMAT_LABELS[t.entry_format as EntryFormat]}
-                    {t.team_size ? ` · ${t.team_size} roster spots` : ""} · {roster.length} on roster now
+                    {t.team_size ? ` · ${t.team_size} roster spots` : ""} · {roster.length} on
+                    roster now
                   </p>
                 </div>
                 <form action={deleteTeam.bind(null, t.id)}>
-                  <button className="text-sm text-black/40 hover:text-repone-red">Delete team</button>
+                  <button className="text-sm text-black/40 hover:text-repone-red">
+                    Delete team
+                  </button>
                 </form>
               </div>
 
@@ -112,18 +131,26 @@ export default async function TeamsPage() {
                   >
                     {m.athletes?.first_name} {m.athletes?.last_name}
                     <form action={removeTeamMember.bind(null, m.id)}>
-                      <button className="text-black/40 hover:text-repone-red" aria-label="Remove from roster">
+                      <button
+                        className="text-black/40 hover:text-repone-red"
+                        aria-label="Remove from roster"
+                      >
                         ×
                       </button>
                     </form>
                   </span>
                 ))}
-                {roster.length === 0 && <span className="text-sm text-black/40">No roster members yet.</span>}
+                {roster.length === 0 && (
+                  <span className="text-sm text-black/40">No roster members yet.</span>
+                )}
               </div>
 
               {available.length > 0 && (
                 <form action={addTeamMember.bind(null, t.id)} className="flex items-end gap-2">
-                  <select name="athlete_id" className="rounded-md border border-black/20 px-3 py-2 text-sm">
+                  <select
+                    name="athlete_id"
+                    className="rounded-md border border-black/20 px-3 py-2 text-sm"
+                  >
                     {available.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.first_name} {a.last_name} {a.affiliate ? `(${a.affiliate})` : ""}

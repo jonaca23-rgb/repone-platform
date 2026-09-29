@@ -202,8 +202,9 @@ insert into tmp_athlete_seed values
 
 create temporary table tmp_athletes as
 with ins as (
-  insert into athletes (organization_id, first_name, last_name, affiliate)
-  select o.org_id, a.first_name, a.last_name, a.affiliate
+  insert into athletes (organization_id, first_name, last_name, affiliate, email)
+  select o.org_id, a.first_name, a.last_name, a.affiliate,
+         format('qa.athlete%s@example.test', a.athlete_seq)
   from tmp_athlete_seed a cross join tmp_org o
   returning id, first_name, last_name
 )

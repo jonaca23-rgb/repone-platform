@@ -18,7 +18,10 @@ export interface DirectoryAthlete {
   authUserId: string | null; // null = hasn't created a RepOne account, can't be messaged
 }
 
-export async function getAthleteDirectory(organizationId: string, excludeAthleteId: string): Promise<DirectoryAthlete[]> {
+export async function getAthleteDirectory(
+  organizationId: string,
+  excludeAthleteId: string,
+): Promise<DirectoryAthlete[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("athletes")
@@ -47,7 +50,10 @@ export interface AthleteProfile {
   authUserId: string | null;
 }
 
-export async function getAthleteProfile(athleteId: string, organizationId: string): Promise<AthleteProfile | null> {
+export async function getAthleteProfile(
+  athleteId: string,
+  organizationId: string,
+): Promise<AthleteProfile | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("athletes")
@@ -74,7 +80,13 @@ export interface AthleteHistoryGroup {
   startsOn: string | null;
   divisionName: string;
   overall: { standingId: string; placement: number | null; points: number | null } | null;
-  wods: { standingId: string; wodId: string; name: string; sortOrder: number; placement: number | null }[];
+  wods: {
+    standingId: string;
+    wodId: string;
+    name: string;
+    sortOrder: number;
+    placement: number | null;
+  }[];
 }
 
 /**
@@ -84,7 +96,9 @@ export interface AthleteHistoryGroup {
  * results (standings/results are public-read, see 0002_rls_and_realtime.sql)
  * without duplicating the join/group logic.
  */
-export async function getAthleteCompetitionHistory(athleteId: string): Promise<AthleteHistoryGroup[]> {
+export async function getAthleteCompetitionHistory(
+  athleteId: string,
+): Promise<AthleteHistoryGroup[]> {
   const supabase = await createClient();
   const { data: standingsRows } = await supabase
     .from("standings")
@@ -96,17 +110,18 @@ export async function getAthleteCompetitionHistory(athleteId: string): Promise<A
   const divisionIds = [...new Set(rows.map((r) => r.division_id))];
   const wodIds = [...new Set(rows.flatMap((r) => (r.wod_id ? [r.wod_id] : [])))];
 
-  const [{ data: historyEvents }, { data: historyDivisions }, { data: historyWods }] = await Promise.all([
-    eventIds.length
-      ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; starts_on: string | null }[] }),
-    divisionIds.length
-      ? supabase.from("divisions").select("id, name").in("id", divisionIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    wodIds.length
-      ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; sort_order: number }[] }),
-  ]);
+  const [{ data: historyEvents }, { data: historyDivisions }, { data: historyWods }] =
+    await Promise.all([
+      eventIds.length
+        ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; starts_on: string | null }[] }),
+      divisionIds.length
+        ? supabase.from("divisions").select("id, name").in("id", divisionIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      wodIds.length
+        ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; sort_order: number }[] }),
+    ]);
 
   const eventById = new Map((historyEvents ?? []).map((e) => [e.id, e]));
   const divisionById = new Map((historyDivisions ?? []).map((d) => [d.id, d]));
@@ -116,15 +131,14 @@ export async function getAthleteCompetitionHistory(athleteId: string): Promise<A
   for (const row of rows) {
     const event = eventById.get(row.event_id);
     if (!event) continue;
-    const group: AthleteHistoryGroup =
-      historyByEvent.get(row.event_id) ?? {
-        eventId: row.event_id,
-        eventName: event.name,
-        startsOn: event.starts_on,
-        divisionName: divisionById.get(row.division_id)?.name ?? "—",
-        overall: null,
-        wods: [],
-      };
+    const group: AthleteHistoryGroup = historyByEvent.get(row.event_id) ?? {
+      eventId: row.event_id,
+      eventName: event.name,
+      startsOn: event.starts_on,
+      divisionName: divisionById.get(row.division_id)?.name ?? "—",
+      overall: null,
+      wods: [],
+    };
     if (row.wod_id === null) {
       group.overall = { standingId: row.id, placement: row.placement, points: row.points };
     } else {
@@ -158,7 +172,10 @@ export interface StaffContact {
 
 export async function getOrgStaffDirectory(organizationId: string): Promise<StaffContact[]> {
   const supabase = await createClient();
-  const { data: roleRows } = await supabase.from("user_roles").select("user_id, role").eq("organization_id", organizationId);
+  const { data: roleRows } = await supabase
+    .from("user_roles")
+    .select("user_id, role")
+    .eq("organization_id", organizationId);
 
   const userIds = [...new Set((roleRows ?? []).map((r) => r.user_id as string))];
   if (userIds.length === 0) return [];
@@ -170,7 +187,10 @@ export async function getOrgStaffDirectory(organizationId: string): Promise<Staf
     rolesByUser.set(r.user_id, list);
   }
 
-  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", userIds);
 
   return userIds
     .map((id) => ({
@@ -208,7 +228,10 @@ interface CounterpartLabel {
  * since `messages` only stores raw auth user ids and either side of a
  * conversation could be either kind of account.
  */
-export async function resolveCounterparts(userIds: string[], organizationId: string): Promise<Map<string, CounterpartLabel>> {
+export async function resolveCounterparts(
+  userIds: string[],
+  organizationId: string,
+): Promise<Map<string, CounterpartLabel>> {
   const map = new Map<string, CounterpartLabel>();
   if (userIds.length === 0) return map;
 
@@ -221,7 +244,11 @@ export async function resolveCounterparts(userIds: string[], organizationId: str
 
   for (const a of athletes ?? []) {
     if (a.auth_user_id) {
-      map.set(a.auth_user_id, { name: `${a.first_name} ${a.last_name}`, kind: "athlete", sublabel: a.affiliate });
+      map.set(a.auth_user_id, {
+        name: `${a.first_name} ${a.last_name}`,
+        kind: "athlete",
+        sublabel: a.affiliate,
+      });
     }
   }
 
@@ -229,7 +256,11 @@ export async function resolveCounterparts(userIds: string[], organizationId: str
   if (remaining.length > 0) {
     const [{ data: profiles }, { data: roleRows }] = await Promise.all([
       supabase.from("profiles").select("id, full_name").in("id", remaining),
-      supabase.from("user_roles").select("user_id, role").eq("organization_id", organizationId).in("user_id", remaining),
+      supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("organization_id", organizationId)
+        .in("user_id", remaining),
     ]);
 
     const rolesByUser = new Map<string, string[]>();
@@ -242,14 +273,21 @@ export async function resolveCounterparts(userIds: string[], organizationId: str
     for (const id of remaining) {
       const profile = profiles?.find((p) => p.id === id);
       const roles = (rolesByUser.get(id) ?? []).map((r) => ROLE_LABELS[r as UserRoleDb] ?? r);
-      map.set(id, { name: profile?.full_name || "Staff member", kind: "staff", sublabel: roles.join(", ") || null });
+      map.set(id, {
+        name: profile?.full_name || "Staff member",
+        kind: "staff",
+        sublabel: roles.join(", ") || null,
+      });
     }
   }
 
   return map;
 }
 
-export async function getConversations(myUserId: string, organizationId: string): Promise<ConversationSummary[]> {
+export async function getConversations(
+  myUserId: string,
+  organizationId: string,
+): Promise<ConversationSummary[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("messages")
@@ -309,7 +347,9 @@ export async function getThread(myUserId: string, counterpartId: string): Promis
   const { data } = await supabase
     .from("messages")
     .select("id, sender_id, recipient_id, body, read_at, created_at")
-    .or(`and(sender_id.eq.${myUserId},recipient_id.eq.${counterpartId}),and(sender_id.eq.${counterpartId},recipient_id.eq.${myUserId})`)
+    .or(
+      `and(sender_id.eq.${myUserId},recipient_id.eq.${counterpartId}),and(sender_id.eq.${counterpartId},recipient_id.eq.${myUserId})`,
+    )
     .order("created_at", { ascending: true });
 
   return ((data ?? []) as MessageRow[]).map((m) => ({

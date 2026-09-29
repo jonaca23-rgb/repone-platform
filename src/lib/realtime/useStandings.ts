@@ -47,8 +47,10 @@ export function useStandings(divisionId: string | null) {
           (rows ?? []).map((r) => ({
             placement: r.placement,
             points: r.points,
-            name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : r.teams?.name ?? "—",
-          }))
+            name: r.athletes
+              ? `${r.athletes.first_name} ${r.athletes.last_name}`
+              : (r.teams?.name ?? "—"),
+          })),
         );
       }
     }
@@ -59,8 +61,13 @@ export function useStandings(divisionId: string | null) {
       .channel(`standings:${divisionId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "standings", filter: `division_id=eq.${divisionId}` },
-        () => load()
+        {
+          event: "*",
+          schema: "public",
+          table: "standings",
+          filter: `division_id=eq.${divisionId}`,
+        },
+        () => load(),
       )
       .subscribe();
 

@@ -14,7 +14,9 @@ export default async function AthleteMessagesPage() {
     getOrgStaffDirectory(organizationId),
   ]);
 
-  const messagedStaffIds = new Set(conversations.filter((c) => c.counterpartKind === "staff").map((c) => c.counterpartId));
+  const messagedStaffIds = new Set(
+    conversations.filter((c) => c.counterpartKind === "staff").map((c) => c.counterpartId),
+  );
   const newStaffContacts = staff.filter((s) => !messagedStaffIds.has(s.userId));
 
   return (
@@ -37,7 +39,9 @@ export default async function AthleteMessagesPage() {
               <p className="font-semibold text-white">
                 {c.counterpartName}
                 {c.counterpartKind === "staff" && c.counterpartSublabel ? (
-                  <span className="ml-2 text-xs font-normal uppercase tracking-wide text-repone-red">{c.counterpartSublabel}</span>
+                  <span className="ml-2 text-xs font-normal uppercase tracking-wide text-repone-red">
+                    {c.counterpartSublabel}
+                  </span>
                 ) : null}
               </p>
               <p className="truncate text-sm text-white/50">
@@ -46,7 +50,9 @@ export default async function AthleteMessagesPage() {
               </p>
             </div>
             {c.unreadCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-repone-red px-2 py-0.5 text-xs font-bold text-white">{c.unreadCount}</span>
+              <span className="shrink-0 rounded-full bg-repone-red px-2 py-0.5 text-xs font-bold text-white">
+                {c.unreadCount}
+              </span>
             ) : null}
           </Link>
         ))}
@@ -55,7 +61,9 @@ export default async function AthleteMessagesPage() {
 
       {newStaffContacts.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-white/60">Message Staff</h2>
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-white/60">
+            Message Staff
+          </h2>
           <div className="flex flex-col gap-2">
             {newStaffContacts.map((s) => (
               <Link
@@ -64,7 +72,9 @@ export default async function AthleteMessagesPage() {
                 className="flex items-center justify-between rounded-lg border border-white/10 px-4 py-3 hover:border-repone-red/40"
               >
                 <p className="text-white">{s.fullName}</p>
-                <p className="text-xs uppercase tracking-wide text-white/50">{s.roleLabels.join(", ")}</p>
+                <p className="text-xs uppercase tracking-wide text-white/50">
+                  {s.roleLabels.join(", ")}
+                </p>
               </Link>
             ))}
           </div>

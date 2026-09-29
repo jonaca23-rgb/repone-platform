@@ -10,7 +10,11 @@ import { AthleteLoginForm } from "./AthleteLoginForm";
  * from the home page. Only a genuinely signed-out visitor sees the form
  * below, and signing in redirects to /athlete (see athleteSignIn).
  */
-export default async function AthleteLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function AthleteLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const ctx = await getAthleteSessionContext();
   if (ctx) redirect(ctx.athleteId ? "/athlete" : "/athlete/onboarding");
 

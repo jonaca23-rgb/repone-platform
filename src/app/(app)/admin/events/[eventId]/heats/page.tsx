@@ -8,53 +8,79 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
   const { eventId } = await params;
   const supabase = await createClient();
   const cookieStore = await cookies();
-  const lastLanesPerHeat = Number(cookieStore.get(`repone_lanes_per_heat_${eventId}`)?.value ?? 6) || 6;
+  const lastLanesPerHeat =
+    Number(cookieStore.get(`repone_lanes_per_heat_${eventId}`)?.value ?? 6) || 6;
 
-  const [{ data: event }, { data: floors }, { data: wods }, { data: divisions }, { data: heats }, { data: registrations }] =
-    await Promise.all([
-      supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
-      supabase.from("floors").select("id, name, venues!inner(event_id)").eq("venues.event_id", eventId),
-      // wods.sort_order has the same problem as divisions.sort_order — every
-      // row defaults to 0 and nothing sets it, so it's a no-op. created_at is
-      // "the order this WOD was entered," which is what Jonathan wants WODs
-      // to run in (a WOD's name, unlike a division's, carries no ordering
-      // information — see lib/scoring/divisionOrder.ts's file header).
-      supabase.from("wods").select("id, name, created_at").eq("event_id", eventId).order("created_at"),
-      // divisions.sort_order defaults to 0 for every row (nothing sets it to
-      // anything else), so the dropdowns below are re-sorted in JS by name
-      // instead — see the compareDivisionNames sort just below this query.
-      supabase.from("divisions").select("id, name").eq("event_id", eventId),
-      supabase
-        .from("heats")
-        .select(
-          "id, heat_number, heat_count, scheduled_start, ended_at, wods(name, created_at), divisions(name), floors(name), lanes(id)"
-        )
-        .eq("event_id", eventId),
-      supabase.from("registrations").select("division_id").eq("event_id", eventId),
-    ]);
+  const [
+    { data: event },
+    { data: floors },
+    { data: wods },
+    { data: divisions },
+    { data: heats },
+    { data: registrations },
+  ] = await Promise.all([
+    supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
+    supabase
+      .from("floors")
+      .select("id, name, venues!inner(event_id)")
+      .eq("venues.event_id", eventId),
+    // wods.sort_order has the same problem as divisions.sort_order — every
+    // row defaults to 0 and nothing sets it, so it's a no-op. created_at is
+    // "the order this WOD was entered," which is what Jonathan wants WODs
+    // to run in (a WOD's name, unlike a division's, carries no ordering
+    // information — see lib/scoring/divisionOrder.ts's file header).
+    supabase
+      .from("wods")
+      .select("id, name, created_at")
+      .eq("event_id", eventId)
+      .order("created_at"),
+    // divisions.sort_order defaults to 0 for every row (nothing sets it to
+    // anything else), so the dropdowns below are re-sorted in JS by name
+    // instead — see the compareDivisionNames sort just below this query.
+    supabase.from("divisions").select("id, name").eq("event_id", eventId),
+    supabase
+      .from("heats")
+      .select(
+        "id, heat_number, heat_count, scheduled_start, ended_at, wods(name, created_at), divisions(name), floors(name), lanes(id)",
+      )
+      .eq("event_id", eventId),
+    supabase.from("registrations").select("division_id").eq("event_id", eventId),
+  ]);
 
   // Divisions run back-to-back in Jonathan's fixed running order (Scale
   // before Rx, Male before Female — see lib/scoring/divisionOrder.ts), used
   // both for the Floor/WOD/Division dropdowns below and for the heat list.
-  const orderedDivisions = (divisions ?? []).slice().sort((a, b) => compareDivisionNames(a.name, b.name));
+  const orderedDivisions = (divisions ?? [])
+    .slice()
+    .sort((a, b) => compareDivisionNames(a.name, b.name));
 
   // See lib/db/queries.ts header comment: cast many-to-one embeds back to single objects.
-  const typedHeats = ((heats ?? []) as unknown as Array<{
-    id: string;
-    heat_number: number;
-    heat_count: number | null;
-    ended_at: string | null;
-    wods: { name: string; created_at: string } | null;
-    divisions: { name: string } | null;
-    floors: { name: string } | null;
-    lanes: Array<{ id: string }> | null;
-  }>)
+  const typedHeats = (
+    (heats ?? []) as unknown as Array<{
+      id: string;
+      heat_number: number;
+      heat_count: number | null;
+      ended_at: string | null;
+      wods: { name: string; created_at: string } | null;
+      divisions: { name: string } | null;
+      floors: { name: string } | null;
+      lanes: Array<{ id: string }> | null;
+    }>
+  )
     .slice()
     .sort((a, b) =>
       compareHeatsForRunningOrder(
-        { wodCreatedAt: a.wods?.created_at ?? "", divisionName: a.divisions?.name ?? "", heatNumber: a.heat_number },
-        { wodCreatedAt: b.wods?.created_at ?? "", divisionName: b.divisions?.name ?? "", heatNumber: b.heat_number }
-      )
+        {
+          wodCreatedAt: a.wods?.created_at ?? "",
+          divisionName: a.divisions?.name ?? "",
+          heatNumber: a.heat_number,
+        },
+        {
+          wodCreatedAt: b.wods?.created_at ?? "",
+          divisionName: b.divisions?.name ?? "",
+          heatNumber: b.heat_number,
+        },
+      ),
     );
 
   const registrationCounts = new Map<string, number>();
@@ -67,7 +93,8 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
   // to go after wrapping up the current heat.
   const nextUpcomingId = typedHeats.find((h) => !h.ended_at)?.id ?? null;
 
-  const canCreate = (floors?.length ?? 0) > 0 && (wods?.length ?? 0) > 0 && (divisions?.length ?? 0) > 0;
+  const canCreate =
+    (floors?.length ?? 0) > 0 && (wods?.length ?? 0) > 0 && (divisions?.length ?? 0) > 0;
 
   return (
     <div>
@@ -85,10 +112,13 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
       ) : (
         <>
           <div className="mb-4 rounded-lg border border-black/10 p-4">
-            <h2 className="mb-1 font-semibold uppercase tracking-wide text-black/60">Generate Heats</h2>
+            <h2 className="mb-1 font-semibold uppercase tracking-wide text-black/60">
+              Generate Heats
+            </h2>
             <p className="mb-3 text-sm text-black/50">
-              Pick a Floor, WOD, and Division and how many lanes to run at once — every athlete or team already
-              registered for that division gets slotted into lanes automatically, across as many heats as it takes.
+              Pick a Floor, WOD, and Division and how many lanes to run at once — every athlete or
+              team already registered for that division gets slotted into lanes automatically,
+              across as many heats as it takes.
             </p>
             <form
               action={generateHeats.bind(null, eventId)}
@@ -96,7 +126,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
             >
               <label className="flex flex-col gap-1 text-sm">
                 Floor
-                <select name="floor_id" required className="rounded-md border border-black/20 px-3 py-2">
+                <select
+                  name="floor_id"
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                >
                   {(floors ?? []).map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
@@ -106,7 +140,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 WOD
-                <select name="wod_id" required className="rounded-md border border-black/20 px-3 py-2">
+                <select
+                  name="wod_id"
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                >
                   {(wods ?? []).map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name}
@@ -116,7 +154,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Division
-                <select name="division_id" required className="rounded-md border border-black/20 px-3 py-2">
+                <select
+                  name="division_id"
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                >
                   {orderedDivisions.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name} ({registrationCounts.get(d.id) ?? 0} registered)
@@ -138,7 +180,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 First heat start
-                <input name="scheduled_start" type="datetime-local" className="rounded-md border border-black/20 px-3 py-2" />
+                <input
+                  name="scheduled_start"
+                  type="datetime-local"
+                  className="rounded-md border border-black/20 px-3 py-2"
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Minutes between heats
@@ -150,7 +196,9 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
                   className="rounded-md border border-black/20 px-3 py-2"
                 />
               </label>
-              <button className="control-btn control-btn-red self-end px-6 py-3 text-base">Generate Heats</button>
+              <button className="control-btn control-btn-red self-end px-6 py-3 text-base">
+                Generate Heats
+              </button>
             </form>
           </div>
 
@@ -164,7 +212,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
             >
               <label className="flex flex-col gap-1 text-sm">
                 Floor
-                <select name="floor_id" required className="rounded-md border border-black/20 px-3 py-2">
+                <select
+                  name="floor_id"
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                >
                   {(floors ?? []).map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
@@ -174,7 +226,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 WOD
-                <select name="wod_id" required className="rounded-md border border-black/20 px-3 py-2">
+                <select
+                  name="wod_id"
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                >
                   {(wods ?? []).map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name}
@@ -184,7 +240,11 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Division
-                <select name="division_id" required className="rounded-md border border-black/20 px-3 py-2">
+                <select
+                  name="division_id"
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                >
                   {orderedDivisions.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -194,21 +254,45 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Heat #
-                <input name="heat_number" type="number" min={1} required className="rounded-md border border-black/20 px-3 py-2" />
+                <input
+                  name="heat_number"
+                  type="number"
+                  min={1}
+                  required
+                  className="rounded-md border border-black/20 px-3 py-2"
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Of (total heats)
-                <input name="heat_count" type="number" min={1} className="rounded-md border border-black/20 px-3 py-2" />
+                <input
+                  name="heat_count"
+                  type="number"
+                  min={1}
+                  className="rounded-md border border-black/20 px-3 py-2"
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Lanes
-                <input name="lane_count" type="number" min={1} max={20} defaultValue={6} className="rounded-md border border-black/20 px-3 py-2" />
+                <input
+                  name="lane_count"
+                  type="number"
+                  min={1}
+                  max={20}
+                  defaultValue={6}
+                  className="rounded-md border border-black/20 px-3 py-2"
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Scheduled start
-                <input name="scheduled_start" type="datetime-local" className="rounded-md border border-black/20 px-3 py-2" />
+                <input
+                  name="scheduled_start"
+                  type="datetime-local"
+                  className="rounded-md border border-black/20 px-3 py-2"
+                />
               </label>
-              <button className="control-btn control-btn-red self-end px-6 py-3 text-base">Add Heat</button>
+              <button className="control-btn control-btn-red self-end px-6 py-3 text-base">
+                Add Heat
+              </button>
             </form>
           </details>
         </>

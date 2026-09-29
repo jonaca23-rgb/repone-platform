@@ -22,10 +22,15 @@ export function useBroadcastState(floorId: string, initial: BroadcastStateRow | 
       .channel(`broadcast_state:${floorId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "broadcast_state", filter: `floor_id=eq.${floorId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "broadcast_state",
+          filter: `floor_id=eq.${floorId}`,
+        },
         (payload) => {
           setState(payload.new as BroadcastStateRow);
-        }
+        },
       )
       .subscribe((status) => {
         setConnected(status === "SUBSCRIBED");

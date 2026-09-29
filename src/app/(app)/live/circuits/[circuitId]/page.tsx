@@ -13,7 +13,11 @@ import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
  * than sharing code with the admin page, since the admin page also needs the
  * session-scoped "standalone events" picker this one has no use for.
  */
-export default async function LiveCircuitPage({ params }: { params: Promise<{ circuitId: string }> }) {
+export default async function LiveCircuitPage({
+  params,
+}: {
+  params: Promise<{ circuitId: string }>;
+}) {
   const { circuitId } = await params;
   const supabase = await createClient();
 
@@ -55,7 +59,13 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
         }>,
       };
 
-  type Row = { eventId: string; competitorId: string; isTeam: boolean; placement: number | null; points: number | null };
+  type Row = {
+    eventId: string;
+    competitorId: string;
+    isTeam: boolean;
+    placement: number | null;
+    points: number | null;
+  };
   const rowsByDivisionName = new Map<string, { displayName: string; rows: Row[] }>();
 
   for (const r of standingsRows ?? []) {
@@ -63,8 +73,10 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
     const competitorId = r.athlete_id ?? r.team_id;
     if (!division || !competitorId) continue;
     const key = division.name.trim().toLowerCase();
-    const group: { displayName: string; rows: Row[] } =
-      rowsByDivisionName.get(key) ?? { displayName: division.name.trim(), rows: [] };
+    const group: { displayName: string; rows: Row[] } = rowsByDivisionName.get(key) ?? {
+      displayName: division.name.trim(),
+      rows: [],
+    };
     group.rows.push({
       eventId: division.event_id,
       competitorId,
@@ -82,7 +94,10 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
   }
   const [{ data: athletes }, { data: teams }] = await Promise.all([
     athleteIds.size
-      ? supabase.from("athletes").select("id, first_name, last_name").in("id", Array.from(athleteIds))
+      ? supabase
+          .from("athletes")
+          .select("id, first_name, last_name")
+          .in("id", Array.from(athleteIds))
       : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
     teamIds.size
       ? supabase.from("teams").select("id, name").in("id", Array.from(teamIds))
@@ -96,12 +111,16 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
     const byEvent = new Map<string, RankedResult[]>();
     for (const row of group.rows) {
       const list = byEvent.get(row.eventId) ?? [];
-      list.push({ competitorId: row.competitorId, placement: row.placement, wodPoints: row.points });
+      list.push({
+        competitorId: row.competitorId,
+        placement: row.placement,
+        wodPoints: row.points,
+      });
       byEvent.set(row.eventId, list);
     }
 
     const overall = computeOverallStandings(
-      Array.from(byEvent.entries()).map(([eventId, results]) => ({ wodId: eventId, results }))
+      Array.from(byEvent.entries()).map(([eventId, results]) => ({ wodId: eventId, results })),
     );
 
     return {
@@ -116,7 +135,10 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6">
       <div>
-        <Link href="/live" className="text-xs uppercase tracking-wide text-white/40 hover:text-white">
+        <Link
+          href="/live"
+          className="text-xs uppercase tracking-wide text-white/40 hover:text-white"
+        >
           ← All live events
         </Link>
         <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">
@@ -126,22 +148,34 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
       </div>
 
       <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">Stops in this circuit</p>
+        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">
+          Stops in this circuit
+        </p>
         <div className="flex flex-col gap-2">
           {(circuitEvents ?? []).map((e) => (
-            <Link key={e.id} href={`/live/${e.id}`} className="text-sm font-medium hover:text-repone-red">
+            <Link
+              key={e.id}
+              href={`/live/${e.id}`}
+              className="text-sm font-medium hover:text-repone-red"
+            >
               {e.name} <span className="ml-2 text-xs uppercase text-white/40">{e.status}</span>
             </Link>
           ))}
-          {(circuitEvents ?? []).length === 0 && <p className="text-sm text-white/50">No events in this circuit yet.</p>}
+          {(circuitEvents ?? []).length === 0 && (
+            <p className="text-sm text-white/50">No events in this circuit yet.</p>
+          )}
         </div>
       </div>
 
       <section className="flex flex-col gap-8">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">Cumulative Leaderboard</h2>
+        <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
+          Cumulative Leaderboard
+        </h2>
         {divisionLeaderboards.map((division) => (
           <div key={division.name}>
-            <h3 className="mb-2 font-semibold uppercase tracking-wide text-repone-red">{division.name}</h3>
+            <h3 className="mb-2 font-semibold uppercase tracking-wide text-repone-red">
+              {division.name}
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full min-w-max border-collapse text-sm">
                 <thead>
@@ -158,10 +192,14 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
                 </thead>
                 <tbody>
                   {division.standings.map((entry) => {
-                    const placementByEvent = new Map(entry.placements.map((p) => [p.wodId, p.placement]));
+                    const placementByEvent = new Map(
+                      entry.placements.map((p) => [p.wodId, p.placement]),
+                    );
                     return (
                       <tr key={entry.competitorId} className="border-b border-white/5">
-                        <td className="py-2 pr-4 font-bold text-repone-red">{entry.overallPlacement}</td>
+                        <td className="py-2 pr-4 font-bold text-repone-red">
+                          {entry.overallPlacement}
+                        </td>
                         <td className="py-2 pr-4">{entry.displayName}</td>
                         {(circuitEvents ?? []).map((e) => (
                           <td key={e.id} className="py-2 pr-4 text-white/60">
@@ -179,8 +217,8 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
         ))}
         {divisionLeaderboards.length === 0 && (
           <p className="text-white/50">
-            No scored results yet across this circuit&apos;s events — the leaderboard fills in as each event&apos;s
-            heats are finished.
+            No scored results yet across this circuit&apos;s events — the leaderboard fills in as
+            each event&apos;s heats are finished.
           </p>
         )}
       </section>

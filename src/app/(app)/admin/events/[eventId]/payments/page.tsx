@@ -15,31 +15,44 @@ function formatMoney(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export default async function EventPaymentsPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function EventPaymentsPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
   const { eventId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
-  const [{ data: event }, { data: divisions }, { data: feeSchedules }, { data: registrations }, { data: paymentAccount }] =
-    await Promise.all([
-      supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
-      supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
-      supabase
-        .from("fee_schedules")
-        .select("id, name, amount_cents")
-        .eq("event_id", eventId)
-        .eq("active", true)
-        .order("name"),
-      supabase
-        .from("registrations")
-        .select(
-          "id, bib_number, division_id, athletes(first_name, last_name), teams(name, entry_format), payments(id, status, payment_method, amount_cents, fee_schedule_id, notes)"
-        )
-        .eq("event_id", eventId),
-      ctx?.organizationId
-        ? supabase.from("payment_accounts").select("status").eq("organization_id", ctx.organizationId).maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
+  const [
+    { data: event },
+    { data: divisions },
+    { data: feeSchedules },
+    { data: registrations },
+    { data: paymentAccount },
+  ] = await Promise.all([
+    supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
+    supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
+    supabase
+      .from("fee_schedules")
+      .select("id, name, amount_cents")
+      .eq("event_id", eventId)
+      .eq("active", true)
+      .order("name"),
+    supabase
+      .from("registrations")
+      .select(
+        "id, bib_number, division_id, athletes(first_name, last_name), teams(name, entry_format), payments(id, status, payment_method, amount_cents, fee_schedule_id, notes)",
+      )
+      .eq("event_id", eventId),
+    ctx?.organizationId
+      ? supabase
+          .from("payment_accounts")
+          .select("status")
+          .eq("organization_id", ctx.organizationId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   const typedRegistrations = (registrations ?? []) as unknown as Array<{
     id: string;
@@ -67,7 +80,7 @@ export default async function EventPaymentsPage({ params }: { params: Promise<{ 
       else if (p && p.status !== "waived") acc.outstandingCents += p.amount_cents;
       return acc;
     },
-    { collectedCents: 0, outstandingCents: 0 }
+    { collectedCents: 0, outstandingCents: 0 },
   );
 
   return (
@@ -84,8 +97,8 @@ export default async function EventPaymentsPage({ params }: { params: Promise<{ 
           Online payments: {accountStatus === "connected" ? "Connected" : "Not connected"}
         </span>
         <span>
-          This is a manual ledger — organizers record cash/e-transfer/comped payments by hand. Stripe is not
-          integrated yet, so no card is ever charged or stored here.
+          This is a manual ledger — organizers record cash/e-transfer/comped payments by hand.
+          Stripe is not integrated yet, so no card is ever charged or stored here.
         </span>
       </div>
 
@@ -96,7 +109,9 @@ export default async function EventPaymentsPage({ params }: { params: Promise<{ 
         </p>
         <p>
           <span className="text-black/50">Outstanding: </span>
-          <span className="font-semibold text-repone-red">{formatMoney(totals.outstandingCents)}</span>
+          <span className="font-semibold text-repone-red">
+            {formatMoney(totals.outstandingCents)}
+          </span>
         </p>
       </div>
 
@@ -114,8 +129,10 @@ export default async function EventPaymentsPage({ params }: { params: Promise<{ 
         {typedRegistrations.map((r) => {
           const p = r.payments;
           const status: PaymentStatus = p?.status ?? "unpaid";
-          const name = r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : r.teams?.name ?? "—";
-          const kind = r.athletes ? "Individual" : r.teams?.entry_format ?? "";
+          const name = r.athletes
+            ? `${r.athletes.first_name} ${r.athletes.last_name}`
+            : (r.teams?.name ?? "—");
+          const kind = r.athletes ? "Individual" : (r.teams?.entry_format ?? "");
 
           return (
             <div key={r.id} className="rounded-lg border border-black/10 p-4">
@@ -126,15 +143,23 @@ export default async function EventPaymentsPage({ params }: { params: Promise<{ 
                     <span className="ml-1 rounded-full bg-black/5 px-2 py-0.5 text-xs font-bold uppercase text-black/50">
                       {kind}
                     </span>
-                    {r.bib_number ? <span className="ml-2 text-xs text-black/40">#{r.bib_number}</span> : null}
+                    {r.bib_number ? (
+                      <span className="ml-2 text-xs text-black/40">#{r.bib_number}</span>
+                    ) : null}
                   </p>
-                  <p className="text-xs uppercase tracking-wide text-black/50">{divisionName(r.division_id)}</p>
+                  <p className="text-xs uppercase tracking-wide text-black/50">
+                    {divisionName(r.division_id)}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${STATUS_STYLES[status]}`}>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${STATUS_STYLES[status]}`}
+                  >
                     {status}
                   </span>
-                  {p?.amount_cents ? <span className="text-sm font-semibold">{formatMoney(p.amount_cents)}</span> : null}
+                  {p?.amount_cents ? (
+                    <span className="text-sm font-semibold">{formatMoney(p.amount_cents)}</span>
+                  ) : null}
                 </div>
               </div>
 
@@ -193,7 +218,11 @@ export default async function EventPaymentsPage({ params }: { params: Promise<{ 
                 </label>
                 <label className="flex flex-col gap-1">
                   Status
-                  <select name="status" defaultValue={status} className="rounded-md border border-black/20 px-2 py-1.5">
+                  <select
+                    name="status"
+                    defaultValue={status}
+                    className="rounded-md border border-black/20 px-2 py-1.5"
+                  >
                     <option value="unpaid">Unpaid</option>
                     <option value="paid">Paid</option>
                     <option value="waived">Waived</option>

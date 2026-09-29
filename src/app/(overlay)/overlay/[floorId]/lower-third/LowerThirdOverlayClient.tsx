@@ -21,5 +21,7 @@ export function LowerThirdOverlayClient({
 
   if (!state?.lower_third_athlete_id || !athlete) return null;
 
-  return <LowerThird name={athlete.name} division={athlete.division} affiliate={athlete.affiliate} />;
+  return (
+    <LowerThird name={athlete.name} division={athlete.division} affiliate={athlete.affiliate} />
+  );
 }

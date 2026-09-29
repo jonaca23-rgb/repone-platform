@@ -19,12 +19,18 @@ export interface StaffCandidate {
   source: "staff" | "athlete";
 }
 
-export async function getEventStaffCandidates(organizationId: string | null): Promise<StaffCandidate[]> {
+export async function getEventStaffCandidates(
+  organizationId: string | null,
+): Promise<StaffCandidate[]> {
   if (!organizationId) return [];
   const supabase = await createClient();
 
   const [{ data: profiles }, { data: athletes }] = await Promise.all([
-    supabase.from("profiles").select("id, full_name").eq("organization_id", organizationId).order("full_name"),
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("organization_id", organizationId)
+      .order("full_name"),
     supabase
       .from("athletes")
       .select("auth_user_id, first_name, last_name")
@@ -37,7 +43,11 @@ export async function getEventStaffCandidates(organizationId: string | null): Pr
   const seen = new Set<string>();
 
   for (const p of profiles ?? []) {
-    candidates.push({ userId: p.id, label: `${p.full_name || "Unnamed staff account"} (Staff)`, source: "staff" });
+    candidates.push({
+      userId: p.id,
+      label: `${p.full_name || "Unnamed staff account"} (Staff)`,
+      source: "staff",
+    });
     seen.add(p.id);
   }
   for (const a of athletes ?? []) {
@@ -46,7 +56,11 @@ export async function getEventStaffCandidates(organizationId: string | null): Pr
     // athlete) — keep the staff entry, since that's the account they'd
     // actually be signing in through for staff work.
     if (seen.has(userId)) continue;
-    candidates.push({ userId, label: `${a.first_name} ${a.last_name} (Athlete)`, source: "athlete" });
+    candidates.push({
+      userId,
+      label: `${a.first_name} ${a.last_name} (Athlete)`,
+      source: "athlete",
+    });
     seen.add(userId);
   }
 
@@ -66,7 +80,10 @@ export async function getDisplayNamesByUserId(userIds: string[]): Promise<Map<st
 
   const [{ data: profiles }, { data: athletes }] = await Promise.all([
     supabase.from("profiles").select("id, full_name").in("id", userIds),
-    supabase.from("athletes").select("auth_user_id, first_name, last_name").in("auth_user_id", userIds),
+    supabase
+      .from("athletes")
+      .select("auth_user_id, first_name, last_name")
+      .in("auth_user_id", userIds),
   ]);
 
   const nameById = new Map<string, string>();

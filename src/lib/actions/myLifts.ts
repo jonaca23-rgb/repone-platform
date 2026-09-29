@@ -41,14 +41,19 @@ export async function saveMyLifts(formData: FormData) {
     if (Number.isNaN(weight_lbs)) return null;
     return { athlete_id: athleteId, lift, weight_lbs };
   }).filter(
-    (r): r is { athlete_id: string; lift: LiftName; weight_lbs: number } | { athlete_id: string; lift: LiftName; time_seconds: number } =>
-      r !== null
+    (
+      r,
+    ): r is
+      | { athlete_id: string; lift: LiftName; weight_lbs: number }
+      | { athlete_id: string; lift: LiftName; time_seconds: number } => r !== null,
   );
 
   if (rows.length === 0) return;
 
   const supabase = await createClient();
-  const { error } = await supabase.from("athlete_lifts").upsert(rows, { onConflict: "athlete_id,lift" });
+  const { error } = await supabase
+    .from("athlete_lifts")
+    .upsert(rows, { onConflict: "athlete_id,lift" });
   if (error) throw new Error(error.message);
 
   revalidatePath("/athlete");
@@ -78,6 +83,10 @@ export async function deleteMyBenchmark(benchmarkId: string) {
   // benchmarkId — RLS's own athlete_id ownership check on athlete_benchmarks
   // already stops that — it's what keeps this delete from silently no-op'ing
   // vs. erroring the same way as any other "not yours" attempt.
-  await supabase.from("athlete_benchmarks").delete().eq("id", benchmarkId).eq("athlete_id", athleteId);
+  await supabase
+    .from("athlete_benchmarks")
+    .delete()
+    .eq("id", benchmarkId)
+    .eq("athlete_id", athleteId);
   revalidatePath("/athlete");
 }

@@ -15,7 +15,12 @@ export interface ScoreKeeperHeat {
   endedAt: string | null;
   wod: { id: string; name: string; scoring_type: string; time_cap_seconds: number | null };
   division: { id: string; name: string };
-  lanes: Array<{ laneNumber: number; athleteId: string | null; name: string | null; affiliate: string | null }>;
+  lanes: Array<{
+    laneNumber: number;
+    athleteId: string | null;
+    name: string | null;
+    affiliate: string | null;
+  }>;
 }
 
 export interface ScoreKeeperResult {
@@ -56,7 +61,10 @@ function SaveButton() {
 function FinishHeatButton({ alreadyFinished }: { alreadyFinished: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button className="control-btn control-btn-red px-6 py-3 text-base" disabled={pending || alreadyFinished}>
+    <button
+      className="control-btn control-btn-red px-6 py-3 text-base"
+      disabled={pending || alreadyFinished}
+    >
       {alreadyFinished ? "Heat Finished ✓" : pending ? "Finishing…" : "Save all & Finish Heat"}
     </button>
   );
@@ -89,7 +97,9 @@ export function ScoreKeeperClient({
   const [following, setFollowing] = useState(true);
   const [manualHeatId, setManualHeatId] = useState<string | null>(null);
 
-  const activeHeatId = following ? liveHeatId ?? heats[0]?.id ?? null : manualHeatId ?? heats[0]?.id ?? null;
+  const activeHeatId = following
+    ? (liveHeatId ?? heats[0]?.id ?? null)
+    : (manualHeatId ?? heats[0]?.id ?? null);
   const heat = heats.find((h) => h.id === activeHeatId) ?? heats[0] ?? null;
 
   // Manual "Previous Heat" / "Next Heat" step through this floor's heats in
@@ -103,13 +113,13 @@ export function ScoreKeeperClient({
 
   const resultByAthlete = useMemo(() => {
     const map = new Map<string, ScoreKeeperResult>();
-    (heat ? resultsByHeatId[heat.id] ?? [] : []).forEach((r) => {
+    (heat ? (resultsByHeatId[heat.id] ?? []) : []).forEach((r) => {
       if (r.athlete_id) map.set(r.athlete_id, r);
     });
     return map;
   }, [heat, resultsByHeatId]);
 
-  const standings = heat ? standingsByHeatId[heat.id] ?? [] : [];
+  const standings = heat ? (standingsByHeatId[heat.id] ?? []) : [];
 
   if (!heat) {
     return (
@@ -119,7 +129,12 @@ export function ScoreKeeperClient({
     );
   }
 
-  const scoringType = heat.wod.scoring_type as "for_time" | "amrap" | "max_load" | "points" | "other";
+  const scoringType = heat.wod.scoring_type as
+    | "for_time"
+    | "amrap"
+    | "max_load"
+    | "points"
+    | "other";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
@@ -136,7 +151,9 @@ export function ScoreKeeperClient({
               </span>
             )}
           </p>
-          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">{heat.division.name}</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
+            {heat.division.name}
+          </p>
         </div>
         <span
           className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
@@ -176,13 +193,17 @@ export function ScoreKeeperClient({
             type="button"
             className="control-btn w-fit px-4 py-3 text-xs disabled:opacity-30"
             disabled={heatIndex === -1 || heatIndex >= heats.length - 1}
-            onClick={() => heatIndex >= 0 && heatIndex < heats.length - 1 && goToHeat(heats[heatIndex + 1].id)}
+            onClick={() =>
+              heatIndex >= 0 && heatIndex < heats.length - 1 && goToHeat(heats[heatIndex + 1].id)
+            }
           >
             Next Heat →
           </button>
         </div>
         {following ? (
-          <span className="text-xs font-semibold uppercase tracking-wide text-repone-red">Following live heat</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-repone-red">
+            Following live heat
+          </span>
         ) : (
           <button
             className="control-btn w-fit px-4 py-3 text-xs"
@@ -205,7 +226,15 @@ export function ScoreKeeperClient({
             return (
               <form
                 key={lane.laneNumber}
-                action={enterResult.bind(null, eventId, heat.id, heat.wod.id, heat.division.id, scoringType, floorId)}
+                action={enterResult.bind(
+                  null,
+                  eventId,
+                  heat.id,
+                  heat.wod.id,
+                  heat.division.id,
+                  scoringType,
+                  floorId,
+                )}
                 className="rounded-xl bg-repone-gray p-4"
               >
                 <input type="hidden" name="competitor_type" value="athlete" />
@@ -218,9 +247,15 @@ export function ScoreKeeperClient({
                     {lane.name}
                   </p>
                   <span className="flex items-center gap-2">
-                    {existing && <span className="text-xs font-semibold uppercase tracking-wide text-green-400">✓ Recorded</span>}
+                    {existing && (
+                      <span className="text-xs font-semibold uppercase tracking-wide text-green-400">
+                        ✓ Recorded
+                      </span>
+                    )}
                     {existing?.manually_adjusted && (
-                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">✎ Adjusted</span>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+                        ✎ Adjusted
+                      </span>
                     )}
                   </span>
                 </div>
@@ -235,12 +270,19 @@ export function ScoreKeeperClient({
                           inputMode="decimal"
                           pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
                           placeholder="3:45"
-                          defaultValue={existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""}
+                          defaultValue={
+                            existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
+                          }
                           className="w-32 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
                         />
                       </label>
                       <label className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/50">
-                        <input name="capped" type="checkbox" defaultChecked={existing?.capped ?? false} className="h-5 w-5" />
+                        <input
+                          name="capped"
+                          type="checkbox"
+                          defaultChecked={existing?.capped ?? false}
+                          className="h-5 w-5"
+                        />
                         Time-capped
                       </label>
                       <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
@@ -335,7 +377,9 @@ export function ScoreKeeperClient({
             );
           })}
         {heat.lanes.filter((l) => l.athleteId).length === 0 && (
-          <p className="text-sm text-white/50">No athletes assigned to lanes for this heat yet — set that up in Admin → Heats & Lanes.</p>
+          <p className="text-sm text-white/50">
+            No athletes assigned to lanes for this heat yet — set that up in Admin → Heats & Lanes.
+          </p>
         )}
       </div>
 
@@ -350,7 +394,7 @@ export function ScoreKeeperClient({
           onSubmit={(e) => {
             if (
               !window.confirm(
-                `Finish Heat ${heat.heatNumber} — ${heat.wod.name} (${heat.division.name})? It will be marked Completed on Heats & Lanes.`
+                `Finish Heat ${heat.heatNumber} — ${heat.wod.name} (${heat.division.name})? It will be marked Completed on Heats & Lanes.`,
               )
             ) {
               e.preventDefault();
@@ -375,7 +419,10 @@ export function ScoreKeeperClient({
           </p>
           <div className="flex flex-col gap-1">
             {standings.map((s, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-black/30 px-4 py-2 text-sm">
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-lg bg-black/30 px-4 py-2 text-sm"
+              >
                 <span>
                   <span className="mr-3 font-bold text-repone-red">{s.placement ?? "—"}</span>
                   {s.name}

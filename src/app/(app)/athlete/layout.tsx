@@ -21,7 +21,13 @@ export default async function AthleteLayout({ children }: { children: React.Reac
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link href="/" className="shrink-0 hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
-            <img src="/repone-live-logo.png" alt="RepOne" className="h-9 w-auto sm:h-10" width={375} height={240} />
+            <img
+              src="/repone-live-logo.png"
+              alt="RepOne"
+              className="h-9 w-auto sm:h-10"
+              width={375}
+              height={240}
+            />
           </Link>
           <p className="text-sm font-bold uppercase tracking-wide text-white/60">Athlete Portal</p>
           {ctx?.athleteId ? (
@@ -32,13 +38,21 @@ export default async function AthleteLayout({ children }: { children: React.Reac
               <Link href="/athlete/directory" className="hover:text-white">
                 Athletes
               </Link>
-              <MessagesNavLink href="/athlete/messages" userId={ctx.userId} initialUnread={unreadCount} />
+              <MessagesNavLink
+                href="/athlete/messages"
+                userId={ctx.userId}
+                initialUnread={unreadCount}
+              />
             </nav>
           ) : null}
         </div>
         {ctx ? (
           <div className="flex items-center gap-4 text-sm">
-            {ctx.firstName ? <span className="text-white/60">{ctx.firstName} {ctx.lastName}</span> : null}
+            {ctx.firstName ? (
+              <span className="text-white/60">
+                {ctx.firstName} {ctx.lastName}
+              </span>
+            ) : null}
             <form action={athleteSignOut}>
               <button className="text-white/60 hover:text-white">Sign out</button>
             </form>

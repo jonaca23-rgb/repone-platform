@@ -36,7 +36,9 @@ export function Leaderboard({
             </span>
             <span className="text-xl font-semibold uppercase tracking-wide">{row.name}</span>
           </div>
-          <span className="font-[family-name:var(--font-display)] text-xl font-bold">{row.value}</span>
+          <span className="font-[family-name:var(--font-display)] text-xl font-bold">
+            {row.value}
+          </span>
         </div>
       ))}
     </div>

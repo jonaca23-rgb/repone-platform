@@ -22,7 +22,11 @@ function readMethod(formData: FormData): PaymentMethodType {
  * processor. `payments.registration_id` is unique, so this is always an
  * upsert of exactly one row per competitor entry (individual or team).
  */
-export async function updateRegistrationPayment(eventId: string, registrationId: string, formData: FormData) {
+export async function updateRegistrationPayment(
+  eventId: string,
+  registrationId: string,
+  formData: FormData,
+) {
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
@@ -56,14 +60,20 @@ export async function updateRegistrationPayment(eventId: string, registrationId:
   };
   if (amount_cents !== undefined) payload.amount_cents = amount_cents;
 
-  const { error } = await supabase.from("payments").upsert(payload, { onConflict: "registration_id" });
+  const { error } = await supabase
+    .from("payments")
+    .upsert(payload, { onConflict: "registration_id" });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/events/${eventId}/payments`);
 }
 
 /** Quick one-click status toggle (mirrors the Sponsors "Active" pill pattern). */
-export async function markPaymentStatus(eventId: string, registrationId: string, status: PaymentStatus) {
+export async function markPaymentStatus(
+  eventId: string,
+  registrationId: string,
+  status: PaymentStatus,
+) {
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
@@ -84,7 +94,9 @@ export async function markPaymentStatus(eventId: string, registrationId: string,
   }
   if (status === "unpaid") payload.payment_method = "unpaid";
 
-  const { error } = await supabase.from("payments").upsert(payload, { onConflict: "registration_id" });
+  const { error } = await supabase
+    .from("payments")
+    .upsert(payload, { onConflict: "registration_id" });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/events/${eventId}/payments`);
@@ -100,7 +112,7 @@ export async function markPaymentStatusForCheckin(
   athleteId: string,
   eventId: string,
   registrationId: string,
-  status: PaymentStatus
+  status: PaymentStatus,
 ) {
   await markPaymentStatus(eventId, registrationId, status);
   revalidatePath(`/admin/checkin/${athleteId}`);

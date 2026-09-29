@@ -6,7 +6,11 @@ import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { getCommentatorAthleteDetails } from "@/lib/db/commentator";
 import { CommentatorClient } from "./CommentatorClient";
 
-export default async function CommentatorPage({ params }: { params: Promise<{ floorId: string }> }) {
+export default async function CommentatorPage({
+  params,
+}: {
+  params: Promise<{ floorId: string }>;
+}) {
   const { floorId } = await params;
   const context = await getFloorContext(floorId);
   if (!context) notFound();
@@ -24,13 +28,19 @@ export default async function CommentatorPage({ params }: { params: Promise<{ fl
   if (!allowed) redirect("/commentator");
 
   const supabase = await createClient();
-  const { data: broadcastState } = await supabase.from("broadcast_state").select("*").eq("floor_id", floorId).single();
+  const { data: broadcastState } = await supabase
+    .from("broadcast_state")
+    .select("*")
+    .eq("floor_id", floorId)
+    .single();
 
   // Every athlete in every lane of every heat on this floor, fetched once up
   // front (same "load it all, switch instantly on the client" approach
   // ScoreKeeperPage uses for results/standings) — so stepping between heats
   // or following the live one never triggers a fresh stats lookup mid-show.
-  const athleteIds = context.heats.flatMap((h) => h.lanes.flatMap((l) => (l.athleteId ? [l.athleteId] : [])));
+  const athleteIds = context.heats.flatMap((h) =>
+    h.lanes.flatMap((l) => (l.athleteId ? [l.athleteId] : [])),
+  );
   const detailsByAthleteId = await getCommentatorAthleteDetails(athleteIds);
 
   return (

@@ -9,7 +9,15 @@ import { useUnreadMessages } from "@/lib/realtime/useUnreadMessages";
  * the badge is correct on first paint; the Realtime subscription in
  * useUnreadMessages keeps it live after that with no page refresh needed.
  */
-export function MessagesNavLink({ href, userId, initialUnread }: { href: string; userId: string; initialUnread: number }) {
+export function MessagesNavLink({
+  href,
+  userId,
+  initialUnread,
+}: {
+  href: string;
+  userId: string;
+  initialUnread: number;
+}) {
   const unread = useUnreadMessages(userId, initialUnread);
 
   return (

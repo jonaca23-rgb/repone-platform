@@ -10,7 +10,9 @@ import { computeTimerDisplay, type TimerDisplay, type TimerState } from "@/lib/t
  * later snaps to the correct value instead of continuing to drift.
  */
 export function useLiveTimer(timer: TimerState): TimerDisplay {
-  const [display, setDisplay] = useState<TimerDisplay>(() => computeTimerDisplay(timer, Date.now()));
+  const [display, setDisplay] = useState<TimerDisplay>(() =>
+    computeTimerDisplay(timer, Date.now()),
+  );
 
   useEffect(() => {
     // Re-sync immediately whenever the server-authoritative timer prop changes
@@ -24,7 +26,13 @@ export function useLiveTimer(timer: TimerState): TimerDisplay {
     }, 200);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timer.status, timer.direction, timer.durationSeconds, timer.elapsedAtAnchor, timer.anchorTimeMs]);
+  }, [
+    timer.status,
+    timer.direction,
+    timer.durationSeconds,
+    timer.elapsedAtAnchor,
+    timer.anchorTimeMs,
+  ]);
 
   return display;
 }

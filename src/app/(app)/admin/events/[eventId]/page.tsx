@@ -8,15 +8,35 @@ import type { EventStatus } from "@/lib/db/database.types";
 const STATUSES: EventStatus[] = ["draft", "scheduled", "live", "completed", "archived"];
 
 const SECTIONS = [
-  { slug: "venues", label: "Venues & Floors", desc: "Physical venues and competition floors/platforms." },
+  {
+    slug: "venues",
+    label: "Venues & Floors",
+    desc: "Physical venues and competition floors/platforms.",
+  },
   { slug: "divisions", label: "Divisions", desc: "Competitive categories for this event." },
   { slug: "athletes", label: "Athletes & Registrations", desc: "Assign athletes to divisions." },
   { slug: "wods", label: "WODs", desc: "Workouts, scoring type, time caps, tie-breaks." },
   { slug: "heats", label: "Heats & Lanes", desc: "Schedule heats and assign lane order." },
-  { slug: "staff", label: "Staff", desc: "Assign Scorekeepers, Producers, and Commentators to this event." },
-  { slug: "fees", label: "Fees", desc: "Registration fee schedules — individual, pair, team, add-ons." },
-  { slug: "payments", label: "Payments", desc: "Track who's paid. Manual ledger — no online charges yet." },
-  { slug: "statement", label: "Income & Expense Statement", desc: "Contrast fee income collected against event spending." },
+  {
+    slug: "staff",
+    label: "Staff",
+    desc: "Assign Scorekeepers, Producers, and Commentators to this event.",
+  },
+  {
+    slug: "fees",
+    label: "Fees",
+    desc: "Registration fee schedules — individual, pair, team, add-ons.",
+  },
+  {
+    slug: "payments",
+    label: "Payments",
+    desc: "Track who's paid. Manual ledger — no online charges yet.",
+  },
+  {
+    slug: "statement",
+    label: "Income & Expense Statement",
+    desc: "Contrast fee income collected against event spending.",
+  },
 ];
 
 export default async function EventHubPage({ params }: { params: Promise<{ eventId: string }> }) {
@@ -37,11 +57,16 @@ export default async function EventHubPage({ params }: { params: Promise<{ event
   const coverUrl: string | null = event.cover_image_url ?? null;
 
   const header = (
-    <div className={`flex flex-wrap items-start justify-between gap-4 ${coverUrl ? "text-white" : ""}`}>
+    <div
+      className={`flex flex-wrap items-start justify-between gap-4 ${coverUrl ? "text-white" : ""}`}
+    >
       <div>
-        <h1 className={`text-2xl font-bold sm:text-3xl ${coverUrl ? "drop-shadow-md" : ""}`}>{event.name}</h1>
+        <h1 className={`text-2xl font-bold sm:text-3xl ${coverUrl ? "drop-shadow-md" : ""}`}>
+          {event.name}
+        </h1>
         <p className={`text-sm ${coverUrl ? "text-white/80" : "text-black/50"}`}>
-          {event.starts_on ?? "—"} {event.ends_on && event.ends_on !== event.starts_on ? `→ ${event.ends_on}` : ""}
+          {event.starts_on ?? "—"}{" "}
+          {event.ends_on && event.ends_on !== event.starts_on ? `→ ${event.ends_on}` : ""}
         </p>
         {circuit ? (
           <Link
@@ -81,7 +106,11 @@ export default async function EventHubPage({ params }: { params: Promise<{ event
             </button>
           ))}
         </form>
-        <DeleteEventButton eventId={eventId} eventName={event.name} variant={coverUrl ? "dark" : "light"} />
+        <DeleteEventButton
+          eventId={eventId}
+          eventName={event.name}
+          variant={coverUrl ? "dark" : "light"}
+        />
       </div>
     </div>
   );

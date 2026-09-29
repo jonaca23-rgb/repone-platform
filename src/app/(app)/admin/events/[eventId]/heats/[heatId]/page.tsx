@@ -17,7 +17,7 @@ export default async function HeatDetailPage({
   const { data: heatRaw } = await supabase
     .from("heats")
     .select(
-      "id, heat_number, heat_count, division_id, wod_id, floor_id, wods(name, scoring_type, time_cap_seconds), divisions(name), floors(name)"
+      "id, heat_number, heat_count, division_id, wod_id, floor_id, wods(name, scoring_type, time_cap_seconds), divisions(name), floors(name)",
     )
     .eq("id", heatId)
     .single();
@@ -29,7 +29,11 @@ export default async function HeatDetailPage({
     division_id: string;
     wod_id: string;
     floor_id: string;
-    wods: { name: string; scoring_type: "for_time" | "amrap" | "max_load" | "points" | "other"; time_cap_seconds: number | null } | null;
+    wods: {
+      name: string;
+      scoring_type: "for_time" | "amrap" | "max_load" | "points" | "other";
+      time_cap_seconds: number | null;
+    } | null;
     divisions: { name: string } | null;
     floors: { name: string } | null;
   } | null;
@@ -49,53 +53,69 @@ export default async function HeatDetailPage({
     .from("heats")
     .select("id, heat_number, wods(name, created_at), divisions(name)")
     .eq("event_id", eventId);
-  const allHeats = ((allHeatsRaw ?? []) as unknown as Array<{
-    id: string;
-    heat_number: number;
-    wods: { name: string; created_at: string } | null;
-    divisions: { name: string } | null;
-  }>)
+  const allHeats = (
+    (allHeatsRaw ?? []) as unknown as Array<{
+      id: string;
+      heat_number: number;
+      wods: { name: string; created_at: string } | null;
+      divisions: { name: string } | null;
+    }>
+  )
     .slice()
     .sort((a, b) =>
       compareHeatsForRunningOrder(
-        { wodCreatedAt: a.wods?.created_at ?? "", divisionName: a.divisions?.name ?? "", heatNumber: a.heat_number },
-        { wodCreatedAt: b.wods?.created_at ?? "", divisionName: b.divisions?.name ?? "", heatNumber: b.heat_number }
-      )
+        {
+          wodCreatedAt: a.wods?.created_at ?? "",
+          divisionName: a.divisions?.name ?? "",
+          heatNumber: a.heat_number,
+        },
+        {
+          wodCreatedAt: b.wods?.created_at ?? "",
+          divisionName: b.divisions?.name ?? "",
+          heatNumber: b.heat_number,
+        },
+      ),
     );
   const currentIndex = allHeats.findIndex((h) => h.id === heatId);
   const prevHeat = currentIndex > 0 ? allHeats[currentIndex - 1] : null;
-  const nextHeat = currentIndex >= 0 && currentIndex < allHeats.length - 1 ? allHeats[currentIndex + 1] : null;
+  const nextHeat =
+    currentIndex >= 0 && currentIndex < allHeats.length - 1 ? allHeats[currentIndex + 1] : null;
 
-  const [{ data: lanesRaw }, { data: registrationsRaw }, { data: results }, { data: standingsRaw }, { data: otherHeatLanesRaw }] =
-    await Promise.all([
-      supabase
-        .from("lanes")
-        .select("id, lane_number, athlete_id, athletes(first_name, last_name, affiliate)")
-        .eq("heat_id", heatId)
-        .order("lane_number"),
-      supabase
-        .from("registrations")
-        .select("athlete_id, athletes(id, first_name, last_name)")
-        .eq("division_id", heat.division_id),
-      supabase.from("results").select("*").eq("heat_id", heatId),
-      supabase
-        .from("standings")
-        .select("placement, points, athlete_id, athletes(first_name, last_name)")
-        .eq("division_id", heat.division_id)
-        .eq("wod_id", heat.wod_id)
-        .order("placement"),
-      // Every OTHER heat for this same WOD+division, with its lane
-      // assignments — used to flag (in red, below) an athlete who's already
-      // sitting in a lane elsewhere. An athlete only ever runs one heat per
-      // WOD/division, so a second one is always a mistake, not a valid
-      // double-entry.
-      supabase
-        .from("heats")
-        .select("heat_number, lanes(lane_number, athlete_id)")
-        .eq("wod_id", heat.wod_id)
-        .eq("division_id", heat.division_id)
-        .neq("id", heatId),
-    ]);
+  const [
+    { data: lanesRaw },
+    { data: registrationsRaw },
+    { data: results },
+    { data: standingsRaw },
+    { data: otherHeatLanesRaw },
+  ] = await Promise.all([
+    supabase
+      .from("lanes")
+      .select("id, lane_number, athlete_id, athletes(first_name, last_name, affiliate)")
+      .eq("heat_id", heatId)
+      .order("lane_number"),
+    supabase
+      .from("registrations")
+      .select("athlete_id, athletes(id, first_name, last_name)")
+      .eq("division_id", heat.division_id),
+    supabase.from("results").select("*").eq("heat_id", heatId),
+    supabase
+      .from("standings")
+      .select("placement, points, athlete_id, athletes(first_name, last_name)")
+      .eq("division_id", heat.division_id)
+      .eq("wod_id", heat.wod_id)
+      .order("placement"),
+    // Every OTHER heat for this same WOD+division, with its lane
+    // assignments — used to flag (in red, below) an athlete who's already
+    // sitting in a lane elsewhere. An athlete only ever runs one heat per
+    // WOD/division, so a second one is always a mistake, not a valid
+    // double-entry.
+    supabase
+      .from("heats")
+      .select("heat_number, lanes(lane_number, athlete_id)")
+      .eq("wod_id", heat.wod_id)
+      .eq("division_id", heat.division_id)
+      .neq("id", heatId),
+  ]);
 
   const lanes = lanesRaw as unknown as Array<{
     id: string;
@@ -117,11 +137,13 @@ export default async function HeatDetailPage({
       if (l.athlete_id) {
         conflictByAthleteId.set(l.athlete_id, `Heat ${h.heat_number}, Lane ${l.lane_number}`);
       }
-    })
+    }),
   );
   (lanes ?? []).forEach((l, i) => {
     if (!l.athlete_id) return;
-    const dupeInThisHeat = (lanes ?? []).find((other, j) => j !== i && other.athlete_id === l.athlete_id);
+    const dupeInThisHeat = (lanes ?? []).find(
+      (other, j) => j !== i && other.athlete_id === l.athlete_id,
+    );
     if (dupeInThisHeat) {
       conflictByAthleteId.set(l.athlete_id, `Lane ${dupeInThisHeat.lane_number} (this heat)`);
     }
@@ -139,11 +161,16 @@ export default async function HeatDetailPage({
 
   const resultByAthlete = new Map((results ?? []).map((r) => [r.athlete_id, r]));
   const scoringType = heat.wods!.scoring_type;
-  const laneAthleteIds = (lanes ?? []).filter((l) => l.athlete_id).map((l) => l.athlete_id as string);
+  const laneAthleteIds = (lanes ?? [])
+    .filter((l) => l.athlete_id)
+    .map((l) => l.athlete_id as string);
 
   return (
     <div>
-      <Link href={`/admin/events/${eventId}/heats`} className="mb-4 inline-block text-sm text-black/50 hover:text-repone-red">
+      <Link
+        href={`/admin/events/${eventId}/heats`}
+        className="mb-4 inline-block text-sm text-black/50 hover:text-repone-red"
+      >
         ← All heats
       </Link>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
@@ -215,10 +242,13 @@ export default async function HeatDetailPage({
         </section>
 
         <section>
-          <h2 className="mb-3 font-semibold uppercase tracking-wide text-black/60">Results Entry</h2>
+          <h2 className="mb-3 font-semibold uppercase tracking-wide text-black/60">
+            Results Entry
+          </h2>
           <p className="mb-3 -mt-2 text-xs text-black/40">
-            For backup/manual entry only — this saves scores but no longer finishes the heat. The heat is marked
-            Completed from the Score Keeper screen once every lane&apos;s result is entered there.
+            For backup/manual entry only — this saves scores but no longer finishes the heat. The
+            heat is marked Completed from the Score Keeper screen once every lane&apos;s result is
+            entered there.
           </p>
           <form
             action={saveHeatResults.bind(
@@ -229,7 +259,7 @@ export default async function HeatDetailPage({
               heat.division_id,
               scoringType,
               heat.floor_id,
-              laneAthleteIds
+              laneAthleteIds,
             )}
           >
             <div className="flex flex-col gap-3">
@@ -241,7 +271,8 @@ export default async function HeatDetailPage({
                   return (
                     <div key={lane.id} className="rounded-lg border border-black/10 p-3">
                       <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                        Lane {lane.lane_number} — {lane.athletes?.first_name} {lane.athletes?.last_name}
+                        Lane {lane.lane_number} — {lane.athletes?.first_name}{" "}
+                        {lane.athletes?.last_name}
                         {existing?.manually_adjusted && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
                             ✎ Adjusted
@@ -259,12 +290,20 @@ export default async function HeatDetailPage({
                                 inputMode="decimal"
                                 pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
                                 placeholder="3:45"
-                                defaultValue={existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""}
+                                defaultValue={
+                                  existing?.time_seconds != null
+                                    ? formatClock(existing.time_seconds)
+                                    : ""
+                                }
                                 className="w-28 rounded-md border border-black/20 px-2 py-1"
                               />
                             </label>
                             <label className="flex items-center gap-1 text-xs">
-                              <input name={`capped__${id}`} type="checkbox" defaultChecked={existing?.capped ?? false} />
+                              <input
+                                name={`capped__${id}`}
+                                type="checkbox"
+                                defaultChecked={existing?.capped ?? false}
+                              />
                               Capped
                             </label>
                             <label className="flex flex-col text-xs">
@@ -371,7 +410,10 @@ export default async function HeatDetailPage({
           </h2>
           <div className="flex flex-col gap-1">
             {standings.map((s, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2 text-sm">
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2 text-sm"
+              >
                 <span>
                   <span className="mr-3 font-bold text-repone-red">{s.placement ?? "—"}</span>
                   {s.athletes?.first_name} {s.athletes?.last_name}

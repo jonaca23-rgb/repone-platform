@@ -26,9 +26,16 @@ export async function createAthlete(formData: FormData) {
   if (!first_name || !last_name) throw new Error("First and last name are required.");
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("athletes")
-    .insert({ organization_id: ctx.organizationId, first_name, last_name, affiliate, date_of_birth, gender, email, phone });
+  const { error } = await supabase.from("athletes").insert({
+    organization_id: ctx.organizationId,
+    first_name,
+    last_name,
+    affiliate,
+    date_of_birth,
+    gender,
+    email,
+    phone,
+  });
   if (error) throw new Error(friendlyAthleteWriteError(error));
 
   revalidatePath("/admin/athletes");
@@ -80,14 +87,19 @@ export async function saveAthleteLifts(athleteId: string, formData: FormData) {
     if (Number.isNaN(weight_lbs)) return null;
     return { athlete_id: athleteId, lift, weight_lbs };
   }).filter(
-    (r): r is { athlete_id: string; lift: LiftName; weight_lbs: number } | { athlete_id: string; lift: LiftName; time_seconds: number } =>
-      r !== null
+    (
+      r,
+    ): r is
+      | { athlete_id: string; lift: LiftName; weight_lbs: number }
+      | { athlete_id: string; lift: LiftName; time_seconds: number } => r !== null,
   );
 
   if (rows.length === 0) return;
 
   const supabase = await createClient();
-  const { error } = await supabase.from("athlete_lifts").upsert(rows, { onConflict: "athlete_id,lift" });
+  const { error } = await supabase
+    .from("athlete_lifts")
+    .upsert(rows, { onConflict: "athlete_id,lift" });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/athletes/${athleteId}`);
@@ -123,7 +135,8 @@ const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
  */
 export async function uploadAthletePhoto(athleteId: string, formData: FormData) {
   const file = formData.get("photo");
-  if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image file to upload.");
+  if (!(file instanceof File) || file.size === 0)
+    throw new Error("Choose an image file to upload.");
   if (!file.type.startsWith("image/")) throw new Error("Please upload an image file.");
   if (file.size > MAX_PHOTO_BYTES) throw new Error("Image must be under 8MB.");
 

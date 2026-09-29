@@ -33,9 +33,12 @@ export function LaneAssignmentForm({
   registrations: Registration[];
   conflictMessage?: string;
 }) {
-  const [state, formAction, pending] = useActionState(assignLane.bind(null, eventId, heatId, lane.id), {
-    error: "",
-  });
+  const [state, formAction, pending] = useActionState(
+    assignLane.bind(null, eventId, heatId, lane.id),
+    {
+      error: "",
+    },
+  );
   const lastAlerted = useRef<string>("");
 
   useEffect(() => {
@@ -70,7 +73,10 @@ export function LaneAssignmentForm({
             </option>
           ))}
         </select>
-        <button disabled={pending} className="text-xs font-semibold uppercase text-repone-red disabled:opacity-50">
+        <button
+          disabled={pending}
+          className="text-xs font-semibold uppercase text-repone-red disabled:opacity-50"
+        >
           {pending ? "Saving…" : "Save"}
         </button>
       </form>

@@ -109,14 +109,14 @@ describe("computeOverallStandings", () => {
         { competitorId: "a", timeSeconds: 300 },
         { competitorId: "b", timeSeconds: 320 },
       ],
-      forTime
+      forTime,
     );
     const wod2 = rankWodResults(
       [
         { competitorId: "a", reps: 180 },
         { competitorId: "b", reps: 220 },
       ],
-      amrap
+      amrap,
     );
     const standings = computeOverallStandings([
       { wodId: "wod-1", results: wod1 },
