@@ -1,0 +1,42 @@
+# Role access and private athlete data
+
+Each role lands on its own screen and can't open another role's; athlete email, phone and date of birth are visible only to staff and the athlete themselves, never on public pages.
+
+## Sub-features
+
+- `access-landing` staff login sends each role to its screen: admin → `/admin`, scorekeeper → `/scorekeeper`, producer → `/producer`, commentator → `/commentator`, athlete → `/athlete`.
+- `access-admin-gate` a non-admin opening any `/admin/*` URL is redirected to their own screen.
+- `access-signed-out` a signed-out visitor opening a staff URL is sent to `/login`.
+- `access-pii-staff` admin sees an athlete's email/phone/date of birth and age category on the roster and athlete page.
+- `access-pii-public` public pages and other athletes never see them (the directory profile of another athlete shows no age category).
+- `access-oauth-redirect` `/auth/callback?next=<off-site>` never leaves the site.
+
+## How to get to it (user POV)
+
+- `/login` (staff) and `/athlete/login` (athletes; click `Sign in with Email & Password` to reveal the form).
+- Deep links: `/admin/athletes/<id>`, `/scorekeeper`, `/producer`, `/commentator`.
+- Public: `/live`, `/overlay/<floorId>/*`, `/athlete/directory/<id>` as another athlete.
+
+## Driving it with Chrome DevTools MCP
+
+Preconditions:
+
+- `doctor.sh` exits 0.
+- Evidence folder: `dir=$(scripts/evidence.sh access-control)`.
+
+- **Landing per role.** For each of `admin`, `scorekeeper`, `producer`, `commentator`: `new_page url=http://localhost:3200/login isolatedContext=verify-<role>`, sign in, then `evaluate_script () => location.pathname` after the redirect settles. Expect `/admin`, `/scorekeeper`, `/producer`, `/commentator`. Sign in as `athlete@repone.test` on the same form → `/athlete`.
+- **Admin gate.** In the scorekeeper context `navigate_page url=http://localhost:3200/admin/athletes/00000000-0000-0000-0000-000000000062`. The page ends on `/scorekeeper`, and no email is rendered.
+- **Signed out.** `new_page url=http://localhost:3200/admin isolatedContext=verify-anon` → ends on `/login`.
+- **Staff sees private data.** In the admin context open `/admin/athletes/00000000-0000-0000-0000-000000000062`. Snapshot: heading `SofiaDelgado`, textbox `Email` value `sofia@example.test`, a `Phone` textbox, a `Date of birth` date input.
+- **Public never does.** `curl -s http://localhost:3200/overlay/00000000-0000-0000-0000-000000000030/lanes | grep -c example.test` → `0` while names (`Rivera`, `Delgado`) are present. The same for `/live/00000000-0000-0000-0000-000000000010`.
+- **Other athletes don't.** In the athlete context open `/athlete/directory/00000000-0000-0000-0000-000000000062`: `Sofia Delgado`, `Box 787`, and no age-category line (even when Sofia has a date of birth set).
+- **Open redirect.** `curl -s -o /dev/null -w '%{redirect_url}' 'http://localhost:3200/auth/callback?next=@evil.com'` → `http://localhost:3200/athlete/login?error=oauth`, never `evil.com`.
+- **Proof.** `$dir/landing.txt` with each role's final pathname, `take_screenshot filePath=$dir/admin-athlete.png`, `$dir/athlete-directory.png`, and the curl outputs in `$dir/public.txt`.
+
+## Gotchas
+
+- The database side of these rules is covered exhaustively by `pnpm db:rls-check` (30+ checks as each account); run it when changing policies. This recipe proves the UI paths.
+- The athlete login form is hidden behind `Sign in with Email & Password`.
+- An age category needs both a date of birth and a gender, and only shows for ages 35+ (`35-44`, `45+`).
+- Seeded athletes have no date of birth or phone; set one on the admin athlete page first if the recipe needs it, and clear it afterwards.
+- Use a separate `isolatedContext` per role, or the last login wins for every page in that context.

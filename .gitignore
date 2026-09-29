@@ -52,3 +52,7 @@ next-env.d.ts
 
 # Git worktrees agents create to work on a branch in isolation
 /.claude/worktrees/
+
+# Browser-verification evidence (screenshots show athlete names) and run
+# bookkeeping, written by .claude/skills/verify-repone.
+/.verify/
