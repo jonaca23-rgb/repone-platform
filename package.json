@@ -21,7 +21,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "db:rls-check": "tsx scripts/rls-check.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
