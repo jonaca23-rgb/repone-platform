@@ -38,9 +38,18 @@ export async function isAssignedToEvent(
   role: EventStaffRole,
 ): Promise<boolean> {
   if (!ctx) return false;
-  if (hasAnyRole(ctx, ["admin"])) return true;
-
   const supabase = await createClient();
+
+  if (hasAnyRole(ctx, ["admin"])) {
+    // Admin covers every event in THEIR organization, not every event.
+    const { data: event } = await supabase
+      .from("events")
+      .select("organization_id")
+      .eq("id", eventId)
+      .maybeSingle();
+    return !!event && event.organization_id === ctx.organizationId;
+  }
+
   const { data } = await supabase
     .from(ASSIGNMENT_TABLE[role])
     .select("id")
@@ -92,4 +101,42 @@ export async function getAssignedEvents(
   // infer that a many-to-one embed comes back as one object, not an array.
   const rows = (assignments ?? []) as unknown as Array<{ events: AssignedEvent | null }>;
   return rows.map((r) => r.events).filter((e): e is AssignedEvent => !!e);
+}
+
+/** Roles allowed into /admin. Everyone else is sent to staffLandingPath(). */
+export const ADMIN_AREA_ROLES = ["admin", "event_director"] as const;
+
+/**
+ * Where a signed-in user belongs when they reach a staff screen they can't
+ * use (e.g. /admin, which every staff login lands on first): their first
+ * event assignment's screen, else their athlete portal, else the home page.
+ * Never returns /admin, so redirecting to it can't loop.
+ */
+export async function staffLandingPath(ctx: SessionContext): Promise<string> {
+  const roleHome: Record<EventStaffRole, string> = {
+    scorekeeper: "/scorekeeper",
+    producer: "/producer",
+    commentator: "/commentator",
+  };
+  if (hasAnyRole(ctx, ["scoring_operator"])) return roleHome.scorekeeper;
+  if (hasAnyRole(ctx, ["production_director"])) return roleHome.producer;
+  if (hasAnyRole(ctx, ["commentator"])) return roleHome.commentator;
+
+  const supabase = await createClient();
+  for (const role of ["scorekeeper", "producer", "commentator"] as const) {
+    const { data } = await supabase
+      .from(ASSIGNMENT_TABLE[role])
+      .select("id")
+      .eq(ASSIGNMENT_USER_COLUMN[role], ctx.userId)
+      .eq("status", "active")
+      .limit(1);
+    if (data?.length) return roleHome[role];
+  }
+
+  const { data: athlete } = await supabase
+    .from("athletes")
+    .select("id")
+    .eq("auth_user_id", ctx.userId)
+    .maybeSingle();
+  return athlete ? "/athlete" : "/";
 }

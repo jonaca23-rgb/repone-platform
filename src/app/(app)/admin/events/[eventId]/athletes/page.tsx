@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
 import { removeRegistration } from "@/lib/actions/registrations";
@@ -28,7 +29,7 @@ export default async function EventAthletesPage({
     supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
     supabase
       .from("athletes")
-      .select("id, first_name, last_name, affiliate, date_of_birth, gender")
+      .select("id, first_name, last_name, affiliate, gender")
       .eq("organization_id", ctx?.organizationId ?? "")
       .order("last_name"),
     supabase
@@ -39,7 +40,7 @@ export default async function EventAthletesPage({
     supabase
       .from("registrations")
       .select(
-        "id, bib_number, division_id, athletes(first_name, last_name, affiliate, date_of_birth, gender), teams(name, affiliate, entry_format)",
+        "id, bib_number, division_id, athlete_id, athletes(first_name, last_name, affiliate, gender), teams(name, affiliate, entry_format)",
       )
       .eq("event_id", eventId),
   ]);
@@ -54,15 +55,19 @@ export default async function EventAthletesPage({
     id: string;
     bib_number: string | null;
     division_id: string;
+    athlete_id: string | null;
     athletes: {
       first_name: string;
       last_name: string;
       affiliate: string | null;
-      date_of_birth: string | null;
       gender: Gender | null;
     } | null;
     teams: { name: string; affiliate: string | null; entry_format: string } | null;
   }>;
+  const privateDetails = await getAthletePrivateDetails(
+    supabase,
+    typedRegistrations.flatMap((r) => (r.athlete_id ? [r.athlete_id] : [])),
+  );
 
   if (!divisions?.length) {
     return (
@@ -134,7 +139,11 @@ export default async function EventAthletesPage({
                 .filter((r) => r.division_id === d.id)
                 .map((r) => {
                   const category = r.athletes
-                    ? computeAgeCategory(r.athletes.date_of_birth, r.athletes.gender, categoryAsOf)
+                    ? computeAgeCategory(
+                        privateDetails.get(r.athlete_id ?? "")?.dateOfBirth,
+                        r.athletes.gender,
+                        categoryAsOf,
+                      )
                     : null;
                   return (
                     <div

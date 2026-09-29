@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { createClient } from "@/lib/db/server";
 
 // Handshake step for "Continue with Google" (see athleteSignInWithGoogle in
@@ -19,7 +20,7 @@ import { createClient } from "@/lib/db/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/athlete";
+  const next = safeNextPath(searchParams.get("next"), "/athlete");
 
   if (code) {
     const supabase = await createClient();

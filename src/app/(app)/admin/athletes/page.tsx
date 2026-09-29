@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSessionContext } from "@/lib/auth/session";
+import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { createAthlete, deleteAthlete } from "@/lib/actions/athletes";
 import { AGE_CATEGORY_LABELS, computeAgeCategory } from "@/lib/scoring/ageCategory";
@@ -10,9 +11,13 @@ export default async function AthletesPage() {
   const supabase = await createClient();
   const { data: athletes } = await supabase
     .from("athletes")
-    .select("id, first_name, last_name, affiliate, date_of_birth, gender, photo_url")
+    .select("id, first_name, last_name, affiliate, gender, photo_url")
     .eq("organization_id", ctx?.organizationId ?? "")
     .order("last_name");
+  const privateDetails = await getAthletePrivateDetails(
+    supabase,
+    (athletes ?? []).map((a) => a.id),
+  );
 
   return (
     <div>
@@ -90,7 +95,7 @@ export default async function AthletesPage() {
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {(athletes ?? []).map((a) => {
           const category = computeAgeCategory(
-            a.date_of_birth,
+            privateDetails.get(a.id)?.dateOfBirth,
             a.gender as Gender | null,
             new Date(),
           );
