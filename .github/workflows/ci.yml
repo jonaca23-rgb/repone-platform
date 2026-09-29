@@ -1,7 +1,8 @@
 # CI for pull requests and main.
 #   check: lint, typecheck, unit tests, formatting.
 #   db:    boots a clean local Supabase, applies every migration + seed, loads
-#          the QA circuit and dev accounts, and fails if the committed
+#          the QA circuit and dev accounts, proves the access rules
+#          (scripts/rls-check.ts), and fails if the committed
 #          src/lib/db/supabase.types.ts no longer matches the schema.
 # No deploy job yet: the project has no production environment.
 name: CI
@@ -50,6 +51,8 @@ jobs:
       - run: ./scripts/seed-qa.sh
       - run: pnpm env:local
       - run: pnpm dev:accounts
+      - name: Database access rules (RLS, grants, storage)
+        run: pnpm db:rls-check
       - name: Generated types match the schema
         run: |
           pnpm -s db:types

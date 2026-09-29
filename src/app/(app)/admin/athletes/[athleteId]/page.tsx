@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
+import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
 import {
@@ -25,16 +26,21 @@ export default async function AthleteDetailPage({
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
-  const { data: athlete } = await supabase
+  const { data: athleteRow } = await supabase
     .from("athletes")
-    .select(
-      "id, first_name, last_name, affiliate, date_of_birth, gender, photo_url, auth_user_id, email, phone",
-    )
+    .select("id, first_name, last_name, affiliate, gender, photo_url, auth_user_id")
     .eq("id", athleteId)
     .eq("organization_id", ctx?.organizationId ?? "")
     .maybeSingle();
 
-  if (!athlete) notFound();
+  if (!athleteRow) notFound();
+  const contact = (await getAthletePrivateDetails(supabase, [athleteId])).get(athleteId);
+  const athlete = {
+    ...athleteRow,
+    email: contact?.email ?? null,
+    phone: contact?.phone ?? null,
+    date_of_birth: contact?.dateOfBirth ?? null,
+  };
 
   const [{ data: lifts }, { data: benchmarks }, { data: standingsRows }] = await Promise.all([
     supabase

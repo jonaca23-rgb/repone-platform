@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
+import { ADMIN_AREA_ROLES, staffLandingPath } from "@/lib/auth/eventRoles";
+import { getSessionContext, hasAnyRole } from "@/lib/auth/session";
 import { signOut } from "@/app/(app)/login/actions";
 import { getUnreadCount } from "@/lib/db/messages";
 import { MessagesNavLink } from "@/components/MessagesNavLink";
@@ -17,6 +18,7 @@ const NAV = [
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getSessionContext();
   if (!ctx) redirect("/login");
+  if (!hasAnyRole(ctx, [...ADMIN_AREA_ROLES])) redirect(await staffLandingPath(ctx));
   const unreadCount = await getUnreadCount(ctx.userId);
 
   return (
