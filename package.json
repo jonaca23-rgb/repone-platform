@@ -31,7 +31,6 @@
     "db:auth-check": "tsx scripts/auth-check.ts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
     "better-auth": "^1.7.6",
     "clsx": "^2.1.1",
