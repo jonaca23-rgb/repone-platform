@@ -1,14 +1,21 @@
 "use client";
 
-import { useLeaveAfterIdentityChange } from "@/lib/auth/identityChange";
-import { useActionState, useState } from "react";
+import { authClient } from "@/lib/auth/client";
+import { signUpErrorMessage } from "@/lib/auth/formErrors";
+import { useAuthForm } from "@/lib/auth/identityChange";
+import { useState } from "react";
 import Link from "next/link";
-import { athleteSignUp } from "../actions";
 import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
 
 export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
-  const [state, formAction, pending] = useActionState(athleteSignUp, { error: "" });
-  useLeaveAfterIdentityChange(state.redirectTo);
+  // Athlete accounts share the BetterAuth user table with staff, but signing up
+  // only creates the user (and its bare profiles row); staff roles come only
+  // from user_roles or event assignments. autoSignIn is on, so the new session
+  // cookie is set by this response, and onboarding links the athletes row.
+  const { error, pending, leaving, onSubmit } = useAuthForm(async (email, password) => {
+    const { error } = await authClient.signUp.email({ email, password, name: email });
+    return error ? { error: signUpErrorMessage(error) } : { to: "/athlete/onboarding" };
+  });
   const [googleFailed, setGoogleFailed] = useState(false);
 
   return (
@@ -26,7 +33,7 @@ export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: b
         </div>
       ) : null}
 
-      <form action={formAction} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm text-white/80">
           Email
           <input
@@ -49,11 +56,11 @@ export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: b
           />
         </label>
 
-        {state.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
+        {error ? <p className="text-sm text-repone-red">{error}</p> : null}
 
         <button
           type="submit"
-          disabled={pending || Boolean(state.redirectTo)}
+          disabled={pending || leaving}
           className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
         >
           {pending ? "Creating account…" : "Create Account"}

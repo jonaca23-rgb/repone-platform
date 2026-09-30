@@ -38,3 +38,4 @@ Preconditions:
 - An age category needs both a date of birth and a gender, and only shows for ages 35+ (`35-44`, `45+`).
 - Seeded athletes have no date of birth or phone; set one on the admin athlete page first if the recipe needs it, and clear it afterwards.
 - Use a separate `isolatedContext` per role, or the last login wins for every page in that context.
+- Sign-in and sign-up are rate limited by BetterAuth: 3 requests per 10 s from one IP (all local contexts share it). Signing in four roles back to back can show `Too many attempts. Wait a few seconds and try again.`; wait 10 s and submit again.

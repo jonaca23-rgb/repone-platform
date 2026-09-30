@@ -115,6 +115,28 @@ async function main() {
     } else {
       console.warn("skip  /api/supabase-token 401 check: the app is not running on :3200");
     }
+
+    // BetterAuth rate-limits only its HTTP routes, which is why the forms use
+    // authClient. Its /sign-in rule allows 3 requests per 10 s per IP, so wrong
+    // passwords posted back to back must meet a 429 within a few tries.
+    if (tokenRoute) {
+      const statuses: number[] = [];
+      for (let i = 0; i < 6 && !statuses.includes(429); i++) {
+        const res = await fetch("http://localhost:3200/api/auth/sign-in/email", {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: "http://localhost:3200" },
+          body: JSON.stringify({ email, password: `wrong-password-${i}` }),
+        });
+        statuses.push(res.status);
+      }
+      expect(
+        "wrong passwords posted to /api/auth/sign-in/email meet a 429 within the window",
+        statuses[0] === 401 && statuses.includes(429),
+        statuses,
+      );
+    } else {
+      console.warn("skip  sign-in rate limit check: the app is not running on :3200");
+    }
   } finally {
     // Cascades to session, account and profiles.
     const removed = await service.from("user").delete().like("email", `%${email}`);

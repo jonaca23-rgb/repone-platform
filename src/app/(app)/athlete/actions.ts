@@ -1,6 +1,5 @@
 "use server";
 
-import { isAPIError } from "better-auth/api";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -27,69 +26,6 @@ const OnboardingForm = z.object({
   email: field.email(),
   phone: field.phone(),
 });
-
-/**
- * Athlete accounts are a separate identity space from staff accounts (see
- * 0010_athlete_open_log.sql) — same BetterAuth user table, but signup here
- * never touches `profiles.organization_id` or `user_roles`. It only creates
- * the user (which also gets a bare profiles row, same as staff) — the actual
- * `athletes` link happens one step later in completeAthleteOnboarding.
- */
-type AuthFormState = { error: string; redirectTo?: string };
-
-// Sign-in and sign-up return where to go instead of redirecting: the form
-// follows it with a full load, so no browser state from before survives it
-// (see src/lib/auth/identityChange.ts).
-export async function athleteSignUp(
-  _prevState: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  if (!email || !password) return { error: "Email and password are required." };
-
-  // autoSignIn is on, and nextCookies() sets the new session's cookie here.
-  try {
-    await auth.api.signUpEmail({
-      body: { email, password, name: email },
-      headers: await headers(),
-    });
-  } catch (e) {
-    if (!isAPIError(e)) throw e;
-    // Never echo BetterAuth's message for an existing email: it would reveal
-    // which addresses have accounts.
-    if (e.body?.code === "PASSWORD_TOO_SHORT") {
-      return { error: "Password must be at least 10 characters." };
-    }
-    if (
-      e.body?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" ||
-      e.body?.code === "USER_ALREADY_EXISTS"
-    ) {
-      return { error: "Couldn't create the account. If you already have one, sign in instead." };
-    }
-    return { error: "Couldn't create the account. Please try again." };
-  }
-
-  return { error: "", redirectTo: "/athlete/onboarding" };
-}
-
-export async function athleteSignIn(
-  _prevState: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  if (!email || !password) return { error: "Email and password are required." };
-
-  try {
-    await auth.api.signInEmail({ body: { email, password }, headers: await headers() });
-  } catch (e) {
-    if (isAPIError(e)) return { error: "Email or password is incorrect." };
-    throw e;
-  }
-
-  return { error: "", redirectTo: "/athlete" };
-}
 
 /** Ends the session; SignOutButton then leaves for /athlete/login with a full load. */
 export async function athleteSignOut() {

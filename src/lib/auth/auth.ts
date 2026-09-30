@@ -30,8 +30,14 @@ export const auth = betterAuth({
   }),
   // auth.uid() casts the minted token's sub to uuid, and every FK is a uuid.
   advanced: { database: { generateId: "uuid" } },
-  // Shared across serverless instances rather than per-instance memory.
-  rateLimit: { storage: "database" },
+  // BetterAuth limits only requests through its HTTP routes (/api/auth/*), so
+  // the sign-in and sign-up forms call those through authClient; a server-side
+  // auth.api call is never limited. Its default is "production only"; it is on
+  // everywhere here so db:auth-check can prove it against the dev server. The
+  // built-in rule for /sign-in/* and /sign-up/* is 3 requests per 10 s per IP,
+  // so a local lockout lasts at most 10 s. The rows live in the database,
+  // shared across serverless instances rather than per-instance memory.
+  rateLimit: { enabled: true, storage: "database" },
   emailAndPassword: { enabled: true, minPasswordLength: 10, autoSignIn: true },
   socialProviders: googleEnabled
     ? {
