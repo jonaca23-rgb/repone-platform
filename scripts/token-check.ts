@@ -3,7 +3,7 @@
 //
 //   pnpm db:token-check     (needs the stack running and `pnpm env:local --force`)
 import { createClient } from "@supabase/supabase-js";
-import { SignJWT, generateKeyPair } from "jose";
+import { type JWK, SignJWT, generateKeyPair, importJWK } from "jose";
 import { mintSupabaseToken, signSupabaseToken } from "../src/lib/supabase/sign-token";
 import { requireLocal } from "./env";
 
@@ -71,6 +71,24 @@ async function main() {
     !!roleless.error && /permission denied/i.test(roleless.error.message),
     roleless.error,
   );
+
+  // Real key, kid and claims, but expired a minute ago: must be refused, not
+  // quietly run as anon.
+  const jwk = JSON.parse(process.env.SUPABASE_JWT_SIGNING_KEY ?? "{}") as JWK;
+  const realKey = await importJWK({ ...jwk, key_ops: ["sign"] }, "ES256");
+  const now = Math.floor(Date.now() / 1000);
+  const expiredToken = await new SignJWT({ role: "authenticated", email: "x@example.test" })
+    .setProtectedHeader({ alg: "ES256", typ: "JWT", kid: jwk.kid })
+    .setSubject(crypto.randomUUID())
+    .setAudience("authenticated")
+    .setIssuedAt(now - 360)
+    .setExpirationTime(now - 60)
+    .sign(realKey);
+  const expired = await probe(withToken(expiredToken));
+  expect("expired token (real key) is rejected", !!expired.error && expired.status === 401, {
+    status: expired.status,
+    error: expired.error,
+  });
 
   console.log(failures ? `\n${failures} check(s) failed` : "\nAll token checks passed");
   process.exit(failures ? 1 : 0);
