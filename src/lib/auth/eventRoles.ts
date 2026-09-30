@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/db/server";
 import { hasAnyRole, type SessionContext } from "@/lib/auth/session";
+import { eventAccess, type EventStaffRole } from "@/lib/auth/authorize";
 import type { EventStatus } from "@/lib/db/database.types";
 
 // Event-scoped staff assignment checks (0024_event_role_assignments.sql) —
@@ -14,7 +15,7 @@ import type { EventStatus } from "@/lib/db/database.types";
 // unrestricted access to every event, per spec — without needing an
 // assignment row of their own.
 
-export type EventStaffRole = "scorekeeper" | "producer" | "commentator";
+export type { EventStaffRole } from "@/lib/auth/authorize";
 
 const ASSIGNMENT_TABLE = {
   scorekeeper: "event_scorekeeper_assignments",
@@ -38,28 +39,9 @@ export async function isAssignedToEvent(
   eventId: string,
   role: EventStaffRole,
 ): Promise<boolean> {
-  if (!ctx) return false;
-  const supabase = await createClient();
-
-  if (hasAnyRole(ctx, ["admin"])) {
-    // Admin covers every event in THEIR organization, not every event.
-    const { data: event } = await supabase
-      .from("events")
-      .select("organization_id")
-      .eq("id", eventId)
-      .maybeSingle();
-    return !!event && event.organization_id === ctx.organizationId;
-  }
-
-  const { table, userColumn } = assignments(supabase, role);
-  const { data } = await table
-    .select("id")
-    .eq("event_id", eventId)
-    .eq(userColumn, ctx.userId)
-    .eq("status", "active")
-    .maybeSingle();
-
-  return !!data;
+  // Same decision the server actions make (authorize.ts): a manager of the
+  // event's org, or active staff assigned in this role.
+  return (await eventAccess(await createClient(), ctx, eventId, [role])) !== null;
 }
 
 // The three assignment tables share every column except the user id one, so
