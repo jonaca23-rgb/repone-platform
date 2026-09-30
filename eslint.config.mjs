@@ -12,6 +12,28 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
+  {
+    // @/db connects as the database owner, which RLS policies do not apply to.
+    // App reads and writes go through supabase-js with the signed-in person's
+    // token so the database decides them; only BetterAuth (src/lib/auth) owns
+    // tables it must reach directly.
+    files: ["src/app/**", "src/components/**", "src/lib/actions/**"],
+    ignores: ["src/lib/auth/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/db", "@/db/*"],
+              message:
+                "@/db is the owner connection and bypasses RLS. Use the Supabase client (@/lib/db/server) so policies decide; only src/lib/auth may import @/db.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

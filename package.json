@@ -27,7 +27,8 @@
     "db:standings-check": "tsx scripts/standings-check.ts",
     "db:timer-check": "tsx scripts/timer-check.ts",
     "db:authz-check": "tsx scripts/authz-check.ts",
-    "db:token-check": "tsx scripts/token-check.ts"
+    "db:token-check": "tsx scripts/token-check.ts",
+    "db:auth-check": "tsx scripts/auth-check.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
