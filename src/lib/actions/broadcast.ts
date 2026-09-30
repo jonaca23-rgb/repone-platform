@@ -1,38 +1,59 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
-import { computeElapsedSeconds } from "@/lib/timer/compute";
 import type { ActiveGraphic, TimerDirection } from "@/lib/db/database.types";
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * The operator log is an audit trail, not part of the action: a failed insert
+ * is reported on the server but never fails the broadcast change itself.
+ */
 async function logAction(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseServerClient,
   eventId: string | null,
   floorId: string,
   action: string,
   details?: Record<string, unknown>,
 ) {
   const ctx = await getSessionContext();
-  await supabase.from("operator_actions").insert({
+  const { error } = await supabase.from("operator_actions").insert({
     event_id: eventId,
     floor_id: floorId,
     user_id: ctx?.userId ?? null,
     action,
     details: details ?? null,
   });
+  if (error) console.error(`operator_actions insert failed (${action}): ${error.message}`);
+}
+
+/**
+ * Every write to a floor's broadcast_state goes through here. An update that
+ * matches no row (floor without broadcast state, or RLS denying this user)
+ * used to "succeed" silently; now the operator sees an error.
+ */
+async function updateBroadcastState(
+  supabase: SupabaseServerClient,
+  floorId: string,
+  patch: Record<string, unknown>,
+) {
+  const { data, error } = await supabase
+    .from("broadcast_state")
+    .update(patch)
+    .eq("floor_id", floorId)
+    .select("floor_id");
+  if (error) throw new Error(error.message);
+  if (!data?.length) {
+    throw new Error("This floor's broadcast controls aren't available to your account.");
+  }
 }
 
 /** Operator selects WOD -> Heat: this one write prepares every downstream graphic. */
 export async function setCurrentHeat(floorId: string, heatId: string, eventId: string) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ current_heat_id: heatId })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
+  await updateBroadcastState(supabase, floorId, { current_heat_id: heatId });
   await logAction(supabase, eventId, floorId, "heat_change", { heatId });
-  revalidatePath("/dashboard");
 }
 
 export async function setActiveGraphic(
@@ -41,11 +62,7 @@ export async function setActiveGraphic(
   eventId: string | null,
 ) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ active_graphic: graphic })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
+  await updateBroadcastState(supabase, floorId, { active_graphic: graphic });
   await logAction(supabase, eventId, floorId, "graphic_show", { graphic });
 }
 
@@ -55,14 +72,10 @@ export async function setLowerThird(
   eventId: string | null,
 ) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({
-      lower_third_athlete_id: athleteId,
-      active_graphic: athleteId ? "lower_third" : "none",
-    })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
+  await updateBroadcastState(supabase, floorId, {
+    lower_third_athlete_id: athleteId,
+    active_graphic: athleteId ? "lower_third" : "none",
+  });
   await logAction(supabase, eventId, floorId, athleteId ? "lower_third_show" : "lower_third_hide", {
     athleteId,
   });
@@ -74,28 +87,50 @@ export async function setActiveSponsor(
   eventId: string | null,
 ) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ active_sponsor_id: sponsorId, active_graphic: sponsorId ? "sponsor" : "none" })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
+  await updateBroadcastState(supabase, floorId, {
+    active_sponsor_id: sponsorId,
+    active_graphic: sponsorId ? "sponsor" : "none",
+  });
   await logAction(supabase, eventId, floorId, "sponsor_show", { sponsorId });
 }
 
 export async function clearGraphics(floorId: string, eventId: string | null) {
   const supabase = await createClient();
-  await supabase
-    .from("broadcast_state")
-    .update({ active_graphic: "none", lower_third_athlete_id: null, active_sponsor_id: null })
-    .eq("floor_id", floorId);
+  await updateBroadcastState(supabase, floorId, {
+    active_graphic: "none",
+    lower_third_athlete_id: null,
+    active_sponsor_id: null,
+  });
   await logAction(supabase, eventId, floorId, "clear_graphics");
 }
 
 // ---------------------------------------------------------------------------
-// Timer — server-authoritative. See src/lib/timer/compute.ts for the math
-// every client (dashboard + overlay) uses to derive the current display value
-// from this same anchor, so nothing runs its own independent countdown.
+// Timer — server-authoritative. Every transition runs in timer_command()
+// (0027_timer_command.sql): one locked row, the database clock, and commands
+// that don't apply to the current state (resume while running, pause while
+// idle) are no-ops. Clients derive the display from the anchor with
+// src/lib/timer/compute.ts; nothing runs its own countdown.
 // ---------------------------------------------------------------------------
+
+async function timerCommand(
+  floorId: string,
+  eventId: string | null,
+  command: "start" | "pause" | "resume" | "reset" | "adjust",
+  args: {
+    p_direction?: TimerDirection;
+    p_duration_seconds?: number;
+    p_delta_seconds?: number;
+  } = {},
+) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("timer_command", {
+    p_floor_id: floorId,
+    p_command: command,
+    ...args,
+  });
+  if (error) throw new Error(error.message);
+  await logAction(supabase, eventId, floorId, `timer_${command}`, args);
+}
 
 export async function startTimer(
   floorId: string,
@@ -103,105 +138,25 @@ export async function startTimer(
   durationSeconds: number,
   eventId: string | null,
 ) {
-  const supabase = await createClient();
-  const nowIso = new Date().toISOString();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({
-      timer_status: "running",
-      timer_direction: direction,
-      timer_duration_seconds: durationSeconds,
-      timer_elapsed_at_anchor: 0,
-      timer_anchor_time: nowIso,
-      active_graphic: "timer",
-    })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "timer_start", { direction, durationSeconds });
+  await timerCommand(floorId, eventId, "start", {
+    p_direction: direction,
+    p_duration_seconds: durationSeconds,
+  });
 }
 
 export async function pauseTimer(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  const { data: state } = await supabase
-    .from("broadcast_state")
-    .select(
-      "timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time",
-    )
-    .eq("floor_id", floorId)
-    .single();
-  if (!state || state.timer_status !== "running") return;
-
-  const elapsed = computeElapsedSeconds(
-    {
-      status: "running",
-      direction: state.timer_direction,
-      durationSeconds: state.timer_duration_seconds,
-      elapsedAtAnchor: state.timer_elapsed_at_anchor,
-      anchorTimeMs: state.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
-    },
-    Date.now(),
-  );
-
-  await supabase
-    .from("broadcast_state")
-    .update({ timer_status: "paused", timer_elapsed_at_anchor: elapsed, timer_anchor_time: null })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "timer_pause", { elapsed });
+  await timerCommand(floorId, eventId, "pause");
 }
 
 export async function resumeTimer(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ timer_status: "running", timer_anchor_time: new Date().toISOString() })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "timer_resume");
+  await timerCommand(floorId, eventId, "resume");
 }
 
 export async function resetTimer(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  await supabase
-    .from("broadcast_state")
-    .update({ timer_status: "idle", timer_elapsed_at_anchor: 0, timer_anchor_time: null })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "timer_reset");
+  await timerCommand(floorId, eventId, "reset");
 }
 
 /** +/- adjustment (in seconds) applied to the timer while preserving running/paused state. */
 export async function adjustTimer(floorId: string, deltaSeconds: number, eventId: string | null) {
-  const supabase = await createClient();
-  const { data: state } = await supabase
-    .from("broadcast_state")
-    .select(
-      "timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time",
-    )
-    .eq("floor_id", floorId)
-    .single();
-  if (!state) return;
-
-  const nowMs = Date.now();
-  const currentElapsed = computeElapsedSeconds(
-    {
-      status: state.timer_status,
-      direction: state.timer_direction,
-      durationSeconds: state.timer_duration_seconds,
-      elapsedAtAnchor: state.timer_elapsed_at_anchor,
-      anchorTimeMs: state.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
-    },
-    nowMs,
-  );
-
-  // For count_down, "+" adds time on the clock (less elapsed); for count_up, "+" adds elapsed.
-  const sign = state.timer_direction === "count_down" ? -1 : 1;
-  const newElapsed = Math.max(0, currentElapsed + sign * deltaSeconds);
-
-  await supabase
-    .from("broadcast_state")
-    .update({
-      timer_elapsed_at_anchor: newElapsed,
-      timer_anchor_time: state.timer_status === "running" ? new Date(nowMs).toISOString() : null,
-    })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "timer_adjust", { deltaSeconds });
+  await timerCommand(floorId, eventId, "adjust", { p_delta_seconds: deltaSeconds });
 }
