@@ -9,7 +9,6 @@ Each role lands on its own screen and can't open another role's; athlete email, 
 - `access-signed-out` a signed-out visitor opening a staff URL is sent to `/login`.
 - `access-pii-staff` admin sees an athlete's email/phone/date of birth and age category on the roster and athlete page.
 - `access-pii-public` public pages and other athletes never see them (the directory profile of another athlete shows no age category).
-- `access-oauth-redirect` `/auth/callback?next=<off-site>` never leaves the site.
 
 ## How to get to it (user POV)
 
@@ -26,12 +25,11 @@ Preconditions:
 
 - **Landing per role.** For each of `admin`, `scorekeeper`, `producer`, `commentator`: `new_page url=http://localhost:3200/login isolatedContext=verify-<role>`, sign in, then `evaluate_script () => location.pathname` after the redirect settles. Expect `/admin`, `/scorekeeper`, `/producer`, `/commentator`. Sign in as `athlete@repone.test` on the same form → `/athlete`.
 - **Admin gate.** In the scorekeeper context `navigate_page url=http://localhost:3200/admin/athletes/00000000-0000-0000-0000-000000000062`. The page ends on `/scorekeeper`, and no email is rendered.
-- **Signed out.** `new_page url=http://localhost:3200/admin isolatedContext=verify-anon` → ends on `/login`.
+- **Signed out.** `new_page url=http://localhost:3200/admin isolatedContext=verify-anon` → ends on `/login`. After a `Sign out` click (full page load) `/api/supabase-token` answers 401.
 - **Staff sees private data.** In the admin context open `/admin/athletes/00000000-0000-0000-0000-000000000062`. Snapshot: heading `SofiaDelgado`, textbox `Email` value `sofia@example.test`, a `Phone` textbox, a `Date of birth` date input.
 - **Public never does.** `curl -s http://localhost:3200/overlay/00000000-0000-0000-0000-000000000030/lanes | grep -c example.test` → `0` while names (`Rivera`, `Delgado`) are present. The same for `/live/00000000-0000-0000-0000-000000000010`.
 - **Other athletes don't.** In the athlete context open `/athlete/directory/00000000-0000-0000-0000-000000000062`: `Sofia Delgado`, `Box 787`, and no age-category line (even when Sofia has a date of birth set).
-- **Open redirect.** `curl -s -o /dev/null -w '%{redirect_url}' 'http://localhost:3200/auth/callback?next=@evil.com'` → `http://localhost:3200/athlete/login?error=oauth`, never `evil.com`.
-- **Proof.** `$dir/landing.txt` with each role's final pathname, `take_screenshot filePath=$dir/admin-athlete.png`, `$dir/athlete-directory.png`, and the curl outputs in `$dir/public.txt`.
+- **Proof.** `$dir/landing.txt` with each role's final pathname, `take_screenshot filePath=$dir/admin-athlete.png`, `$dir/athlete-directory.png`, and the curl outputs in `$dir/public.txt`. Sign-in and sign-out end in a full page load (BetterAuth), so re-snapshot afterwards.
 
 ## Gotchas
 

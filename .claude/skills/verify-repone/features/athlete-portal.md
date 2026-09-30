@@ -28,14 +28,14 @@ Preconditions:
 - **Onboarding.** In a new context sign in as `new-athlete@repone.test` → lands on `/athlete/onboarding` (`Tell us about yourself`). `fill_form` `First name` `Nina`, `Last name` `Nueva`; set `Date of birth` with `evaluate_script`; `click` `Continue` → `/athlete`, `Welcome, Nina`. DB: `scripts/q.sh "select first_name from athletes where email='new-athlete@repone.test'"` → `Nina`.
 - **Lifts.** On `/athlete` `fill` `Deadlift (lbs)` = `315`, `click` `Save Lifts`; reload — the value persists. DB: `scripts/q.sh "select weight_lbs from athlete_lifts where lift='deadlift' and athlete_id='00000000-0000-0000-0000-000000000061'"` → `315`.
 - **Directory.** `click` `Athletes`, `fill` the search box (placeholder `Search athletes by name or affiliate…`) with `Delgado`, open `Sofia Delgado` → `/athlete/directory/00000000-0000-0000-0000-000000000062`, which shows `Sofia hasn't created a RepOne account yet — no way to message them.`
-- **Message staff.** `Messages` → under `Message Staff` open `Ada Admin` → fill the textarea (placeholder `Write a message…`) with `Hello from verify`, `click` `Send`. The thread shows it. In the admin context `/admin/messages` lists the conversation with an unread badge. DB: `scripts/q.sh "select body from messages order by created_at desc limit 1"`.
+- **Message staff.** `Messages` → under `Message Staff` open `Ada Admin` → fill the textarea (placeholder `Write a message…`) with `Hello from verify`, `click` `Send`. The thread shows it. In the admin context (left open on `/admin`, no reload) the `MESSAGES` nav link gains an unread count badge live through Realtime; a reload also shows it (server count), so check the badge before reloading. `/admin/messages` lists the conversation. DB: `scripts/q.sh "select body from messages order by created_at desc limit 1"`.
 - **Proof.** Screenshots `$dir/home.png`, `$dir/onboarding-done.png`, `$dir/thread.png`, `$dir/admin-inbox.png`, and the DB queries in `$dir/*.db.txt`.
 - **Reset.** `scripts/fixtures.sh reset-onboarding` so the next run can onboard `new-athlete@` again.
 
 ## Gotchas
 
 - The email/password form on `/athlete/login` is hidden until `Sign in with Email & Password` is clicked.
-- Sign-up of a brand-new email creates a real auth user: use a unique `verify+<ts>@example.test` address and delete it in Studio afterwards.
+- Sign-up of a brand-new email creates a real BetterAuth user (password ≥10 chars) and lands on `/athlete/onboarding`: use a unique `verify+<ts>@example.test` address and afterwards delete its messages, its `athletes` row and its `"user"` row with `psql "$DATABASE_URL"` (sessions/accounts cascade). `Sign out` ends in a full page load on `/athlete/login`; `/api/supabase-token` then answers 401.
 - The like button's accessible name is only its count (empty at 0): find it by its position after the profile heading in the snapshot, not by name.
 - Only onboarded athletes (linked to an `athletes` row) can message; `new-athlete@` must finish onboarding first.
 - Staff contacts appear only for staff in the athlete's organization (the seed admin is `Ada Admin`).
