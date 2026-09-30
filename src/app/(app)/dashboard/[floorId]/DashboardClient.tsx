@@ -3,6 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
+import { floorWatches } from "@/lib/realtime/floorWatches";
+import { useRefreshOnChanges } from "@/lib/realtime/useRefreshOnChanges";
 import { TimerDisplay } from "@/components/graphics/TimerDisplay";
 import {
   setCurrentHeat,
@@ -59,7 +61,14 @@ export function DashboardClient({
   sponsors: Array<{ id: string; business_name: string; tier: string }>;
 }) {
   const { state, connected } = useBroadcastState(floorId, initialBroadcastState);
-  const [, startTransitionFn] = useTransition();
+  useRefreshOnChanges(
+    floorWatches(
+      floorId,
+      heats.map((h) => h.id),
+    ),
+  );
+  const [pending, startTransitionFn] = useTransition();
+  const [failure, setFailure] = useState<string | null>(null);
   const [countDirection, setCountDirection] = useState<"count_up" | "count_down">("count_down");
 
   const currentIndex = useMemo(
@@ -84,16 +93,27 @@ export function DashboardClient({
     anchorTimeMs: state?.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
   });
 
-  function go(action: () => Promise<unknown>) {
-    startTransitionFn(() => {
-      action();
+  // Every control goes through here: the action is awaited, "Sending…" shows
+  // while it runs, and a failure is shown to the operator instead of
+  // vanishing mid-broadcast. Production builds hide server error text, so the
+  // message names what failed; the detail is added in development.
+  function go(what: string, action: () => Promise<unknown>) {
+    setFailure(null);
+    startTransitionFn(async () => {
+      try {
+        await action();
+      } catch (e) {
+        const detail =
+          process.env.NODE_ENV === "development" && e instanceof Error ? ` (${e.message})` : "";
+        setFailure(`Couldn't ${what}. Check the connection and try again.${detail}`);
+      }
     });
   }
 
   function selectHeat(index: number) {
     const heat = heats[index];
     if (!heat) return;
-    go(() => setCurrentHeat(floorId, heat.id, eventId));
+    go(`switch to heat ${heat.heatNumber}`, () => setCurrentHeat(floorId, heat.id, eventId));
   }
 
   if (!currentHeat) {
@@ -118,11 +138,28 @@ export function DashboardClient({
             {currentHeat.division.name}
           </p>
         </div>
-        <span
-          className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
-          title={connected ? "Live" : "Reconnecting…"}
-        />
+        <span className="flex items-center gap-3">
+          <span role="status" aria-live="polite" className="text-xs uppercase text-white/60">
+            {pending ? "Sending…" : ""}
+          </span>
+          <span
+            className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
+            title={connected ? "Live" : "Reconnecting…"}
+          />
+        </span>
       </div>
+
+      {failure && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-xl border border-repone-red bg-repone-red/15 px-5 py-3 text-sm"
+        >
+          <span>{failure}</span>
+          <button className="text-xs font-bold uppercase" onClick={() => setFailure(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Heat nav */}
       <div className="grid grid-cols-2 gap-3">
@@ -180,7 +217,7 @@ export function DashboardClient({
           <button
             className="control-btn control-btn-red"
             onClick={() =>
-              go(() =>
+              go("start the timer", () =>
                 startTimer(
                   floorId,
                   countDirection,
@@ -197,7 +234,7 @@ export function DashboardClient({
           <button
             className="control-btn"
             onClick={() =>
-              go(() =>
+              go(state?.timer_status === "paused" ? "resume the timer" : "pause the timer", () =>
                 state?.timer_status === "paused"
                   ? resumeTimer(floorId, eventId)
                   : pauseTimer(floorId, eventId),
@@ -206,19 +243,22 @@ export function DashboardClient({
           >
             {state?.timer_status === "paused" ? "Resume" : "Pause"}
           </button>
-          <button className="control-btn" onClick={() => go(() => resetTimer(floorId, eventId))}>
+          <button
+            className="control-btn"
+            onClick={() => go("reset the timer", () => resetTimer(floorId, eventId))}
+          >
             Reset
           </button>
           <div className="flex gap-2">
             <button
               className="control-btn flex-1"
-              onClick={() => go(() => adjustTimer(floorId, -10, eventId))}
+              onClick={() => go("adjust the timer", () => adjustTimer(floorId, -10, eventId))}
             >
               −10s
             </button>
             <button
               className="control-btn flex-1"
-              onClick={() => go(() => adjustTimer(floorId, 10, eventId))}
+              onClick={() => go("adjust the timer", () => adjustTimer(floorId, 10, eventId))}
             >
               +10s
             </button>
@@ -234,14 +274,16 @@ export function DashboardClient({
             <button
               key={g.key}
               className={`control-btn ${state?.active_graphic === g.key ? "control-btn-red" : ""}`}
-              onClick={() => go(() => setActiveGraphic(floorId, g.key, eventId))}
+              onClick={() =>
+                go(`show ${g.label.toLowerCase()}`, () => setActiveGraphic(floorId, g.key, eventId))
+              }
             >
               Show {g.label}
             </button>
           ))}
           <button
             className="control-btn control-btn-outline border-white/30 !bg-transparent !text-white col-span-2 sm:col-span-3"
-            onClick={() => go(() => clearGraphics(floorId, eventId))}
+            onClick={() => go("clear the graphics", () => clearGraphics(floorId, eventId))}
           >
             Clear Graphics
           </button>
@@ -271,13 +313,15 @@ export function DashboardClient({
           <button
             className="control-btn control-btn-red w-fit px-6"
             disabled={!lowerThirdAthlete}
-            onClick={() => go(() => setLowerThird(floorId, lowerThirdAthlete, eventId))}
+            onClick={() =>
+              go("show the lower third", () => setLowerThird(floorId, lowerThirdAthlete, eventId))
+            }
           >
             Show
           </button>
           <button
             className="control-btn w-fit px-6"
-            onClick={() => go(() => setLowerThird(floorId, null, eventId))}
+            onClick={() => go("hide the lower third", () => setLowerThird(floorId, null, eventId))}
           >
             Hide
           </button>
@@ -293,7 +337,7 @@ export function DashboardClient({
               key={s.id}
               className={`control-btn ${state?.active_sponsor_id === s.id ? "control-btn-red" : ""}`}
               onClick={() =>
-                go(() =>
+                go(`toggle ${s.business_name}`, () =>
                   setActiveSponsor(
                     floorId,
                     state?.active_sponsor_id === s.id ? null : s.id,

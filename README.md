@@ -77,6 +77,7 @@ Ports are offset so this runs beside other local Supabase projects:
 | `pnpm env:local` | Write `.env.local` from `supabase status` (`--force` to overwrite) |
 | `pnpm db:rls-check` | Prove the database access rules as each dev account (local only) |
 | `pnpm db:standings-check` | Prove concurrent standings rewrites never duplicate or empty a leaderboard (local only) |
+| `pnpm db:timer-check` | Prove the broadcast timer's commands (double resume, concurrent operators, adjust) (local only) |
 | `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
 | `pnpm format` | Biome formatter |
 

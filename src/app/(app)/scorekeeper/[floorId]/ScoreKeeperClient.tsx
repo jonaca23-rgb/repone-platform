@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
+import { floorWatches } from "@/lib/realtime/floorWatches";
+import { useRefreshOnChanges } from "@/lib/realtime/useRefreshOnChanges";
 import { enterResult } from "@/lib/actions/results";
 import { finishHeat } from "@/lib/actions/heats";
 import { formatClock } from "@/lib/timer/compute";
@@ -56,16 +58,30 @@ function SaveButton() {
   );
 }
 
-// Same guard-against-double-submission pattern as SaveButton, for the
-// "Save all & Finish Heat" button below.
-function FinishHeatButton({ alreadyFinished }: { alreadyFinished: boolean }) {
+// Same guard-against-double-submission pattern as SaveButton. Finishing
+// never saves anything: lanes are saved one by one, so the button refuses
+// while any lane has typed-but-unsaved values.
+function FinishHeatButton({
+  alreadyFinished,
+  unsavedLanes,
+}: {
+  alreadyFinished: boolean;
+  unsavedLanes: number;
+}) {
   const { pending } = useFormStatus();
+  const label = alreadyFinished
+    ? "Heat Finished ✓"
+    : pending
+      ? "Finishing…"
+      : unsavedLanes > 0
+        ? `Save ${unsavedLanes} unsaved lane${unsavedLanes === 1 ? "" : "s"} first`
+        : "Finish Heat";
   return (
     <button
       className="control-btn control-btn-red px-6 py-3 text-base"
-      disabled={pending || alreadyFinished}
+      disabled={pending || alreadyFinished || unsavedLanes > 0}
     >
-      {alreadyFinished ? "Heat Finished ✓" : pending ? "Finishing…" : "Save all & Finish Heat"}
+      {label}
     </button>
   );
 }
@@ -89,6 +105,15 @@ export function ScoreKeeperClient({
 }) {
   const { state, connected } = useBroadcastState(floorId, initialBroadcastState);
   const liveHeatId = state?.current_heat_id ?? null;
+  // A second scorekeeper's saves (results) and lane changes from Admin show up
+  // here without a reload; values being typed are kept across the refresh.
+  useRefreshOnChanges(
+    floorWatches(
+      floorId,
+      heats.map((h) => h.id),
+      { results: true },
+    ),
+  );
 
   // By default the scorekeeper's screen follows whatever heat Production has
   // live on the Dashboard (heat/lane automation from the spec) — but they can
@@ -97,16 +122,45 @@ export function ScoreKeeperClient({
   const [following, setFollowing] = useState(true);
   const [manualHeatId, setManualHeatId] = useState<string | null>(null);
 
+  // Lanes with typed-but-unsaved values, as "heatId:laneNumber". While any
+  // exist, following the live heat stays pinned to the heat being typed into:
+  // otherwise a heat change from Production would swap the athlete under a
+  // half-typed score.
+  const [unsaved, setUnsaved] = useState<Set<string>>(() => new Set());
+  const [laneErrors, setLaneErrors] = useState<Record<string, string>>({});
+  const pinnedHeatId = unsaved.size > 0 ? [...unsaved][0].split(":")[0] : null;
+  const markLane = (key: string, isUnsaved: boolean) =>
+    setUnsaved((prev) => {
+      if (prev.has(key) === isUnsaved) return prev;
+      const next = new Set(prev);
+      if (isUnsaved) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
   const activeHeatId = following
-    ? (liveHeatId ?? heats[0]?.id ?? null)
+    ? (pinnedHeatId ?? liveHeatId ?? heats[0]?.id ?? null)
     : (manualHeatId ?? heats[0]?.id ?? null);
   const heat = heats.find((h) => h.id === activeHeatId) ?? heats[0] ?? null;
+  const liveHeat = heats.find((h) => h.id === liveHeatId) ?? null;
+  const heldBack = following && pinnedHeatId !== null && liveHeat && liveHeat.id !== pinnedHeatId;
 
   // Manual "Previous Heat" / "Next Heat" step through this floor's heats in
   // the same order as the picker above — steps off "Follow Live Heat" the
   // same way picking a heat from the dropdown does.
   const heatIndex = heat ? heats.findIndex((h) => h.id === heat.id) : -1;
+  const unsavedInHeat = heat ? [...unsaved].filter((k) => k.startsWith(`${heat.id}:`)).length : 0;
+  // Leaving a heat drops its unsaved values (each lane's form is keyed to its
+  // heat), so ask first.
+  const confirmLeave = () =>
+    unsavedInHeat === 0 ||
+    window.confirm(
+      `${unsavedInHeat} lane${unsavedInHeat === 1 ? " has" : "s have"} unsaved values. Leave this heat and discard them?`,
+    );
+  const discardUnsaved = () => setUnsaved(new Set());
   const goToHeat = (id: string) => {
+    if (!confirmLeave()) return;
+    discardUnsaved();
     setFollowing(false);
     setManualHeatId(id);
   };
@@ -167,10 +221,7 @@ export function ScoreKeeperClient({
           Heat
           <select
             value={heat.id}
-            onChange={(e) => {
-              setFollowing(false);
-              setManualHeatId(e.target.value);
-            }}
+            onChange={(e) => goToHeat(e.target.value)}
             className="rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
           >
             {heats.map((h) => (
@@ -208,6 +259,8 @@ export function ScoreKeeperClient({
           <button
             className="control-btn w-fit px-4 py-3 text-xs"
             onClick={() => {
+              if (!confirmLeave()) return;
+              discardUnsaved();
               setFollowing(true);
               setManualHeatId(null);
             }}
@@ -217,24 +270,58 @@ export function ScoreKeeperClient({
         )}
       </div>
 
+      {heldBack && (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-400/60 bg-amber-400/10 px-5 py-3 text-sm text-amber-200"
+        >
+          Production moved to {liveHeat.wod.name} · Heat {liveHeat.heatNumber}. Staying on this heat
+          until its unsaved lanes are saved.
+        </p>
+      )}
+
       {/* Score entry — one card per lane, matching the judge's scorecard fields for this WOD's scoring type */}
       <div className="flex flex-col gap-3">
         {heat.lanes
           .filter((l) => l.athleteId)
           .map((lane) => {
             const existing = resultByAthlete.get(lane.athleteId!);
+            const laneKey = `${heat.id}:${lane.laneNumber}`;
+            const save = enterResult.bind(
+              null,
+              eventId,
+              heat.id,
+              heat.wod.id,
+              heat.division.id,
+              scoringType,
+              floorId,
+            );
             return (
               <form
-                key={lane.laneNumber}
-                action={enterResult.bind(
-                  null,
-                  eventId,
-                  heat.id,
-                  heat.wod.id,
-                  heat.division.id,
-                  scoringType,
-                  floorId,
-                )}
+                // Keyed to heat + athlete, never just the lane number: a form
+                // must not survive into another heat with the old values.
+                key={`${laneKey}:${lane.athleteId}`}
+                // onInput, not onChange: the browser also fires "change" when a
+                // focused field loses focus after its value was replaced by the
+                // saved one (Enter to save, then click Finish), which would
+                // re-mark a saved lane as unsaved.
+                onInput={() => markLane(laneKey, true)}
+                action={async (formData) => {
+                  try {
+                    await save(formData);
+                    markLane(laneKey, false);
+                    setLaneErrors((prev) => {
+                      const next = { ...prev };
+                      delete next[laneKey];
+                      return next;
+                    });
+                  } catch {
+                    setLaneErrors((prev) => ({
+                      ...prev,
+                      [laneKey]: "Not saved. Check the connection and press Save Score again.",
+                    }));
+                  }
+                }}
                 className="rounded-xl bg-repone-gray p-4"
               >
                 <input type="hidden" name="competitor_type" value="athlete" />
@@ -247,7 +334,12 @@ export function ScoreKeeperClient({
                     {lane.name}
                   </p>
                   <span className="flex items-center gap-2">
-                    {existing && (
+                    {unsaved.has(laneKey) && (
+                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+                        ● Unsaved
+                      </span>
+                    )}
+                    {existing && !unsaved.has(laneKey) && (
                       <span className="text-xs font-semibold uppercase tracking-wide text-green-400">
                         ✓ Recorded
                       </span>
@@ -373,6 +465,11 @@ export function ScoreKeeperClient({
                   </label>
                   <SaveButton />
                 </div>
+                {laneErrors[laneKey] && (
+                  <p role="alert" className="mt-3 text-sm font-semibold text-repone-red">
+                    {laneErrors[laneKey]}
+                  </p>
+                )}
               </form>
             );
           })}
@@ -383,18 +480,24 @@ export function ScoreKeeperClient({
         )}
       </div>
 
-      {/* Finish this heat — scores above are already saved lane by lane as
-          they're entered; this just flips the heat's status once every lane
-          is done, which is what marks it "✓ Completed" back on the Heats &
-          Lanes list. Heats & Lanes' own "Save All" button no longer does
-          this — only this button does. */}
+      {/* Finish this heat — scores above are saved lane by lane; this only
+          flips the heat's status (✓ Completed on Heats & Lanes) and, once the
+          WOD's last heat is finished, makes missing results count as last in
+          the overall standings. */}
       {heat.lanes.filter((l) => l.athleteId).length > 0 && (
         <form
           action={finishHeat.bind(null, eventId, heat.id, floorId)}
           onSubmit={(e) => {
+            const withoutResult = heat.lanes.filter(
+              (l) => l.athleteId && !resultByAthlete.has(l.athleteId),
+            ).length;
+            const warning =
+              withoutResult > 0
+                ? ` ${withoutResult} lane${withoutResult === 1 ? " has" : "s have"} no result and will count as last once the WOD is finished.`
+                : "";
             if (
               !window.confirm(
-                `Finish Heat ${heat.heatNumber} — ${heat.wod.name} (${heat.division.name})? It will be marked Completed on Heats & Lanes.`,
+                `Finish Heat ${heat.heatNumber} — ${heat.wod.name} (${heat.division.name})?${warning}`,
               )
             ) {
               e.preventDefault();
@@ -405,9 +508,9 @@ export function ScoreKeeperClient({
           <p className="text-xs uppercase tracking-wide text-white/50">
             {heat.endedAt
               ? "This heat is marked completed."
-              : "Once every lane's result is entered above, finish this heat."}
+              : "Save every lane above, then finish this heat."}
           </p>
-          <FinishHeatButton alreadyFinished={Boolean(heat.endedAt)} />
+          <FinishHeatButton alreadyFinished={Boolean(heat.endedAt)} unsavedLanes={unsavedInHeat} />
         </form>
       )}
 
