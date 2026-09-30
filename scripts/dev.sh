@@ -14,6 +14,8 @@ if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; the
   fi
 fi
 
+pnpm -s keys:ensure
+
 if ! ./scripts/supabase.sh status >/dev/null 2>&1; then
   # After a Podman VM restart the stack's containers still exist but are
   # stopped, and `supabase start` refuses ("already running"). `stop` removes

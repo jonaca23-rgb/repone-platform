@@ -56,3 +56,6 @@ next-env.d.ts
 # Browser-verification evidence (screenshots show athlete names) and run
 # bookkeeping, written by .claude/skills/verify-repone.
 /.verify/
+
+# local Supabase JWT signing key
+/supabase/signing_keys.json
