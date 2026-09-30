@@ -35,7 +35,15 @@ const OnboardingForm = z.object({
  * the user (which also gets a bare profiles row, same as staff) — the actual
  * `athletes` link happens one step later in completeAthleteOnboarding.
  */
-export async function athleteSignUp(_prevState: { error: string }, formData: FormData) {
+type AuthFormState = { error: string; redirectTo?: string };
+
+// Sign-in and sign-up return where to go instead of redirecting: the form
+// follows it with a full load, so no browser state from before survives it
+// (see src/lib/auth/identityChange.ts).
+export async function athleteSignUp(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Email and password are required." };
@@ -54,10 +62,13 @@ export async function athleteSignUp(_prevState: { error: string }, formData: For
     return { error: e.body?.message ?? "Could not create the account. Please try again." };
   }
 
-  redirect("/athlete/onboarding");
+  return { error: "", redirectTo: "/athlete/onboarding" };
 }
 
-export async function athleteSignIn(_prevState: { error: string }, formData: FormData) {
+export async function athleteSignIn(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Email and password are required." };
@@ -69,12 +80,12 @@ export async function athleteSignIn(_prevState: { error: string }, formData: For
     throw e;
   }
 
-  redirect("/athlete");
+  return { error: "", redirectTo: "/athlete" };
 }
 
+/** Ends the session; SignOutButton then leaves for /athlete/login with a full load. */
 export async function athleteSignOut() {
   await auth.api.signOut({ headers: await headers() });
-  redirect("/athlete/login");
 }
 
 /**

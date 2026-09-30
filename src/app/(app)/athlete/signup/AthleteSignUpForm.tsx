@@ -1,11 +1,13 @@
 "use client";
 
+import { useLeaveAfterIdentityChange } from "@/lib/auth/identityChange";
 import { useActionState } from "react";
 import Link from "next/link";
 import { athleteSignUp } from "../actions";
 
 export function AthleteSignUpForm() {
   const [state, formAction, pending] = useActionState(athleteSignUp, { error: "" });
+  useLeaveAfterIdentityChange(state.redirectTo);
 
   return (
     <div className="mx-auto w-full max-w-sm rounded-xl border border-white/10 bg-repone-gray p-8 shadow-xl">
@@ -41,7 +43,7 @@ export function AthleteSignUpForm() {
 
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || Boolean(state.redirectTo)}
           className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
         >
           {pending ? "Creating account…" : "Create Account"}

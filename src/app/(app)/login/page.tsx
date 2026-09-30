@@ -1,10 +1,12 @@
 "use client";
 
+import { useLeaveAfterIdentityChange } from "@/lib/auth/identityChange";
 import { useActionState } from "react";
 import { signIn } from "./actions";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(signIn, { error: "" });
+  useLeaveAfterIdentityChange(state.redirectTo);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-repone-black px-4">
@@ -45,7 +47,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || Boolean(state.redirectTo)}
             className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
           >
             {pending ? "Signing in…" : "Sign In"}

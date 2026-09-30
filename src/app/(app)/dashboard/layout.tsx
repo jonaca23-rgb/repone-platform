@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth/session";
 import { signOut } from "@/app/(app)/login/actions";
+import { SignOutButton } from "@/components/SignOutButton";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getSessionContext();
@@ -47,11 +48,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
             Commentator
           </Link>
         </div>
-        <form action={signOut}>
-          <button className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white">
-            Sign out
-          </button>
-        </form>
+        <SignOutButton
+          action={signOut}
+          redirectTo="/login"
+          className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+        />
       </div>
       {children}
     </div>

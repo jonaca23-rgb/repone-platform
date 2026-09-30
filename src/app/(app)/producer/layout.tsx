@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth/session";
 import { signOut } from "@/app/(app)/login/actions";
+import { SignOutButton } from "@/components/SignOutButton";
 
 // Outer shell for the Producer tree — same "any signed-in staff account"
 // gate as Score Keeper/Commentator/Production Dashboard. The real "which
@@ -53,11 +54,11 @@ export default async function ProducerLayout({ children }: { children: React.Rea
             Commentator
           </Link>
         </div>
-        <form action={signOut}>
-          <button className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white">
-            Sign out
-          </button>
-        </form>
+        <SignOutButton
+          action={signOut}
+          redirectTo="/login"
+          className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+        />
       </div>
       {children}
     </div>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ADMIN_AREA_ROLES, staffLandingPath } from "@/lib/auth/eventRoles";
 import { getSessionContext, hasAnyRole } from "@/lib/auth/session";
 import { signOut } from "@/app/(app)/login/actions";
+import { SignOutButton } from "@/components/SignOutButton";
 import { getUnreadCount } from "@/lib/db/messages";
 import { MessagesNavLink } from "@/components/MessagesNavLink";
 
@@ -81,9 +82,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </Link>
           </nav>
         </div>
-        <form action={signOut}>
-          <button className="text-sm text-white/60 hover:text-white">Sign out</button>
-        </form>
+        <SignOutButton
+          action={signOut}
+          redirectTo="/login"
+          className="text-sm text-white/60 hover:text-white"
+        />
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
     </div>

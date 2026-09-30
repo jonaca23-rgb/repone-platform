@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { athleteSignOut } from "./actions";
+import { SignOutButton } from "@/components/SignOutButton";
 import { getUnreadCount } from "@/lib/db/messages";
 import { MessagesNavLink } from "@/components/MessagesNavLink";
 
@@ -53,9 +54,11 @@ export default async function AthleteLayout({ children }: { children: React.Reac
                 {ctx.firstName} {ctx.lastName}
               </span>
             ) : null}
-            <form action={athleteSignOut}>
-              <button className="text-white/60 hover:text-white">Sign out</button>
-            </form>
+            <SignOutButton
+              action={athleteSignOut}
+              redirectTo="/athlete/login"
+              className="text-white/60 hover:text-white"
+            />
           </div>
         ) : (
           <Link href="/" className="text-sm text-white/60 hover:text-white">

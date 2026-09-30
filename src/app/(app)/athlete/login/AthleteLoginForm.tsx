@@ -1,5 +1,6 @@
 "use client";
 
+import { useLeaveAfterIdentityChange } from "@/lib/auth/identityChange";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { athleteSignIn } from "../actions";
@@ -13,6 +14,7 @@ import { athleteSignIn } from "../actions";
 // server-first, mostly-zero-JS approach.
 export function AthleteLoginForm({ oauthError = false }: { oauthError?: boolean }) {
   const [state, formAction, pending] = useActionState(athleteSignIn, { error: "" });
+  useLeaveAfterIdentityChange(state.redirectTo);
   const [showEmailForm, setShowEmailForm] = useState(false);
 
   return (
@@ -54,7 +56,7 @@ export function AthleteLoginForm({ oauthError = false }: { oauthError?: boolean 
 
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || Boolean(state.redirectTo)}
             className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
           >
             {pending ? "Signing in…" : "Sign In"}

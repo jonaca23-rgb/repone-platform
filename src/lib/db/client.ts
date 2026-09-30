@@ -44,6 +44,16 @@ async function fetchToken(): Promise<string | null> {
   return pending;
 }
 
+/**
+ * Forgets the cached token. Called before the hard navigation that follows a
+ * sign-in, sign-up or sign-out (src/lib/auth/identityChange.ts), so no client
+ * keeps asking with the previous person's identity.
+ */
+export function clearSupabaseToken() {
+  cached = null;
+  pending = null;
+}
+
 export function createClient() {
   return createSupabaseClient<Database>(supabaseUrl(), supabasePublishableKey(), {
     accessToken: fetchToken,
