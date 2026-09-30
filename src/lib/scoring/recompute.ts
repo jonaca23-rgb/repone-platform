@@ -1,5 +1,7 @@
-"use server";
-
+// Standings rebuilds, called by the result/heat server actions AFTER they've
+// authorized the caller. Deliberately NOT a "use server" module: exported
+// functions in one of those become public endpoints any browser can call,
+// and these take bare WOD/division ids with no guard of their own.
 import { createClient } from "@/lib/db/server";
 import { sqlNull } from "@/lib/db/sqlNull";
 import {
@@ -17,8 +19,12 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
  * rows using the scoring engine — never hand-edited, always rebuildable.
  * Call this after every result entry/edit for that WOD/division.
  */
-export async function recomputeWodStandings(wodId: string, divisionId: string) {
-  const supabase = await createClient();
+export async function recomputeWodStandings(
+  wodId: string,
+  divisionId: string,
+  client?: SupabaseServerClient,
+) {
+  const supabase = client ?? (await createClient());
 
   const { data: wod } = await supabase
     .from("wods")
@@ -73,7 +79,7 @@ export async function recomputeWodStandings(wodId: string, divisionId: string) {
     kinds: competitorKinds(results ?? []),
   });
 
-  await recomputeOverallStandings(divisionId);
+  await recomputeOverallStandings(divisionId, supabase);
 }
 
 /**
@@ -82,8 +88,8 @@ export async function recomputeWodStandings(wodId: string, divisionId: string) {
  * counts against competitors with no result only once all of its heats in
  * the division have finished (see computeOverallStandings).
  */
-export async function recomputeOverallStandings(divisionId: string) {
-  const supabase = await createClient();
+export async function recomputeOverallStandings(divisionId: string, client?: SupabaseServerClient) {
+  const supabase = client ?? (await createClient());
 
   const [perWodRes, registrationsRes, heatsRes] = await Promise.all([
     supabase

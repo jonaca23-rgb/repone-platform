@@ -2,11 +2,125 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+import { NotAuthorizedError, requireHeatAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import { recomputeWodStandings } from "./standings";
-import { parseClockToSeconds } from "@/lib/timer/compute";
+import { Constants } from "@/lib/db/supabase.types";
+import { recomputeWodStandings } from "@/lib/scoring/recompute";
+import { field, parseForm, ValidationError } from "@/lib/validation/form";
 import type { Insert, ScoringTypeDb } from "@/lib/db/database.types";
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+// Results are entered by an org manager or by scorekeepers/producers assigned
+// to the heat's event (requireHeatAccess). The event, WOD, division and floor
+// all come from the heat row on the server, and the scoring type from the
+// WOD row: the eventId/wodId/divisionId/scoringType/floorId arguments these
+// actions still accept (the pages bind them) are ignored.
+
+const status = z.preprocess(
+  (v) => (v === undefined || v === "" ? "completed" : v),
+  field.oneOf(Constants.public.Enums.result_status, "result status"),
+);
+
+/** One competitor's scorecard (field names without any per-lane suffix). */
+const ScoreFields = z.object({
+  status,
+  capped: field.checkbox(),
+  manual_adjustment: field.checkbox(),
+  time_seconds: field.clock("Time"),
+  reps: field.optionalNumber("Reps", { min: 0 }),
+  load: field.optionalNumber("Load", { min: 0 }),
+  points: field.optionalNumber("Points", { min: 0 }),
+  tiebreak_value: field.optionalNumber("Tie-break", { min: 0 }),
+  notes: field.optionalText({ label: "Notes" }),
+});
+
+const EnterResultForm = ScoreFields.extend({
+  competitor_type: z.preprocess(
+    (v) => (v === undefined || v === "" ? "athlete" : v),
+    field.oneOf(["athlete", "team"] as const, "competitor type"),
+  ),
+  competitor_id: field.id("Competitor"),
+});
+
+type Scorecard = z.infer<typeof ScoreFields>;
+
+async function wodScoringType(
+  supabase: SupabaseServerClient,
+  wodId: string,
+): Promise<ScoringTypeDb> {
+  const { data, error } = await supabase
+    .from("wods")
+    .select("scoring_type")
+    .eq("id", wodId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("This heat's WOD no longer exists.");
+  return data.scoring_type;
+}
+
+/**
+ * The athletes/teams who may get a result in this heat: whoever is laned in
+ * it, plus anyone registered in the heat's division (a late swap that the
+ * lanes haven't caught up with).
+ */
+async function eligibleCompetitors(
+  supabase: SupabaseServerClient,
+  heat: { id: string; event_id: string; division_id: string },
+) {
+  const [lanesRes, regsRes] = await Promise.all([
+    supabase.from("lanes").select("athlete_id, team_id").eq("heat_id", heat.id),
+    supabase
+      .from("registrations")
+      .select("athlete_id, team_id")
+      .eq("event_id", heat.event_id)
+      .eq("division_id", heat.division_id),
+  ]);
+  if (lanesRes.error) throw new Error(lanesRes.error.message);
+  if (regsRes.error) throw new Error(regsRes.error.message);
+
+  const athletes = new Set<string>();
+  const teams = new Set<string>();
+  for (const r of [...(lanesRes.data ?? []), ...(regsRes.data ?? [])]) {
+    if (r.athlete_id) athletes.add(r.athlete_id);
+    if (r.team_id) teams.add(r.team_id);
+  }
+  return { athletes, teams };
+}
+
+/** The scoring-type-specific numbers for a completed result; DNS/DNF/DQ carry none. */
+function scoreColumns(card: Scorecard, scoringType: ScoringTypeDb): Partial<Insert<"results">> {
+  // DNS/DNF/DQ: leave numeric fields empty — the scoring engine ranks by
+  // `status`, not by the presence of a number, so these always sort last.
+  if (card.status !== "completed") return {};
+  if (scoringType === "for_time") {
+    return { time_seconds: card.time_seconds, reps: card.capped ? card.reps : null };
+  }
+  if (scoringType === "amrap") return { reps: card.reps };
+  if (scoringType === "max_load") return { load: card.load };
+  return { points: card.points };
+}
+
+function resultRow(
+  card: Scorecard,
+  scoringType: ScoringTypeDb,
+  base: Pick<Insert<"results">, "heat_id" | "wod_id" | "athlete_id" | "team_id">,
+  userId: string,
+): Insert<"results"> {
+  return {
+    ...base,
+    entered_by: userId,
+    capped: card.capped,
+    status: card.status,
+    tiebreak_value: card.tiebreak_value,
+    notes: card.notes,
+    manually_adjusted: card.manual_adjustment,
+    adjusted_by: card.manual_adjustment ? userId : null,
+    adjusted_at: card.manual_adjustment ? new Date().toISOString() : null,
+    ...scoreColumns(card, scoringType),
+  };
+}
 
 /**
  * Enters/updates the RAW result for one competitor in one heat, matching the
@@ -14,65 +128,57 @@ import type { Insert, ScoringTypeDb } from "@/lib/db/database.types";
  * standings for that WOD+division so the leaderboard stays in sync.
  */
 export async function enterResult(
-  eventId: string,
+  _eventId: string,
   heatId: string,
-  wodId: string,
-  divisionId: string,
-  scoringType: ScoringTypeDb,
-  floorId: string | null,
+  _wodId: string,
+  _divisionId: string,
+  _scoringType: ScoringTypeDb,
+  _floorId: string | null,
   formData: FormData,
 ) {
-  const ctx = await getSessionContext();
-  const competitorType = String(formData.get("competitor_type") ?? "athlete");
-  const competitorId = String(formData.get("competitor_id") ?? "");
-  if (!competitorId) throw new Error("Competitor is required.");
-
-  const status = String(formData.get("status") ?? "completed") as
-    | "completed"
-    | "dns"
-    | "dnf"
-    | "dq";
-  const manuallyAdjusted = formData.get("manual_adjustment") === "on";
-
-  const row: Insert<"results"> = {
-    heat_id: heatId,
-    wod_id: wodId,
-    athlete_id: competitorType === "athlete" ? competitorId : null,
-    team_id: competitorType === "team" ? competitorId : null,
-    entered_by: ctx?.userId ?? null,
-    capped: formData.get("capped") === "on",
-    status,
-    tiebreak_value: numOrNull(formData.get("tiebreak_value")),
-    notes: String(formData.get("notes") ?? "") || null,
-    manually_adjusted: manuallyAdjusted,
-    adjusted_by: manuallyAdjusted ? (ctx?.userId ?? null) : null,
-    adjusted_at: manuallyAdjusted ? new Date().toISOString() : null,
-  };
-
-  if (status !== "completed") {
-    // DNS/DNF/DQ: leave numeric fields empty — the scoring engine ranks by
-    // `status`, not by the presence of a number, so these always sort last.
-  } else if (scoringType === "for_time") {
-    row.time_seconds = timeOrNull(formData.get("time_seconds"));
-    row.reps = row.capped ? numOrNull(formData.get("reps")) : null;
-  } else if (scoringType === "amrap") {
-    row.reps = numOrNull(formData.get("reps"));
-  } else if (scoringType === "max_load") {
-    row.load = numOrNull(formData.get("load"));
-  } else {
-    row.points = numOrNull(formData.get("points"));
-  }
+  const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+  const form = parseForm(EnterResultForm, formData);
 
   const supabase = await createClient();
-  const conflictTarget = competitorType === "athlete" ? "heat_id,athlete_id" : "heat_id,team_id";
+  const [scoringType, eligible] = await Promise.all([
+    wodScoringType(supabase, heat.wod_id),
+    eligibleCompetitors(supabase, heat),
+  ]);
+  const isAthlete = form.competitor_type === "athlete";
+  if (!(isAthlete ? eligible.athletes : eligible.teams).has(form.competitor_id)) {
+    throw new NotAuthorizedError("That competitor isn't in this heat.");
+  }
+
+  const row = resultRow(
+    form,
+    scoringType,
+    {
+      heat_id: heat.id,
+      wod_id: heat.wod_id,
+      athlete_id: isAthlete ? form.competitor_id : null,
+      team_id: isAthlete ? null : form.competitor_id,
+    },
+    ctx.userId,
+  );
+  const conflictTarget = isAthlete ? "heat_id,athlete_id" : "heat_id,team_id";
   const { error } = await supabase.from("results").upsert(row, { onConflict: conflictTarget });
   if (error) throw new Error(error.message);
 
-  await recomputeWodStandings(wodId, divisionId);
+  await recomputeWodStandings(heat.wod_id, heat.division_id, supabase);
 
-  revalidatePath(`/admin/events/${eventId}/heats/${heatId}`);
+  revalidatePath(`/admin/events/${eventId}/heats/${heat.id}`);
   revalidatePath(`/overlay`);
-  if (floorId) revalidatePath(`/scorekeeper/${floorId}`);
+  if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
+}
+
+/** The `name__<athleteId>` fields of one lane, re-keyed without the suffix. */
+function laneFields(formData: FormData, athleteId: string): FormData {
+  const suffix = `__${athleteId}`;
+  const lane = new FormData();
+  for (const [key, value] of formData.entries()) {
+    if (key.endsWith(suffix)) lane.append(key.slice(0, -suffix.length), value);
+  }
+  return lane;
 }
 
 /**
@@ -81,7 +187,7 @@ export async function enterResult(
  * lane), then sends the operator back to the heats list. This is the admin
  * backup/bulk-entry path, as opposed to `enterResult`'s one-lane-at-a-time
  * save used on the live Score Keeper screen. It does NOT mark the heat as
- * finished — only the Score Keeper's own "Save all & Finish Heat" button
+ * finished — only the Score Keeper's own "Finish Heat" button
  * does that (see finishHeat in actions/heats.ts), once every lane's result
  * has actually been entered there.
  *
@@ -89,88 +195,56 @@ export async function enterResult(
  * since every lane's inputs live in one shared <form> here.
  */
 export async function saveHeatResults(
-  eventId: string,
+  _eventId: string,
   heatId: string,
-  wodId: string,
-  divisionId: string,
-  scoringType: ScoringTypeDb,
-  floorId: string | null,
+  _wodId: string,
+  _divisionId: string,
+  _scoringType: ScoringTypeDb,
+  _floorId: string | null,
   athleteIds: string[],
   formData: FormData,
 ) {
-  const ctx = await getSessionContext();
+  const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+  const idsResult = z.array(field.id("Athlete")).max(200).safeParse(athleteIds);
+  if (!idsResult.success) throw new ValidationError("The list of athletes isn't valid.");
+  const ids = Array.from(new Set(idsResult.data));
+
   const supabase = await createClient();
 
-  const rows = athleteIds.map((athleteId) => {
-    const status = String(formData.get(`status__${athleteId}`) ?? "completed") as
-      | "completed"
-      | "dns"
-      | "dnf"
-      | "dq";
-    const capped = formData.get(`capped__${athleteId}`) === "on";
-    const manuallyAdjusted = formData.get(`manual_adjustment__${athleteId}`) === "on";
-
-    const row: Insert<"results"> = {
-      heat_id: heatId,
-      wod_id: wodId,
-      athlete_id: athleteId,
-      team_id: null,
-      entered_by: ctx?.userId ?? null,
-      capped,
-      status,
-      tiebreak_value: numOrNull(formData.get(`tiebreak_value__${athleteId}`)),
-      notes: String(formData.get(`notes__${athleteId}`) ?? "") || null,
-      manually_adjusted: manuallyAdjusted,
-      adjusted_by: manuallyAdjusted ? (ctx?.userId ?? null) : null,
-      adjusted_at: manuallyAdjusted ? new Date().toISOString() : null,
-    };
-
-    if (status === "completed") {
-      if (scoringType === "for_time") {
-        row.time_seconds = timeOrNull(formData.get(`time_seconds__${athleteId}`));
-        row.reps = capped ? numOrNull(formData.get(`reps__${athleteId}`)) : null;
-      } else if (scoringType === "amrap") {
-        row.reps = numOrNull(formData.get(`reps__${athleteId}`));
-      } else if (scoringType === "max_load") {
-        row.load = numOrNull(formData.get(`load__${athleteId}`));
-      } else {
-        row.points = numOrNull(formData.get(`points__${athleteId}`));
-      }
+  if (ids.length > 0) {
+    const [scoringType, eligible] = await Promise.all([
+      wodScoringType(supabase, heat.wod_id),
+      eligibleCompetitors(supabase, heat),
+    ]);
+    if (ids.some((id) => !eligible.athletes.has(id))) {
+      throw new NotAuthorizedError("One of those athletes isn't in this heat.");
     }
 
-    return row;
-  });
+    const rows = ids.map((athleteId) =>
+      resultRow(
+        parseForm(ScoreFields, laneFields(formData, athleteId)),
+        scoringType,
+        { heat_id: heat.id, wod_id: heat.wod_id, athlete_id: athleteId, team_id: null },
+        ctx.userId,
+      ),
+    );
 
-  if (rows.length > 0) {
     const { error } = await supabase
       .from("results")
       .upsert(rows, { onConflict: "heat_id,athlete_id" });
     if (error) throw new Error(error.message);
 
-    await recomputeWodStandings(wodId, divisionId);
+    await recomputeWodStandings(heat.wod_id, heat.division_id, supabase);
   }
 
   // This used to also close the heat out (set ended_at) — that's now the
-  // ScoreKeeper's own "Save all & Finish Heat" button (see finishHeat in
+  // ScoreKeeper's own "Finish Heat" button (see finishHeat in
   // actions/heats.ts), since finishing should happen once the ScoreKeeper
   // has entered every lane's result, not whenever this admin backup form is
   // used to save/correct a batch of scores.
   revalidatePath(`/admin/events/${eventId}/heats`);
   revalidatePath(`/overlay`);
-  if (floorId) revalidatePath(`/scorekeeper/${floorId}`);
+  if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
 
   redirect(`/admin/events/${eventId}/heats`);
-}
-
-function numOrNull(value: FormDataEntryValue | null): number | null {
-  if (value === null || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-// Accepts what a judge actually writes on a scorecard — "3:45" — as well as
-// plain seconds, so older entries and the raw number still work too.
-function timeOrNull(value: FormDataEntryValue | null): number | null {
-  if (value === null) return null;
-  return parseClockToSeconds(String(value));
 }
