@@ -308,6 +308,8 @@ export const auth = betterAuth({
   - `getSession` with the returned cookie gives the same `user.id`.
 
   At the end it deletes the test user through the service client, which cascades.
+- [ ] **Step 3b (ruling R1): rewrite `scripts/dev-accounts.ts` on BetterAuth.** Add `createOrResetUser(email, name, password): Promise<string>` to `scripts/auth-helpers.ts`: look the user up in `public."user"` via the drizzle `db`; if present, set the credential `account.password` to `(await auth.$context).password.hash(password)`; else `auth.api.signUpEmail({ body: { email, password, name } })`. dev-accounts replaces its `auth.admin.*` calls with it; profile/role/assignment/athlete-link writes stay on the service client. Run `pnpm dev:accounts` twice (idempotent).
+
 - [ ] **Step 4:** Implement until it passes, including `scripts/auth-helpers.ts` `signInAs` (the check's last assertion: `signInAs("admin@repone.test")` reads the admin's own `user_roles` row). Then run `pnpm db:auth-check` and `pnpm check`.
 - [ ] **Step 5: Commit:** "BetterAuth serves sign-up, sign-in and sessions".
 
@@ -375,14 +377,12 @@ export const getSessionContext = cache(async () => {
 ### Task 6: Scripts and CI sign in the way the app does
 
 **Files:**
-- Modify: `scripts/auth-helpers.ts` (add `createOrResetUser`), `scripts/{dev-accounts,rls-check,authz-check,standings-check,timer-check}.ts`, `.claude/skills/verify-repone/scripts/doctor.sh`, `.github/workflows/ci.yml`, `README.md`, `AGENTS.md`, `.env.example`
+- Modify: `scripts/{rls-check,authz-check,standings-check,timer-check}.ts`, `.claude/skills/verify-repone/scripts/doctor.sh`, `.github/workflows/ci.yml`, `README.md`, `AGENTS.md`, `.env.example`
 
 **Interfaces:**
-- Produces: `createOrResetUser(email, name, password): Promise<string>`, which returns the user id.
+- Produces: nothing new (createOrResetUser comes from Task 3).
 
-- [ ] **Step 1: `dev-accounts.ts`.**
-  - Replace the `auth.admin.*` calls with `createOrResetUser`. It looks the user up in `public."user"` through the drizzle `db`. If the user exists, it updates the credential `account.password` with `(await auth.$context).password.hash(password)`; otherwise it calls `auth.api.signUpEmail`.
-  - Profile, role, assignment and athlete-link writes stay on the service client.
+- [ ] **Step 1:** (dev-accounts already moved to BetterAuth in Task 3, ruling R1.) Nothing to do here beyond confirming `pnpm dev:setup` recreates the accounts.
 - [ ] **Step 2:** Replace every `client.auth.signInWithPassword(...)` in the check scripts with `signInAs(email)`. Anonymous clients use the publishable key with no token.
 - [ ] **Step 3: `doctor.sh`.** The accounts check counts `public."user" where email like '%@repone.test'`. Add a check that `SUPABASE_JWT_SIGNING_KEY` and `BETTER_AUTH_SECRET` are set.
 - [ ] **Step 4: CI.** In the `db` job, run `pnpm keys:ensure` before `supabase start`. After `env:local`, the step that writes the signing key is already covered by `env:local`. Add a `pnpm db:auth-check` step.
