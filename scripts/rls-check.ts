@@ -4,6 +4,7 @@
 // alongside a "still allowed" check so a fix can't pass by breaking the app.
 //
 //   pnpm db:rls-check     (needs pnpm dev:accounts to have run)
+//   RLS_ONLY=auth-tables pnpm db:rls-check   (just the auth-table section; needs no sign-in)
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireLocal } from "./env";
 
@@ -39,8 +40,23 @@ async function signIn(email: string): Promise<{ client: SupabaseClient; userId: 
   return { client, userId: data.user.id };
 }
 
+// BetterAuth's tables must exist (service reads them) and be unreachable through the API.
+async function authTablesArePrivate(anon: SupabaseClient) {
+  console.log("\nAuth tables are private");
+  for (const table of ["user", "session", "account", "verification", "rate_limit"]) {
+    const exists = await service.from(table).select("*").limit(1);
+    expect(`${table} table exists`, !exists.error, exists.error);
+    const r = await anon.from(table).select("*").limit(1);
+    expect(`anon cannot read ${table}`, !!r.error || (r.data?.length ?? 0) === 0, r.data);
+  }
+}
+
 async function main() {
   const anon = createClient(target.apiUrl, anonKey, options);
+  if (process.env.RLS_ONLY === "auth-tables") {
+    await authTablesArePrivate(anon);
+    process.exit(failures ? 1 : 0);
+  }
   const admin = await signIn("admin@repone.test");
   const athlete = await signIn("athlete@repone.test");
   const newAthlete = await signIn("new-athlete@repone.test");
@@ -291,6 +307,8 @@ async function main() {
         other.data,
       );
     }
+
+    await authTablesArePrivate(anon);
   } finally {
     for (const undo of cleanup.reverse()) await undo();
   }
