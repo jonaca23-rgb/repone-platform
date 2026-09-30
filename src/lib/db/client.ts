@@ -55,7 +55,39 @@ export function clearSupabaseToken() {
 }
 
 export function createClient() {
-  return createSupabaseClient<Database>(supabaseUrl(), supabasePublishableKey(), {
+  const client = createSupabaseClient<Database>(supabaseUrl(), supabasePublishableKey(), {
     accessToken: fetchToken,
   });
+
+  // Realtime must join as the signed-in user, or RLS hides every row of a
+  // private table (messages) and postgres_changes never fires. supabase-js
+  // 2.112 hands `accessToken` to realtime-js, but only as a fire-and-forget
+  // setAuth() that races the first subscribe(): the phx_join frame is built
+  // and queued synchronously with no token (@supabase/phoenix Push.send), and
+  // realtime-js only pushes a late token to channels already *joined*
+  // (RealtimeClient._performAuth), then skips it after the join reply because
+  // the value no longer changed. So a token that lands while the join is in
+  // flight is never sent. Holding subscribe() until the first token is in
+  // place puts it in the join payload. Later refreshes need nothing extra:
+  // every heartbeat (25s) re-reads fetchToken, which renews 30s before expiry,
+  // and realtime-js pushes the new token to joined channels.
+  // Signed out, fetchToken resolves null and channels join as anon, as before.
+  const authReady = fetchToken()
+    .then((token) => (token ? client.realtime.setAuth(token) : undefined))
+    .catch(() => undefined);
+  const channel = client.channel.bind(client);
+  client.channel = (name, opts) => {
+    const ch = channel(name, opts);
+    const subscribe = ch.subscribe.bind(ch);
+    ch.subscribe = (callback, timeout) => {
+      void authReady.then(() => {
+        // The caller may have removed the channel while the token loaded.
+        if (client.getChannels().includes(ch)) subscribe(callback, timeout);
+      });
+      return ch;
+    };
+    return ch;
+  };
+
+  return client;
 }
