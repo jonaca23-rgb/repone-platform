@@ -13,11 +13,18 @@ import { AthleteLoginForm } from "./AthleteLoginForm";
 export default async function AthleteLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string | string[] }>;
 }) {
   const ctx = await getAthleteSessionContext();
   if (ctx) redirect(ctx.athleteId ? "/athlete" : "/athlete/onboarding");
 
-  const { error } = await searchParams;
-  return <AthleteLoginForm oauthError={error === "oauth"} googleEnabled={googleEnabled} />;
+  // A failed Google sign-in returns to errorCallbackURL (see GoogleButton)
+  // with BetterAuth's code appended: ?error=oauth&error=<code>.
+  const errors = [(await searchParams).error ?? []].flat();
+  const oauthFailure = errors.includes("account_not_linked")
+    ? "account_not_linked"
+    : errors.includes("oauth")
+      ? "other"
+      : undefined;
+  return <AthleteLoginForm oauthFailure={oauthFailure} googleEnabled={googleEnabled} />;
 }

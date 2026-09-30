@@ -47,7 +47,14 @@ export const auth = betterAuth({
         },
       }
     : {},
-  // A Google sign-in with a verified address joins the existing email/password user.
+  // Google links to an existing user only when that user's own email is
+  // verified (BetterAuth's default requireLocalEmailVerified: true). Emails are
+  // never verified here, so Google for an address that already has a password
+  // account is refused with ?error=account_not_linked, which the athlete login
+  // explains. Keep the default: linking to an unverified local account would let
+  // someone pre-register a victim's email with a password and share the
+  // account once the victim signs in with Google. Real linking needs email
+  // verification first.
   account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
   plugins: [nextCookies()], // must stay last: it sets cookies from the other plugins' responses
 });

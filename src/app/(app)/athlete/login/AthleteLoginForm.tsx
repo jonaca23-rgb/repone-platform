@@ -5,7 +5,7 @@ import { signInErrorMessage } from "@/lib/auth/formErrors";
 import { useAuthForm } from "@/lib/auth/identityChange";
 import { useState } from "react";
 import Link from "next/link";
-import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
+import { GoogleButton, OAuthErrorNotice, type OAuthFailure } from "../GoogleButton";
 
 // First screen an athlete sees is plain choices — Google (when configured),
 // Email & Password, Create Account — rather than a full form up front. The
@@ -14,10 +14,10 @@ import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
 // state (nothing persisted), so it doesn't change this page's otherwise
 // server-first, mostly-zero-JS approach.
 export function AthleteLoginForm({
-  oauthError = false,
+  oauthFailure,
   googleEnabled = false,
 }: {
-  oauthError?: boolean;
+  oauthFailure?: OAuthFailure;
   googleEnabled?: boolean;
 }) {
   const { error, pending, leaving, onSubmit } = useAuthForm(async (email, password) => {
@@ -32,7 +32,9 @@ export function AthleteLoginForm({
       <h1 className="mb-1 text-xl font-bold text-white">Athlete Sign In</h1>
       <p className="mb-6 text-sm text-white/60">Sign in to your RepOne athlete account.</p>
 
-      {oauthError || googleFailed ? <OAuthErrorNotice /> : null}
+      {oauthFailure || googleFailed ? (
+        <OAuthErrorNotice failure={googleFailed ? "other" : oauthFailure} />
+      ) : null}
 
       {googleEnabled ? <GoogleButton onFailure={() => setGoogleFailed(true)} /> : null}
 

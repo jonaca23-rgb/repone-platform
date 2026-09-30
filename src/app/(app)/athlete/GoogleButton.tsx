@@ -4,10 +4,20 @@ import { authClient } from "@/lib/auth/client";
 import { useState } from "react";
 import { GoogleIcon } from "./GoogleIcon";
 
-export function OAuthErrorNotice() {
+/**
+ * Why a Google sign-in failed, from BetterAuth's `error` code on the return
+ * to errorCallbackURL. "account_not_linked" means the email already belongs
+ * to a password account: BetterAuth keeps its secure default of linking only
+ * to a verified local email, and this app doesn't verify emails yet.
+ */
+export type OAuthFailure = "account_not_linked" | "other";
+
+export function OAuthErrorNotice({ failure = "other" }: { failure?: OAuthFailure }) {
   return (
     <p className="mb-4 rounded-md border border-repone-red/40 bg-repone-red/10 p-3 text-sm text-repone-red">
-      Google sign-in didn&apos;t go through. Please try again, or use email and password.
+      {failure === "account_not_linked"
+        ? "This email already has a password account — sign in with email and password."
+        : "Google sign-in didn't go through. Please try again, or use email and password."}
     </p>
   );
 }
@@ -16,7 +26,9 @@ export function OAuthErrorNotice() {
  * "Continue with Google" through BetterAuth. The forms render it only when
  * Google is configured (googleEnabled). BetterAuth sends the browser to Google
  * and its own /api/auth/callback/google handles the return, which lands on
- * callbackURL as a full page load. A failure to even start shows the notice.
+ * callbackURL as a full page load, or on errorCallbackURL with BetterAuth's
+ * code appended (/athlete/login?error=oauth&error=account_not_linked). A
+ * failure to even start shows the notice.
  */
 export function GoogleButton({ onFailure }: { onFailure: () => void }) {
   const [pending, setPending] = useState(false);
@@ -27,9 +39,11 @@ export function GoogleButton({ onFailure }: { onFailure: () => void }) {
       const result = await authClient.signIn.social({
         provider: "google",
         callbackURL: "/athlete",
+        errorCallbackURL: "/athlete/login?error=oauth",
       });
       if (result.error) throw new Error(result.error.message);
-    } catch {
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") console.error("Google sign-in failed to start", e);
       onFailure();
       setPending(false);
     }
