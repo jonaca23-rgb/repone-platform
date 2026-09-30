@@ -5,7 +5,8 @@
 // same functions through src/lib/auth/guards.ts.
 //
 //   pnpm db:authz-check     (needs pnpm dev:accounts to have run)
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { signInAs } from "./auth-helpers";
+import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/db/database.types";
 import {
   eventAccess,
@@ -22,7 +23,7 @@ const HEAT_ID = "00000000-0000-0000-0000-000000000070";
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
 
 const target = requireLocal();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient<Database>(target.apiUrl, target.secretKey, options);
 
@@ -34,16 +35,19 @@ function expect(label: string, pass: boolean, detail?: unknown) {
   );
 }
 
+// Signs in through BetterAuth and asks with the token the app would mint, so
+// the identity handed to loadSessionContext is the session's, as in the app.
 async function as(email: string | null) {
-  const db = createClient<Database>(target.apiUrl, anonKey, options);
-  if (email) {
-    const { error } = await db.auth.signInWithPassword({ email, password: "Repone1234!" });
-    if (error) {
-      console.error(`Cannot sign in as ${email}. Run \`pnpm dev:accounts\`.`);
-      process.exit(1);
-    }
+  if (!email) {
+    const db = createClient<Database>(target.apiUrl, publishableKey, options);
+    return { db, ctx: await loadSessionContext(db, null) };
   }
-  return { db, ctx: await loadSessionContext(db) };
+  const signedIn = await signInAs(email).catch((e: unknown) => {
+    console.error(`Cannot sign in as ${email}. Run \`pnpm dev:accounts\`.`, e);
+    process.exit(1);
+  });
+  const identity = { userId: signedIn.userId, email: signedIn.email };
+  return { db: signedIn.db, ctx: await loadSessionContext(signedIn.db, identity) };
 }
 
 async function main() {
@@ -154,5 +158,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-
-export type { SupabaseClient };

@@ -101,6 +101,20 @@ async function main() {
       !roles.error && roles.data?.some((r) => r.role === "admin") === true,
       roles,
     );
+
+    // The browser's token route (src/app/api/supabase-token) needs the app.
+    const tokenRoute = await fetch("http://localhost:3200/api/supabase-token", {
+      cache: "no-store",
+    }).catch(() => null);
+    if (tokenRoute) {
+      expect(
+        "/api/supabase-token without a session cookie answers 401",
+        tokenRoute.status === 401,
+        tokenRoute.status,
+      );
+    } else {
+      console.warn("skip  /api/supabase-token 401 check: the app is not running on :3200");
+    }
   } finally {
     // Cascades to session, account and profiles.
     const removed = await service.from("user").delete().like("email", `%${email}`);

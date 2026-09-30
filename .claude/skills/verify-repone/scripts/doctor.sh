@@ -13,7 +13,7 @@ else
   fail "Supabase is not running — fix: pnpm db:start (or ./.claude/skills/verify-repone/scripts/app.sh start)"
 fi
 
-if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/rest/v1/" -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}")" = "200" ]; then
+if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/rest/v1/" -H "apikey: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}")" = "200" ]; then
   ok "Supabase API answers at $API_URL"
 else
   fail "Supabase API not answering at $API_URL — fix: pnpm db:start; if .env.local is stale: pnpm env:local --force"

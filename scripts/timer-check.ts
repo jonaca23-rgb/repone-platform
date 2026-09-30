@@ -9,7 +9,7 @@ import { requireLocal } from "./env";
 
 const FLOOR_ID = "00000000-0000-0000-0000-000000000030"; // seed.sql "Floor A"
 const target = requireLocal();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(target.apiUrl, target.secretKey, options);
 

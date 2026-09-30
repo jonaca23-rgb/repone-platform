@@ -1,6 +1,6 @@
 // Authorization decisions for server actions. Every function takes the
 // Supabase client it should ask with, so the same logic runs in the app
-// (through guards.ts, with the request's cookie client) and in
+// (through guards.ts, with the request's token client) and in
 // scripts/authz-check.ts (with a client signed in as each dev account).
 // No Next.js imports here on purpose.
 //
@@ -24,20 +24,31 @@ export type EventStaffRole = "scorekeeper" | "producer" | "commentator";
 /** Org-wide roles that manage events, rosters, fees, sponsors and staff. */
 export const ORG_MANAGER_ROLES: UserRoleDb[] = ["admin", "event_director"];
 
-export async function loadSessionContext(db: Db): Promise<SessionContext | null> {
-  const {
-    data: { user },
-  } = await db.auth.getUser();
-  if (!user) return null;
+/** Who is signed in, as the BetterAuth session says (or a script's sign-in). */
+export interface SessionIdentity {
+  userId: string;
+  email: string | null;
+}
+
+/**
+ * The organization and roles of `identity`, read with `db` (a client carrying
+ * that identity's minted token, so RLS lets it see its own rows). Null when
+ * nobody is signed in.
+ */
+export async function loadSessionContext(
+  db: Db,
+  identity: SessionIdentity | null,
+): Promise<SessionContext | null> {
+  if (!identity) return null;
 
   const [{ data: profile }, { data: roleRows }] = await Promise.all([
-    db.from("profiles").select("organization_id").eq("id", user.id).maybeSingle(),
-    db.from("user_roles").select("role").eq("user_id", user.id),
+    db.from("profiles").select("organization_id").eq("id", identity.userId).maybeSingle(),
+    db.from("user_roles").select("role").eq("user_id", identity.userId),
   ]);
 
   return {
-    userId: user.id,
-    email: user.email ?? null,
+    userId: identity.userId,
+    email: identity.email,
     organizationId: profile?.organization_id ?? null,
     roles: (roleRows ?? []).map((r) => r.role),
   };

@@ -16,7 +16,7 @@ const OTHER_ATHLETE_ID = "00000000-0000-0000-0000-000000000062";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const target = requireLocal();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(target.apiUrl, target.secretKey, options);
 
