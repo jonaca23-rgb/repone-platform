@@ -13,20 +13,43 @@ import type { Database } from "./database.types";
  * a short-lived token, authenticated by the BetterAuth session cookie. A
  * cross-site page cannot read that response, so the route is safe as a GET.
  * Signed out (overlays on a streaming PC, the public leaderboard) the route
- * answers 401 and the client runs as anon, which RLS lets read public tables.
+ * answers 401 once and the client runs as anon for the rest of the page,
+ * which RLS lets read public tables.
  */
 let cached: { token: string; expiresAt: number } | null = null;
 let pending: Promise<string | null> | null = null;
+// Set once the route answers 401. realtime-js re-reads the token on every
+// heartbeat (25s), so without this every signed-out viewer (/live, each OBS
+// overlay) would ask the route again every 25s. Nobody signs in or out
+// without a full page load (src/lib/auth/identityChange.ts), which resets it.
+let anonymous = false;
+
+// A token is renewed this long before it expires. Background tabs may run
+// timers only about once a minute, so the margin covers more than one
+// throttled heartbeat and the token never lapses on a hidden tab.
+const REFRESH_MARGIN_MS = 90_000;
+// A hung response must not stall realtime subscribe() (which waits for the
+// first token) or a query.
+const FETCH_TIMEOUT_MS = 5_000;
 
 async function fetchToken(): Promise<string | null> {
-  // Refresh a little early so a token never expires mid-request.
-  if (cached && cached.expiresAt - 30_000 > Date.now()) return cached.token;
+  if (anonymous) return null;
+  if (cached && cached.expiresAt - REFRESH_MARGIN_MS > Date.now()) return cached.token;
 
   // supabase-js may call this concurrently; share one in-flight request.
   pending ??= (async () => {
     try {
-      const res = await fetch("/api/supabase-token", { cache: "no-store" });
+      const res = await fetch("/api/supabase-token", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (res.status === 401) {
+        anonymous = true;
+        cached = null;
+        return null;
+      }
       if (!res.ok) {
+        // A server error is not an answer about who this is: ask again next time.
         cached = null;
         return null;
       }
@@ -34,7 +57,8 @@ async function fetchToken(): Promise<string | null> {
       cached = { token, expiresAt: Date.now() + expiresIn * 1000 };
       return token;
     } catch {
-      // Offline or the app restarting: ask as anon rather than fail the query.
+      // Offline, timed out or the app restarting: ask as anon for this call
+      // rather than fail the query, and try again on the next one.
       cached = null;
       return null;
     } finally {
@@ -45,13 +69,15 @@ async function fetchToken(): Promise<string | null> {
 }
 
 /**
- * Forgets the cached token. Called before the hard navigation that follows a
- * sign-in, sign-up or sign-out (src/lib/auth/identityChange.ts), so no client
- * keeps asking with the previous person's identity.
+ * Forgets the cached token and the "signed out" answer. Called before the
+ * hard navigation that follows a sign-in, sign-up or sign-out
+ * (src/lib/auth/identityChange.ts), so no client keeps asking with the
+ * previous person's identity.
  */
 export function clearSupabaseToken() {
   cached = null;
   pending = null;
+  anonymous = false;
 }
 
 export function createClient() {
@@ -69,7 +95,7 @@ export function createClient() {
   // the value no longer changed. So a token that lands while the join is in
   // flight is never sent. Holding subscribe() until the first token is in
   // place puts it in the join payload. Later refreshes need nothing extra:
-  // every heartbeat (25s) re-reads fetchToken, which renews 30s before expiry,
+  // every heartbeat (25s) re-reads fetchToken, which renews 90s before expiry,
   // and realtime-js pushes the new token to joined channels.
   // Signed out, fetchToken resolves null and channels join as anon, as before.
   const authReady = fetchToken()
