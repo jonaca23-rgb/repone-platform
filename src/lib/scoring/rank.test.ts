@@ -131,3 +131,122 @@ describe("computeOverallStandings", () => {
     expect(b.overallPlacement).toBe(1);
   });
 });
+
+describe("rankWodResults — completed results missing their score", () => {
+  it("ranks a completed time ahead of completed results with no time", () => {
+    const ranked = rankWodResults(
+      [
+        { competitorId: "blank-1", timeSeconds: null },
+        { competitorId: "timed", timeSeconds: 400 },
+        { competitorId: "blank-2", timeSeconds: null },
+      ],
+      forTime,
+    );
+    expect(ranked.find((r) => r.competitorId === "timed")!.placement).toBe(1);
+  });
+
+  it("gives completed results with no time a shared placement", () => {
+    const ranked = rankWodResults(
+      [
+        { competitorId: "timed", timeSeconds: 400 },
+        { competitorId: "blank-1", timeSeconds: null },
+        { competitorId: "blank-2", timeSeconds: null },
+      ],
+      forTime,
+    );
+    expect(ranked.find((r) => r.competitorId === "blank-1")!.placement).toBe(2);
+    expect(ranked.find((r) => r.competitorId === "blank-2")!.placement).toBe(2);
+  });
+});
+
+describe("computeOverallStandings — results that don't finish", () => {
+  const wodWithDnf = (status: "dnf" | "dns" | "dq") =>
+    rankWodResults(
+      [
+        { competitorId: "a", timeSeconds: 300 },
+        { competitorId: "b", timeSeconds: 320 },
+        { competitorId: "c", status },
+      ],
+      forTime,
+    );
+
+  it.each(["dnf", "dns", "dq"] as const)(
+    "scores a %s one place after the last finisher, not as a winner",
+    (status) => {
+      const standings = computeOverallStandings([
+        { wodId: "wod-1", results: wodWithDnf(status), complete: true },
+      ]);
+      const c = standings.find((s) => s.competitorId === "c")!;
+      expect(c.totalPoints).toBe(3);
+      expect(c.overallPlacement).toBe(3);
+    },
+  );
+
+  it("scores a competitor missing a finished WOD as one place after the last finisher", () => {
+    const wod1 = rankWodResults(
+      [
+        { competitorId: "a", timeSeconds: 300 },
+        { competitorId: "b", timeSeconds: 320 },
+        { competitorId: "c", timeSeconds: 310 },
+      ],
+      forTime,
+    );
+    const wod2 = rankWodResults(
+      [
+        { competitorId: "a", reps: 200 },
+        { competitorId: "b", reps: 180 },
+      ],
+      amrap,
+    );
+    const standings = computeOverallStandings([
+      { wodId: "wod-1", results: wod1, complete: true },
+      { wodId: "wod-2", results: wod2, complete: true },
+    ]);
+    // a: 1 + 1 = 2; b: 3 + 2 = 5; c: 2 + (2 finishers + 1) = 5
+    expect(standings.find((s) => s.competitorId === "c")!.totalPoints).toBe(5);
+    expect(standings.find((s) => s.competitorId === "a")!.overallPlacement).toBe(1);
+  });
+
+  it("scores a registered competitor with no result in a finished WOD after the last finisher", () => {
+    const wod1 = rankWodResults(
+      [
+        { competitorId: "a", timeSeconds: 300 },
+        { competitorId: "b", timeSeconds: 320 },
+      ],
+      forTime,
+    );
+    const standings = computeOverallStandings([{ wodId: "wod-1", results: wod1, complete: true }], {
+      competitorIds: ["a", "b", "c"],
+    });
+    const c = standings.find((s) => s.competitorId === "c");
+    expect(c?.totalPoints).toBe(3);
+    expect(c?.overallPlacement).toBe(3);
+  });
+
+  it("does not count a WOD still in progress against competitors yet to compete", () => {
+    const wod1 = rankWodResults(
+      [
+        { competitorId: "a", timeSeconds: 300 },
+        { competitorId: "b", timeSeconds: 320 },
+        { competitorId: "c", timeSeconds: 310 },
+      ],
+      forTime,
+    );
+    const wod2InProgress = rankWodResults([{ competitorId: "a", reps: 200 }], amrap);
+    const standings = computeOverallStandings([
+      { wodId: "wod-1", results: wod1, complete: true },
+      { wodId: "wod-2", results: wod2InProgress, complete: false },
+    ]);
+    // c's total is only wod-1 (2 points): wod-2 hasn't reached c's heat yet.
+    expect(standings.find((s) => s.competitorId === "c")!.totalPoints).toBe(2);
+  });
+
+  it("leaves registered competitors off the board until they have a counted WOD", () => {
+    const wodInProgress = rankWodResults([{ competitorId: "a", timeSeconds: 300 }], forTime);
+    const standings = computeOverallStandings(
+      [{ wodId: "wod-1", results: wodInProgress, complete: false }],
+      { competitorIds: ["a", "b"] },
+    );
+    expect(standings.map((s) => s.competitorId)).toEqual(["a"]);
+  });
+});

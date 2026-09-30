@@ -268,6 +268,29 @@ async function main() {
       cleanup.push(() => service.from("operator_actions").delete().eq("action", "rls-check"));
       expect("operator log can be written as yourself", !ok.error, ok.error);
     }
+
+    console.log("\nEvent staff see their event's field");
+    {
+      const scorekeeper = await signIn("scorekeeper@repone.test");
+      const r = await scorekeeper.client
+        .from("registrations")
+        .select("id")
+        .eq("event_id", EVENT_ID);
+      expect(
+        "assigned scorekeeper reads the event's registrations (standings need the full field)",
+        !r.error && (r.data?.length ?? 0) > 0,
+        r.error ?? r.data,
+      );
+      const other = await newAthlete.client
+        .from("registrations")
+        .select("id")
+        .eq("event_id", EVENT_ID);
+      expect(
+        "unassigned user cannot read the event's registrations",
+        (other.data?.length ?? 0) === 0,
+        other.data,
+      );
+    }
   } finally {
     for (const undo of cleanup.reverse()) await undo();
   }

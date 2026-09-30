@@ -5,6 +5,7 @@ import {
   rankWodResults,
   computeOverallStandings,
   type RawResult,
+  type WodResultsForStandings,
   type WodScoringConfig,
 } from "@/lib/scoring";
 
@@ -41,10 +42,11 @@ export async function recomputeWodStandings(wodId: string, divisionId: string) {
   const heatIds = (heatsInDivision ?? []).map((h) => h.id);
   if (heatIds.length === 0) return;
 
-  const { data: results } = await supabase
+  const { data: results, error: resultsError } = await supabase
     .from("results")
     .select("athlete_id, team_id, time_seconds, reps, load, points, capped, status, tiebreak_value")
     .in("heat_id", heatIds);
+  if (resultsError) throw new Error(resultsError.message);
 
   const raw: RawResult[] = (results ?? []).map((r) => ({
     competitorId: (r.athlete_id ?? r.team_id) as string,
@@ -67,46 +69,55 @@ export async function recomputeWodStandings(wodId: string, divisionId: string) {
       placement: r.placement,
       points: r.wodPoints,
     })),
+    kinds: competitorKinds(results ?? []),
   });
 
   await recomputeOverallStandings(divisionId);
 }
 
-/** Recomputes the overall (wod_id = null) standings for a division across all its WODs. */
+/**
+ * Recomputes the overall (wod_id = null) standings for a division across all
+ * its WODs. Everyone registered in the division is considered, and a WOD
+ * counts against competitors with no result only once all of its heats in
+ * the division have finished (see computeOverallStandings).
+ */
 export async function recomputeOverallStandings(divisionId: string) {
   const supabase = await createClient();
 
-  const { data: division } = await supabase
-    .from("divisions")
-    .select("id, event_id")
-    .eq("id", divisionId)
-    .single();
-  if (!division) return;
+  const [perWodRes, registrationsRes, heatsRes] = await Promise.all([
+    supabase
+      .from("standings")
+      .select("wod_id, athlete_id, team_id, placement, points")
+      .eq("division_id", divisionId)
+      .not("wod_id", "is", null),
+    supabase.from("registrations").select("athlete_id, team_id").eq("division_id", divisionId),
+    supabase.from("heats").select("wod_id, ended_at").eq("division_id", divisionId),
+  ]);
+  for (const res of [perWodRes, registrationsRes, heatsRes]) {
+    if (res.error) throw new Error(res.error.message);
+  }
 
-  const { data: perWod } = await supabase
-    .from("standings")
-    .select("wod_id, athlete_id, team_id, placement, points")
-    .eq("division_id", divisionId)
-    .not("wod_id", "is", null);
-
-  const byWod = new Map<
-    string,
-    { competitorId: string; placement: number | null; wodPoints: number | null }[]
-  >();
-  for (const row of perWod ?? []) {
+  const byWod = new Map<string, WodResultsForStandings>();
+  for (const heat of heatsRes.data ?? []) {
+    const wod = byWod.get(heat.wod_id) ?? { wodId: heat.wod_id, results: [], complete: true };
+    wod.complete = wod.complete && heat.ended_at !== null;
+    byWod.set(heat.wod_id, wod);
+  }
+  for (const row of perWodRes.data ?? []) {
     const wodId = row.wod_id as string;
-    const list = byWod.get(wodId) ?? [];
-    list.push({
+    const wod = byWod.get(wodId) ?? { wodId, results: [], complete: false };
+    wod.results.push({
       competitorId: (row.athlete_id ?? row.team_id) as string,
       placement: row.placement,
       wodPoints: row.points,
     });
-    byWod.set(wodId, list);
+    byWod.set(wodId, wod);
   }
 
-  const overall = computeOverallStandings(
-    Array.from(byWod.entries()).map(([wodId, results]) => ({ wodId, results })),
-  );
+  const kinds = competitorKinds(registrationsRes.data ?? [], perWodRes.data ?? []);
+  const overall = computeOverallStandings(Array.from(byWod.values()), {
+    competitorIds: Array.from(kinds.keys()),
+  });
 
   await writeStandings(supabase, {
     wodId: null,
@@ -116,55 +127,52 @@ export async function recomputeOverallStandings(divisionId: string) {
       placement: o.overallPlacement,
       points: o.totalPoints,
     })),
-    eventId: division.event_id,
+    kinds,
   });
 }
 
+type CompetitorKind = "athlete" | "team";
+
+/** competitor id -> athlete or team, from rows that carry athlete_id/team_id. */
+function competitorKinds(
+  ...sources: Array<Array<{ athlete_id: string | null; team_id: string | null }>>
+): Map<string, CompetitorKind> {
+  const kinds = new Map<string, CompetitorKind>();
+  for (const rows of sources) {
+    for (const r of rows) {
+      if (r.athlete_id) kinds.set(r.athlete_id, "athlete");
+      else if (r.team_id) kinds.set(r.team_id, "team");
+    }
+  }
+  return kinds;
+}
+
+/**
+ * Replaces one division's standings for one WOD (or overall) atomically via
+ * replace_standings (0026_atomic_standings.sql), so concurrent saves queue
+ * instead of interleaving into a duplicated or empty leaderboard.
+ */
 async function writeStandings(
   supabase: SupabaseServerClient,
   args: {
     wodId: string | null;
     divisionId: string;
     rows: Array<{ competitorId: string; placement: number | null; points: number | null }>;
-    eventId?: string;
+    kinds: Map<string, CompetitorKind>;
   },
 ) {
-  let eventId = args.eventId;
-  if (!eventId) {
-    const { data: division } = await supabase
-      .from("divisions")
-      .select("event_id")
-      .eq("id", args.divisionId)
-      .single();
-    eventId = division?.event_id;
-  }
-  if (!eventId) return;
-
-  // Determine athlete vs team by checking the athletes table once per batch.
-  const ids = args.rows.map((r) => r.competitorId);
-  const { data: athleteMatches } = ids.length
-    ? await supabase.from("athletes").select("id").in("id", ids)
-    : { data: [] as { id: string }[] };
-  const athleteIds = new Set((athleteMatches ?? []).map((a) => a.id));
-
-  const deleteQuery = supabase.from("standings").delete().eq("division_id", args.divisionId);
-  if (args.wodId === null) {
-    await deleteQuery.is("wod_id", null);
-  } else {
-    await deleteQuery.eq("wod_id", args.wodId);
-  }
-
-  if (args.rows.length === 0) return;
-
-  const inserts = args.rows.map((r) => ({
-    event_id: eventId!,
-    division_id: args.divisionId,
-    wod_id: args.wodId,
-    athlete_id: athleteIds.has(r.competitorId) ? r.competitorId : null,
-    team_id: athleteIds.has(r.competitorId) ? null : r.competitorId,
-    placement: r.placement,
-    points: r.points,
-  }));
-
-  await supabase.from("standings").insert(inserts);
+  const { error } = await supabase.rpc("replace_standings", {
+    p_division_id: args.divisionId,
+    p_wod_id: args.wodId,
+    p_rows: args.rows.map((r) => {
+      const isTeam = args.kinds.get(r.competitorId) === "team";
+      return {
+        athlete_id: isTeam ? null : r.competitorId,
+        team_id: isTeam ? r.competitorId : null,
+        placement: r.placement,
+        points: r.points,
+      };
+    }),
+  });
+  if (error) throw new Error(`Could not update standings: ${error.message}`);
 }

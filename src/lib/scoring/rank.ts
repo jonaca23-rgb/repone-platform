@@ -17,34 +17,41 @@ function compareCompleted(a: RawResult, b: RawResult, config: WodScoringConfig):
       return tiebreak(a, b);
     }
     // Both finished within the cap: fastest time wins.
-    const timeDiff = (a.timeSeconds ?? Infinity) - (b.timeSeconds ?? Infinity);
-    if (timeDiff !== 0) return timeDiff;
-    return tiebreak(a, b);
+    return compareScores(a.timeSeconds, b.timeSeconds, "lower") || tiebreak(a, b);
   }
 
   if (config.scoringType === "amrap") {
-    const repsDiff = (b.reps ?? -Infinity) - (a.reps ?? -Infinity);
-    if (repsDiff !== 0) return repsDiff;
-    return tiebreak(a, b);
+    return compareScores(a.reps, b.reps, "higher") || tiebreak(a, b);
   }
 
   if (config.scoringType === "max_load") {
-    const loadDiff = (b.load ?? -Infinity) - (a.load ?? -Infinity);
-    if (loadDiff !== 0) return loadDiff;
-    return tiebreak(a, b);
+    return compareScores(a.load, b.load, "higher") || tiebreak(a, b);
   }
 
   // points / other
-  const pointsDiff = (b.points ?? -Infinity) - (a.points ?? -Infinity);
-  if (pointsDiff !== 0) return pointsDiff;
-  return tiebreak(a, b);
+  return compareScores(a.points, b.points, "higher") || tiebreak(a, b);
+}
+
+/**
+ * Compares two scores where a missing score (a "completed" lane saved blank)
+ * ranks after any real score and ties with another missing one. Plain
+ * subtraction would compute Infinity - Infinity = NaN for two blanks, which
+ * leaves Array.sort's order undefined.
+ */
+function compareScores(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  better: "lower" | "higher",
+): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return better === "lower" ? a - b : b - a;
 }
 
 /** Tie-break values are always "lower is better" (typically a time). */
 function tiebreak(a: RawResult, b: RawResult): number {
-  const av = a.tiebreakValue ?? Infinity;
-  const bv = b.tiebreakValue ?? Infinity;
-  return av - bv;
+  return compareScores(a.tiebreakValue, b.tiebreakValue, "lower");
 }
 
 /**
