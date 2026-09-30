@@ -15,6 +15,10 @@ if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; the
 fi
 
 if ! ./scripts/supabase.sh status >/dev/null 2>&1; then
+  # After a Podman VM restart the stack's containers still exist but are
+  # stopped, and `supabase start` refuses ("already running"). `stop` removes
+  # those containers and keeps the database volume, so no data is lost.
+  ./scripts/supabase.sh stop >/dev/null 2>&1 || true
   echo "Starting local Supabase (first start applies migrations + seed.sql)..."
   ./scripts/supabase.sh start
 fi
