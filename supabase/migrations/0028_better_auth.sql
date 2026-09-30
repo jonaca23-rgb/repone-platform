@@ -46,11 +46,14 @@ do $$ declare r record; begin
   end loop;
 end $$;
 
--- profiles: one per user, now created when BetterAuth inserts a user.
+-- profiles: one per user, now created when BetterAuth inserts a user. Athlete
+-- sign-up sends an empty name (the form asks only for email and password), so
+-- '' becomes null: screens then show their own fallback ("Staff member") rather
+-- than an empty or email-derived name if that account is later made staff.
 drop trigger if exists on_auth_user_created on auth.users;
 create or replace function handle_new_user() returns trigger as $$
 begin
-  insert into public.profiles (id, full_name) values (new.id, new.name) on conflict (id) do nothing;
+  insert into public.profiles (id, full_name) values (new.id, nullif(new.name, '')) on conflict (id) do nothing;
   return new;
 end; $$ language plpgsql security definer set search_path = public;
 create trigger on_user_created after insert on public."user" for each row execute function handle_new_user();

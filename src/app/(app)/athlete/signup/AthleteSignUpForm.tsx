@@ -12,8 +12,11 @@ export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: b
   // only creates the user (and its bare profiles row); staff roles come only
   // from user_roles or event assignments. autoSignIn is on, so the new session
   // cookie is set by this response, and onboarding links the athletes row.
+  // BetterAuth requires a name but accepts ""; the profile trigger stores it as
+  // null. Sending the email instead would show it as this person's name to
+  // athletes in Messages if the account were ever made staff.
   const { error, pending, leaving, onSubmit } = useAuthForm(async (email, password) => {
-    const { error } = await authClient.signUp.email({ email, password, name: email });
+    const { error } = await authClient.signUp.email({ email, password, name: "" });
     return error ? { error: signUpErrorMessage(error) } : { to: "/athlete/onboarding" };
   });
   const [googleFailed, setGoogleFailed] = useState(false);

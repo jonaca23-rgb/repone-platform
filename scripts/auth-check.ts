@@ -59,6 +59,23 @@ async function main() {
       profile,
     );
 
+    // Athlete sign-up sends name "" (the form asks only for email and password).
+    const unnamed = await auth.api.signUpEmail({
+      body: { email: `unnamed-${email}`, password, name: "" },
+    });
+    const unnamedProfile = await service
+      .from("profiles")
+      .select("full_name")
+      .eq("id", unnamed.user.id)
+      .maybeSingle();
+    expect(
+      'sign-up with name "" is accepted and stores full_name as null',
+      !unnamedProfile.error &&
+        unnamedProfile.data !== null &&
+        unnamedProfile.data.full_name === null,
+      unnamedProfile,
+    );
+
     const wrong = await refusal(() =>
       auth.api.signInEmail({ body: { email, password: "not-the-password" } }),
     );
