@@ -5,11 +5,11 @@
 //
 //   pnpm db:timer-check     (needs pnpm dev:accounts to have run)
 import { createClient } from "@supabase/supabase-js";
+import { signInAs } from "./auth-helpers";
 import { requireLocal } from "./env";
 
 const FLOOR_ID = "00000000-0000-0000-0000-000000000030"; // seed.sql "Floor A"
 const target = requireLocal();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(target.apiUrl, target.secretKey, options);
 
@@ -32,13 +32,14 @@ interface TimerRow {
 }
 
 async function signIn(email: string) {
-  const client = createClient(target.apiUrl, anonKey, options);
-  const { error } = await client.auth.signInWithPassword({ email, password: "Repone1234!" });
-  if (error) {
-    console.error(`Cannot sign in as ${email} (${error.message}). Run \`pnpm dev:accounts\`.`);
+  try {
+    return (await signInAs(email)).db;
+  } catch (e) {
+    console.error(
+      `Cannot sign in as ${email} (${e instanceof Error ? e.message : e}). Run \`pnpm dev:accounts\`.`,
+    );
     process.exit(1);
   }
-  return client;
 }
 
 async function read(): Promise<TimerRow> {

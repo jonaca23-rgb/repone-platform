@@ -4,7 +4,8 @@
 // second overall row for the same competitor.
 //
 //   pnpm db:standings-check     (needs pnpm dev:accounts to have run)
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { signInAs } from "./auth-helpers";
 import { requireLocal } from "./env";
 
 const DIVISION_ID = "00000000-0000-0000-0000-000000000040"; // seed.sql
@@ -35,18 +36,12 @@ async function overallRows() {
 }
 
 async function main() {
-  const scorekeeper = createClient(
-    target.apiUrl,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
-    options,
-  );
-  const { error: signInError } = await scorekeeper.auth.signInWithPassword({
-    email: "scorekeeper@repone.test",
-    password: "Repone1234!",
-  });
-  if (signInError) {
+  let scorekeeper: SupabaseClient;
+  try {
+    scorekeeper = (await signInAs("scorekeeper@repone.test")).db as unknown as SupabaseClient;
+  } catch (e) {
     console.error(
-      `Cannot sign in as scorekeeper (${signInError.message}). Run \`pnpm dev:accounts\`.`,
+      `Cannot sign in as scorekeeper (${e instanceof Error ? e.message : e}). Run \`pnpm dev:accounts\`.`,
     );
     process.exit(1);
   }

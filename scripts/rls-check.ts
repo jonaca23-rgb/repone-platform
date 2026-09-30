@@ -6,9 +6,9 @@
 //   pnpm db:rls-check     (needs pnpm dev:accounts to have run)
 //   RLS_ONLY=auth-tables pnpm db:rls-check   (just the auth-table section; needs no sign-in)
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { signInAs } from "./auth-helpers";
 import { requireLocal } from "./env";
 
-const PASSWORD = "Repone1234!";
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
 const EVENT_ID = "00000000-0000-0000-0000-000000000010";
 const OWN_ATHLETE_ID = "00000000-0000-0000-0000-000000000061"; // linked to athlete@
@@ -16,7 +16,7 @@ const OTHER_ATHLETE_ID = "00000000-0000-0000-0000-000000000062";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const target = requireLocal();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(target.apiUrl, target.secretKey, options);
 
@@ -29,15 +29,15 @@ function expect(label: string, pass: boolean, detail?: unknown) {
 }
 
 async function signIn(email: string): Promise<{ client: SupabaseClient; userId: string }> {
-  const client = createClient(target.apiUrl, anonKey, options);
-  const { data, error } = await client.auth.signInWithPassword({ email, password: PASSWORD });
-  if (error || !data.user) {
+  try {
+    const { db, userId } = await signInAs(email);
+    return { client: db as unknown as SupabaseClient, userId };
+  } catch (e) {
     console.error(
-      `Cannot sign in as ${email} (${error?.message}). Run \`pnpm dev:accounts\` first.`,
+      `Cannot sign in as ${email} (${e instanceof Error ? e.message : e}). Run \`pnpm dev:accounts\` first.`,
     );
     process.exit(1);
   }
-  return { client, userId: data.user.id };
 }
 
 // BetterAuth's tables must exist (service reads them) and be unreachable through the API.
@@ -52,7 +52,7 @@ async function authTablesArePrivate(anon: SupabaseClient) {
 }
 
 async function main() {
-  const anon = createClient(target.apiUrl, anonKey, options);
+  const anon = createClient(target.apiUrl, publishableKey, options);
   if (process.env.RLS_ONLY === "auth-tables") {
     await authTablesArePrivate(anon);
     process.exit(failures ? 1 : 0);

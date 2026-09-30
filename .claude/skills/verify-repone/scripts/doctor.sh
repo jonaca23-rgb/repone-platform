@@ -24,6 +24,11 @@ case "${NEXT_PUBLIC_SUPABASE_URL:-}" in
   *) fail ".env.local targets '${NEXT_PUBLIC_SUPABASE_URL:-<missing>}', not $API_URL — fix: pnpm env:local --force" ;;
 esac
 
+for var in SUPABASE_JWT_SIGNING_KEY BETTER_AUTH_SECRET; do
+  if [ -n "${!var:-}" ]; then ok "$var is set"
+  else fail "$var is not set — fix: pnpm env:local --force"; fi
+done
+
 # Podman VM memory: every local Supabase stack is ~10 containers. When the VM
 # runs out, auth and PostgREST calls stall for 10-60s and pages time out.
 if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
@@ -49,7 +54,7 @@ if [ "$FAILURES" -eq 0 ]; then
   qa=$(q "select count(*) from circuits where name like 'QA Test Circuit%'" 2>/dev/null || echo 0)
   [ "$qa" != "0" ] && ok "QA circuit present" || warn "QA circuit not seeded (only circuit recipes need it) — fix: pnpm db:seed:qa"
 
-  accounts=$(q "select count(*) from auth.users where email like '%@repone.test'" 2>/dev/null || echo 0)
+  accounts=$(q "select count(*) from public.\"user\" where email like '%@repone.test'" 2>/dev/null || echo 0)
   [ "$accounts" -ge 6 ] && ok "$accounts dev accounts (*@repone.test / $PASSWORD)" || fail "Dev accounts missing ($accounts/6) — fix: pnpm dev:accounts"
 fi
 

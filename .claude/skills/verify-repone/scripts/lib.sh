@@ -24,7 +24,7 @@ WOD_ID="00000000-0000-0000-0000-000000000050"     # "WOD 2", for_time
 HEAT_ID="00000000-0000-0000-0000-000000000070"    # "Heat 6 / 9", lanes 1-6
 PASSWORD="Repone1234!"
 
-# Load .env.local (anon key etc.) without echoing it.
+# Load .env.local (keys etc.) without echoing it.
 if [ -f .env.local ]; then
   set -a
   # shellcheck disable=SC1091

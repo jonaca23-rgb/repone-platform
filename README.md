@@ -62,6 +62,23 @@ Ports are offset so this runs beside other local Supabase projects:
 | Studio | http://127.0.0.1:54523 |
 | Mailpit (auth emails) | http://127.0.0.1:54524 |
 
+Sign-in is BetterAuth's (accounts live in Postgres `public."user"`; each
+request reaches Supabase with a token the app mints from the session). Supabase
+Auth is no longer used. **After pulling this change, run `pnpm dev:setup`**: it
+generates the JWT signing key (`supabase/signing_keys.json`, gitignored),
+migrates the auth tables and recreates the dev accounts.
+
+`.env.local` (written by `pnpm env:local --force`) holds:
+
+| Variable | Used by |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | app (browser + server), scripts |
+| `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` | app (server); generate the secret with `openssl rand -base64 32` |
+| `DATABASE_URL` | app (BetterAuth's tables), scripts |
+| `SUPABASE_JWT_SIGNING_KEY` | app (mints each session's Supabase token), scripts |
+| `SUPABASE_SECRET_KEY` | scripts only (service role, bypasses RLS) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional; enables "Continue with Google" for athletes |
+
 ### Scripts
 
 | Command | What it does |
@@ -74,11 +91,14 @@ Ports are offset so this runs beside other local Supabase projects:
 | `pnpm db:seed:qa` | Load the QA circuit if it isn't there |
 | `pnpm db:types` | Regenerate `src/lib/db/supabase.types.ts` from the local schema |
 | `pnpm dev:accounts` | Create/reset the dev logins (local only) |
+| `pnpm keys:ensure` | Generate `supabase/signing_keys.json` if missing (`--print` prints the private key); run before `supabase start` |
 | `pnpm env:local` | Write `.env.local` from `supabase status` (`--force` to overwrite) |
 | `pnpm db:rls-check` | Prove the database access rules as each dev account (local only) |
 | `pnpm db:standings-check` | Prove concurrent standings rewrites never duplicate or empty a leaderboard (local only) |
 | `pnpm db:timer-check` | Prove the broadcast timer's commands (double resume, concurrent operators, adjust) (local only) |
 | `pnpm db:authz-check` | Prove who may manage the org, act on an event, drive a floor or score a heat (local only) |
+| `pnpm db:auth-check` | Prove BetterAuth sign-up, sign-in and sign-out, and that a session reaches Supabase with the minted token (local only) |
+| `pnpm db:token-check` | Prove local PostgREST accepts tokens the app mints and rejects forged, expired or wrongly signed ones (local only) |
 | `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
 | `pnpm format` | Biome formatter |
 
