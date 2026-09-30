@@ -56,10 +56,18 @@ export async function athleteSignUp(
     });
   } catch (e) {
     if (!isAPIError(e)) throw e;
+    // Never echo BetterAuth's message for an existing email: it would reveal
+    // which addresses have accounts.
     if (e.body?.code === "PASSWORD_TOO_SHORT") {
       return { error: "Password must be at least 10 characters." };
     }
-    return { error: e.body?.message ?? "Could not create the account. Please try again." };
+    if (
+      e.body?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" ||
+      e.body?.code === "USER_ALREADY_EXISTS"
+    ) {
+      return { error: "Couldn't create the account. If you already have one, sign in instead." };
+    }
+    return { error: "Couldn't create the account. Please try again." };
   }
 
   return { error: "", redirectTo: "/athlete/onboarding" };

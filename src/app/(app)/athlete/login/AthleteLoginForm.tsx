@@ -4,29 +4,34 @@ import { useLeaveAfterIdentityChange } from "@/lib/auth/identityChange";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { athleteSignIn } from "../actions";
+import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
 
-// First screen an athlete sees is plain choices — Email & Password, Create
-// Account (Google returns with its BetterAuth wiring) — rather than a full
-// form up front. The email/
-// password fields only mount once "Sign in with Email & Password" is
+// First screen an athlete sees is plain choices — Google (when configured),
+// Email & Password, Create Account — rather than a full form up front. The
+// email/password fields only mount once "Sign in with Email & Password" is
 // clicked, per Jonathan's request; useState here is just local UI toggle
 // state (nothing persisted), so it doesn't change this page's otherwise
 // server-first, mostly-zero-JS approach.
-export function AthleteLoginForm({ oauthError = false }: { oauthError?: boolean }) {
+export function AthleteLoginForm({
+  oauthError = false,
+  googleEnabled = false,
+}: {
+  oauthError?: boolean;
+  googleEnabled?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(athleteSignIn, { error: "" });
   useLeaveAfterIdentityChange(state.redirectTo);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [googleFailed, setGoogleFailed] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-sm rounded-xl border border-white/10 bg-repone-gray p-8 shadow-xl">
       <h1 className="mb-1 text-xl font-bold text-white">Athlete Sign In</h1>
       <p className="mb-6 text-sm text-white/60">Sign in to your RepOne athlete account.</p>
 
-      {oauthError ? (
-        <p className="mb-4 rounded-md border border-repone-red/40 bg-repone-red/10 p-3 text-sm text-repone-red">
-          Google sign-in didn&apos;t go through. Please try again, or sign in below.
-        </p>
-      ) : null}
+      {oauthError || googleFailed ? <OAuthErrorNotice /> : null}
+
+      {googleEnabled ? <GoogleButton onFailure={() => setGoogleFailed(true)} /> : null}
 
       {showEmailForm ? (
         <form action={formAction} className="flex flex-col gap-4">

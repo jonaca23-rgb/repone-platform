@@ -1,13 +1,15 @@
 "use client";
 
 import { useLeaveAfterIdentityChange } from "@/lib/auth/identityChange";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { athleteSignUp } from "../actions";
+import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
 
-export function AthleteSignUpForm() {
+export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const [state, formAction, pending] = useActionState(athleteSignUp, { error: "" });
   useLeaveAfterIdentityChange(state.redirectTo);
+  const [googleFailed, setGoogleFailed] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-sm rounded-xl border border-white/10 bg-repone-gray p-8 shadow-xl">
@@ -15,6 +17,14 @@ export function AthleteSignUpForm() {
       <p className="mb-6 text-sm text-white/60">
         Track your own Open-style workout history inside RepOne Platform.
       </p>
+
+      {googleFailed ? <OAuthErrorNotice /> : null}
+
+      {googleEnabled ? (
+        <div className="mb-4">
+          <GoogleButton onFailure={() => setGoogleFailed(true)} />
+        </div>
+      ) : null}
 
       <form action={formAction} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm text-white/80">
