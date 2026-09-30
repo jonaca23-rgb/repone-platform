@@ -1,18 +1,47 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import type { Insert, PaymentMethodType, PaymentStatus } from "@/lib/db/database.types";
+import type { Insert, PaymentStatus } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import { field, parseForm, ValidationError } from "@/lib/validation/form";
 
-function readStatus(formData: FormData): PaymentStatus {
-  const raw = String(formData.get("status") ?? "unpaid");
-  return raw === "paid" || raw === "waived" || raw === "refunded" ? raw : "unpaid";
-}
+type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-function readMethod(formData: FormData): PaymentMethodType {
-  const raw = String(formData.get("payment_method") ?? "unpaid");
-  return raw === "cash" || raw === "manual_other" || raw === "stripe" ? raw : "unpaid";
+const RegistrationPaymentForm = z.object({
+  fee_schedule_id: field.optionalId("Fee"),
+  status: field.oneOf(Constants.public.Enums.payment_status, "payment status"),
+  payment_method: field.oneOf(Constants.public.Enums.payment_method_type, "payment method"),
+  notes: field.optionalText({ max: 1000, label: "Notes" }),
+  // Blank means "use the fee's amount" (or keep the current one).
+  amount_dollars: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.coerce
+      .number({ error: "Enter a valid amount." })
+      .min(0, "Enter a valid amount.")
+      .max(1_000_000, "Amount is too large.")
+      .optional(),
+  ),
+});
+
+const StatusArg = field.oneOf(Constants.public.Enums.payment_status, "payment status");
+
+/** `payments` has no event_id: the registration it hangs off must be in this event. */
+async function requireEventRegistration(
+  supabase: Supabase,
+  eventId: string,
+  registrationId: string,
+) {
+  const { data, error } = await supabase
+    .from("registrations")
+    .select("id")
+    .eq("id", registrationId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("That registration isn't part of this event.");
 }
 
 /**
@@ -27,36 +56,32 @@ export async function updateRegistrationPayment(
   registrationId: string,
   formData: FormData,
 ) {
-  const ctx = await getSessionContext();
+  const { ctx } = await requireEventAccess(eventId);
+  const f = parseForm(RegistrationPaymentForm, formData);
   const supabase = await createClient();
-
-  const fee_schedule_id = String(formData.get("fee_schedule_id") ?? "") || null;
-  const status = readStatus(formData);
-  const payment_method = readMethod(formData);
-  const notes = String(formData.get("notes") ?? "").trim() || null;
-  const amountRaw = String(formData.get("amount_dollars") ?? "").trim();
+  await requireEventRegistration(supabase, eventId, registrationId);
 
   let amount_cents: number | undefined;
-  if (amountRaw) {
-    const dollars = Number(amountRaw);
-    if (Number.isNaN(dollars) || dollars < 0) throw new Error("Enter a valid amount.");
-    amount_cents = Math.round(dollars * 100);
-  } else if (fee_schedule_id) {
-    const { data: fee } = await supabase
+  if (f.fee_schedule_id) {
+    const { data: fee, error } = await supabase
       .from("fee_schedules")
       .select("amount_cents")
-      .eq("id", fee_schedule_id)
+      .eq("id", f.fee_schedule_id)
+      .eq("event_id", eventId)
       .maybeSingle();
-    if (fee) amount_cents = fee.amount_cents;
+    if (error) throw new Error(error.message);
+    if (!fee) throw new Error("That fee isn't part of this event.");
+    amount_cents = fee.amount_cents;
   }
+  if (f.amount_dollars !== undefined) amount_cents = Math.round(f.amount_dollars * 100);
 
   const payload: Insert<"payments"> = {
     registration_id: registrationId,
-    fee_schedule_id,
-    status,
-    payment_method,
-    notes,
-    recorded_by: ctx?.userId ?? null,
+    fee_schedule_id: f.fee_schedule_id,
+    status: f.status,
+    payment_method: f.payment_method,
+    notes: f.notes,
+    recorded_by: ctx.userId,
   };
   if (amount_cents !== undefined) payload.amount_cents = amount_cents;
 
@@ -68,28 +93,34 @@ export async function updateRegistrationPayment(
   revalidatePath(`/admin/events/${eventId}/payments`);
 }
 
-/** Quick one-click status toggle (mirrors the Sponsors "Active" pill pattern). */
-export async function markPaymentStatus(
+/** Shared by the Payments page and Check-In; callers must have run the event guard. */
+async function setPaymentStatus(
+  userId: string,
   eventId: string,
   registrationId: string,
-  status: PaymentStatus,
+  rawStatus: PaymentStatus,
 ) {
-  const ctx = await getSessionContext();
+  const parsed = StatusArg.safeParse(rawStatus);
+  if (!parsed.success) throw new ValidationError("Choose a valid payment status.");
+  const status = parsed.data;
+
   const supabase = await createClient();
+  await requireEventRegistration(supabase, eventId, registrationId);
 
   const payload: Insert<"payments"> = {
     registration_id: registrationId,
     status,
-    recorded_by: ctx?.userId ?? null,
+    recorded_by: userId,
   };
   // Only nudge payment_method when it's still meaningless ("unpaid"→marking
   // paid defaults to cash); never overwrite a method someone already chose.
   if (status === "paid") {
-    const { data: existing } = await supabase
+    const { data: existing, error } = await supabase
       .from("payments")
       .select("payment_method")
       .eq("registration_id", registrationId)
       .maybeSingle();
+    if (error) throw new Error(error.message);
     if (!existing || existing.payment_method === "unpaid") payload.payment_method = "cash";
   }
   if (status === "unpaid") payload.payment_method = "unpaid";
@@ -98,7 +129,16 @@ export async function markPaymentStatus(
     .from("payments")
     .upsert(payload, { onConflict: "registration_id" });
   if (error) throw new Error(error.message);
+}
 
+/** Quick one-click status toggle (mirrors the Sponsors "Active" pill pattern). */
+export async function markPaymentStatus(
+  eventId: string,
+  registrationId: string,
+  status: PaymentStatus,
+) {
+  const { ctx } = await requireEventAccess(eventId);
+  await setPaymentStatus(ctx.userId, eventId, registrationId, status);
   revalidatePath(`/admin/events/${eventId}/payments`);
 }
 
@@ -106,7 +146,8 @@ export async function markPaymentStatus(
  * Same quick toggle as markPaymentStatus, called from the athlete Check-In
  * screen instead of the event Payments page — the only difference is which
  * route gets revalidated afterward, since that screen lives at a URL keyed
- * by athlete rather than by event.
+ * by athlete rather than by event. Check-In lives under /admin (admins and
+ * event directors only), so this stays managers-only too.
  */
 export async function markPaymentStatusForCheckin(
   athleteId: string,
@@ -114,6 +155,10 @@ export async function markPaymentStatusForCheckin(
   registrationId: string,
   status: PaymentStatus,
 ) {
-  await markPaymentStatus(eventId, registrationId, status);
-  revalidatePath(`/admin/checkin/${athleteId}`);
+  const { ctx } = await requireEventAccess(eventId);
+  const athlete = field.id("Athlete").safeParse(athleteId);
+  if (!athlete.success) throw new ValidationError("Athlete is missing or invalid.");
+  await setPaymentStatus(ctx.userId, eventId, registrationId, status);
+  revalidatePath(`/admin/events/${eventId}/payments`);
+  revalidatePath(`/admin/checkin/${athlete.data}`);
 }

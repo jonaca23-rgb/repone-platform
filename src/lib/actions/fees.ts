@@ -1,21 +1,32 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { expectChanged, requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import type { CompetitorEntryType } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import { field, parseForm } from "@/lib/validation/form";
 
-function readEntryType(formData: FormData): CompetitorEntryType | null {
-  const raw = String(formData.get("entry_type") ?? "");
-  return raw === "individual" || raw === "pair" || raw === "team" || raw === "custom" ? raw : null;
-}
-
-function readAmountCents(formData: FormData): number {
-  const raw = String(formData.get("amount_dollars") ?? "").trim();
-  const dollars = Number(raw);
-  if (!raw || Number.isNaN(dollars) || dollars < 0) throw new Error("Enter a valid fee amount.");
-  return Math.round(dollars * 100);
-}
+const FeeScheduleForm = z.object({
+  name: field.text("Fee name", { max: 100 }),
+  description: field.optionalText({ max: 500, label: "Description" }),
+  division_id: field.optionalId("Division"),
+  // Blank means "any entry type".
+  entry_type: z
+    .preprocess(
+      (v) => (v === "" ? undefined : v),
+      field.oneOf(Constants.public.Enums.competitor_entry_type, "entry type").optional(),
+    )
+    .transform((v) => v ?? null),
+  is_addon: field.checkbox(),
+  amount_dollars: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.coerce
+      .number({ error: "Enter a valid fee amount." })
+      .min(0, "Enter a valid fee amount.")
+      .max(1_000_000, "Fee amount is too large."),
+  ),
+});
 
 /**
  * Fee schedules are the priceable "menu" a future Stripe checkout would read
@@ -24,27 +35,31 @@ function readAmountCents(formData: FormData): number {
  * custom), so payments recorded against a registration can reference one.
  */
 export async function createFeeSchedule(eventId: string, formData: FormData) {
-  const ctx = await getSessionContext();
-  if (!ctx?.organizationId) throw new Error("No organization on this account yet.");
-
-  const name = String(formData.get("name") ?? "").trim();
-  const description = String(formData.get("description") ?? "") || null;
-  const division_id = String(formData.get("division_id") ?? "") || null;
-  const entry_type = readEntryType(formData);
-  const is_addon = formData.get("is_addon") === "on";
-  const amount_cents = readAmountCents(formData);
-  if (!name) throw new Error("Fee name is required.");
+  const { organizationId } = await requireEventAccess(eventId);
+  const f = parseForm(FeeScheduleForm, formData);
 
   const supabase = await createClient();
+
+  if (f.division_id) {
+    const { data: division, error } = await supabase
+      .from("divisions")
+      .select("id")
+      .eq("id", f.division_id)
+      .eq("event_id", eventId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!division) throw new Error("That division isn't part of this event.");
+  }
+
   const { error } = await supabase.from("fee_schedules").insert({
-    organization_id: ctx.organizationId,
+    organization_id: organizationId,
     event_id: eventId,
-    division_id,
-    entry_type,
-    name,
-    description,
-    amount_cents,
-    is_addon,
+    division_id: f.division_id,
+    entry_type: f.entry_type,
+    name: f.name,
+    description: f.description,
+    amount_cents: Math.round(f.amount_dollars * 100),
+    is_addon: f.is_addon,
   });
   if (error) throw new Error(error.message);
 
@@ -56,14 +71,31 @@ export async function toggleFeeScheduleActive(
   feeScheduleId: string,
   active: boolean,
 ) {
+  await requireEventAccess(eventId);
   const supabase = await createClient();
-  const { error } = await supabase.from("fee_schedules").update({ active }).eq("id", feeScheduleId);
-  if (error) throw new Error(error.message);
+  expectChanged(
+    await supabase
+      .from("fee_schedules")
+      .update({ active: z.boolean().parse(active) })
+      .eq("id", feeScheduleId)
+      .eq("event_id", eventId)
+      .select("id"),
+    "update the fee",
+  );
   revalidatePath(`/admin/events/${eventId}/fees`);
 }
 
 export async function deleteFeeSchedule(eventId: string, feeScheduleId: string) {
+  await requireEventAccess(eventId);
   const supabase = await createClient();
-  await supabase.from("fee_schedules").delete().eq("id", feeScheduleId);
+  expectChanged(
+    await supabase
+      .from("fee_schedules")
+      .delete()
+      .eq("id", feeScheduleId)
+      .eq("event_id", eventId)
+      .select("id"),
+    "remove the fee",
+  );
   revalidatePath(`/admin/events/${eventId}/fees`);
 }

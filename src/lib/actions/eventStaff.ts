@@ -1,19 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
+import { z } from "zod";
+import { expectChanged, NotAuthorizedError, requireEventAccess } from "@/lib/auth/guards";
+import { getEventStaffCandidates } from "@/lib/auth/eventStaffCandidates";
 import { hasAnyRole } from "@/lib/auth/session";
+import { createClient } from "@/lib/db/server";
+import { field, parseForm } from "@/lib/validation/form";
 
 // Admin-only: assign/remove event-scoped Scorekeeper/Producer/Commentator
-// staff (0024_event_role_assignments.sql). RLS backs this up independently
-// (only an admin can write these tables at all), but checking here too
-// gives a clear error instead of a silent RLS-denied failure.
-async function requireAdmin() {
-  const ctx = await getSessionContext();
-  if (!ctx || !hasAnyRole(ctx, ["admin"]))
-    throw new Error("Only an admin can manage event staff assignments.");
-  return ctx;
+// staff (0024_event_role_assignments.sql). RLS only lets an admin of the
+// event's organization write these tables (event directors can't), so the
+// guard requires both: access to the event, and the admin role. Checking
+// here gives a clear error instead of a silent RLS-denied failure.
+async function requireEventAdmin(eventId: string) {
+  const access = await requireEventAccess(eventId);
+  if (!hasAnyRole(access.ctx, ["admin"]))
+    throw new NotAuthorizedError("Only an admin can manage event staff assignments.");
+  return access;
 }
 
 const TABLE = {
@@ -24,8 +28,27 @@ const TABLE = {
 
 type EventStaffRole = keyof typeof TABLE;
 
-async function assign(role: EventStaffRole, eventId: string, userId: string, roleLabel?: string) {
-  const ctx = await requireAdmin();
+const StaffForm = z.object({
+  userId: z.guid({ error: "Select a staff account first." }),
+});
+
+const CommentatorForm = StaffForm.extend({
+  roleLabel: field.optionalText({ max: 50, label: "Role label" }),
+});
+
+async function assign(role: EventStaffRole, eventId: string, formData: FormData) {
+  const { ctx, organizationId } = await requireEventAdmin(eventId);
+  const { userId, roleLabel } =
+    role === "commentator"
+      ? parseForm(CommentatorForm, formData)
+      : { ...parseForm(StaffForm, formData), roleLabel: null };
+
+  // Only someone the Staff page offers: a staff profile or an athlete account
+  // in this event's organization.
+  const candidates = await getEventStaffCandidates(organizationId);
+  if (!candidates.some((c) => c.userId === userId))
+    throw new NotAuthorizedError("That account can't be assigned to this event.");
+
   const supabase = await createClient();
 
   const common = {
@@ -57,7 +80,7 @@ async function assign(role: EventStaffRole, eventId: string, userId: string, rol
         : await supabase
             .from("event_commentator_assignments")
             .upsert(
-              { ...common, commentator_user_id: userId, role_label: roleLabel || null },
+              { ...common, commentator_user_id: userId, role_label: roleLabel },
               { onConflict: "event_id,commentator_user_id" },
             );
   if (error) throw new Error(error.message);
@@ -66,22 +89,24 @@ async function assign(role: EventStaffRole, eventId: string, userId: string, rol
 }
 
 async function remove(role: EventStaffRole, eventId: string, assignmentId: string) {
-  await requireAdmin();
+  await requireEventAdmin(eventId);
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from(TABLE[role])
-    .update({ status: "removed", removed_at: new Date().toISOString() })
-    .eq("id", assignmentId);
-  if (error) throw new Error(error.message);
+  expectChanged(
+    await supabase
+      .from(TABLE[role])
+      .update({ status: "removed", removed_at: new Date().toISOString() })
+      .eq("id", assignmentId)
+      .eq("event_id", eventId)
+      .select("id"),
+    `remove the ${role}`,
+  );
 
   revalidatePath(`/admin/events/${eventId}/staff`);
 }
 
 export async function assignEventScorekeeper(eventId: string, formData: FormData) {
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("Select a staff account first.");
-  await assign("scorekeeper", eventId, userId);
+  await assign("scorekeeper", eventId, formData);
 }
 
 export async function removeEventScorekeeper(eventId: string, assignmentId: string) {
@@ -89,9 +114,7 @@ export async function removeEventScorekeeper(eventId: string, assignmentId: stri
 }
 
 export async function assignEventProducer(eventId: string, formData: FormData) {
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("Select a staff account first.");
-  await assign("producer", eventId, userId);
+  await assign("producer", eventId, formData);
 }
 
 export async function removeEventProducer(eventId: string, assignmentId: string) {
@@ -99,10 +122,7 @@ export async function removeEventProducer(eventId: string, assignmentId: string)
 }
 
 export async function assignEventCommentator(eventId: string, formData: FormData) {
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("Select a staff account first.");
-  const roleLabel = String(formData.get("roleLabel") ?? "");
-  await assign("commentator", eventId, userId, roleLabel);
+  await assign("commentator", eventId, formData);
 }
 
 export async function removeEventCommentator(eventId: string, assignmentId: string) {
