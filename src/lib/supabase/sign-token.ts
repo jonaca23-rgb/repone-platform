@@ -17,21 +17,29 @@ function getSigningKey() {
   return signingKey;
 }
 
+/** Signs arbitrary claims with the real key; exported so scripts can build deliberately malformed tokens. */
+export async function signSupabaseToken(
+  claims: Record<string, unknown>,
+  userId: string,
+): Promise<string> {
+  const { key, kid } = await getSigningKey();
+  return new SignJWT(claims)
+    .setProtectedHeader({ alg: "ES256", typ: "JWT", kid })
+    .setSubject(userId)
+    .setAudience("authenticated")
+    .setIssuedAt()
+    .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)
+    .sign(key);
+}
+
 /**
  * Short-lived JWT that PostgREST verifies against the key in supabase/signing_keys.json.
  * `sub` must be public."user".id (auth.uid() casts it); `role` must be "authenticated"
  * or PostgREST silently runs the request as anon.
  */
-export async function mintSupabaseToken(identity: {
+export function mintSupabaseToken(identity: {
   userId: string;
   email: string | null;
 }): Promise<string> {
-  const { key, kid } = await getSigningKey();
-  return new SignJWT({ role: "authenticated", email: identity.email })
-    .setProtectedHeader({ alg: "ES256", typ: "JWT", kid })
-    .setSubject(identity.userId)
-    .setAudience("authenticated")
-    .setIssuedAt()
-    .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)
-    .sign(key);
+  return signSupabaseToken({ role: "authenticated", email: identity.email }, identity.userId);
 }

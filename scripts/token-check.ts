@@ -4,7 +4,7 @@
 //   pnpm db:token-check     (needs the stack running and `pnpm env:local --force`)
 import { createClient } from "@supabase/supabase-js";
 import { SignJWT, generateKeyPair } from "jose";
-import { mintSupabaseToken } from "../src/lib/supabase/sign-token";
+import { mintSupabaseToken, signSupabaseToken } from "../src/lib/supabase/sign-token";
 import { requireLocal } from "./env";
 
 const target = requireLocal();
@@ -46,9 +46,12 @@ async function main() {
     anon.error,
   );
 
+  // Real kid, wrong private key: exercises signature failure, not unknown-kid.
+  const realKid = (JSON.parse(process.env.SUPABASE_JWT_SIGNING_KEY ?? "{}") as { kid?: string })
+    .kid;
   const { privateKey } = await generateKeyPair("ES256");
   const forged = await new SignJWT({ role: "authenticated" })
-    .setProtectedHeader({ alg: "ES256", typ: "JWT", kid: crypto.randomUUID() })
+    .setProtectedHeader({ alg: "ES256", typ: "JWT", kid: realKid })
     .setSubject(crypto.randomUUID())
     .setAudience("authenticated")
     .setIssuedAt()
@@ -60,8 +63,20 @@ async function main() {
     error: rejected.error,
   });
 
+  // Real key and kid but no `role` claim: PostgREST must not treat it as authenticated.
+  const noRole = await signSupabaseToken({ email: "x@example.test" }, crypto.randomUUID());
+  const roleless = await probe(withToken(noRole));
+  expect(
+    "token without a role claim is denied like anon",
+    !!roleless.error && /permission denied/i.test(roleless.error.message),
+    roleless.error,
+  );
+
   console.log(failures ? `\n${failures} check(s) failed` : "\nAll token checks passed");
   process.exit(failures ? 1 : 0);
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
