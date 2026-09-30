@@ -27,12 +27,13 @@ export function cookieOf(response: Headers): string {
 /**
  * Signs in for real, then returns a supabase-js client carrying the token the
  * app mints for that session — so a check exercises the production path:
- * signInEmail, getSession, mintSupabaseToken, then RLS.
+ * signInEmail, getSession, mintSupabaseToken, then RLS. `headers` carries the
+ * session cookie, for calls that act on the session (signOut, getSession).
  */
 export async function signInAs(
   email: string,
   password: string = DEV_PASSWORD,
-): Promise<{ db: SupabaseClient<Database>; userId: string; email: string }> {
+): Promise<{ db: SupabaseClient<Database>; userId: string; email: string; headers: Headers }> {
   const target = requireLocal();
   const publishable = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
   if (!publishable)
@@ -48,7 +49,7 @@ export async function signInAs(
     auth: { persistSession: false, autoRefreshToken: false },
     accessToken: async () => token,
   });
-  return { db: client, userId: current.user.id, email: current.user.email };
+  return { db: client, userId: current.user.id, email: current.user.email, headers };
 }
 
 /**
