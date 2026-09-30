@@ -55,6 +55,8 @@ jobs:
         run: pnpm db:rls-check
       - name: Standings rewrites are atomic
         run: pnpm db:standings-check
+      - name: Timer commands are atomic and state-checked
+        run: pnpm db:timer-check
       - name: Generated types match the schema
         run: |
           pnpm -s db:types

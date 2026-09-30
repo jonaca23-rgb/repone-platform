@@ -1649,6 +1649,36 @@ export type Database = {
         Args: { p_division_id: string; p_rows: Json; p_wod_id: string }
         Returns: undefined
       }
+      timer_command: {
+        Args: {
+          p_command: string
+          p_delta_seconds?: number
+          p_direction?: Database["public"]["Enums"]["timer_direction"]
+          p_duration_seconds?: number
+          p_floor_id: string
+        }
+        Returns: {
+          active_graphic: Database["public"]["Enums"]["active_graphic"]
+          active_sponsor_id: string | null
+          current_heat_id: string | null
+          floor_id: string
+          id: string
+          lower_third_athlete_id: string | null
+          timer_anchor_time: string | null
+          timer_direction: Database["public"]["Enums"]["timer_direction"]
+          timer_duration_seconds: number
+          timer_elapsed_at_anchor: number
+          timer_status: Database["public"]["Enums"]["timer_status"]
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "broadcast_state"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       active_graphic:

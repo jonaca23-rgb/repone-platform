@@ -54,6 +54,29 @@ export function computeTimerDisplay(timer: TimerState, nowMs: number): TimerDisp
   };
 }
 
+/**
+ * The first frame, computed at the anchor itself rather than at Date.now():
+ * a pure function of the timer state, so the server render and the browser's
+ * hydration produce identical text. The live tick takes over right after.
+ */
+export function initialTimerDisplay(timer: TimerState): TimerDisplay {
+  return computeTimerDisplay(timer, timer.anchorTimeMs ?? 0);
+}
+
+/**
+ * How far the server's clock is ahead of this machine's (negative = behind),
+ * from one round trip: the server read its clock roughly halfway between the
+ * request leaving and the response arriving. Add it to Date.now() to get
+ * server time, so an OBS PC with a skewed clock still shows the right timer.
+ */
+export function estimateClockOffsetMs(
+  requestStartMs: number,
+  serverNowMs: number,
+  responseEndMs: number,
+): number {
+  return serverNowMs - (requestStartMs + responseEndMs) / 2;
+}
+
 export function formatClock(totalSeconds: number): string {
   const safe = Math.max(0, Math.round(totalSeconds));
   const m = Math.floor(safe / 60);
