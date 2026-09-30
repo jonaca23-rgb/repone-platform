@@ -24,7 +24,8 @@
     "format:check": "biome format .",
     "db:rls-check": "tsx scripts/rls-check.ts",
     "db:standings-check": "tsx scripts/standings-check.ts",
-    "db:timer-check": "tsx scripts/timer-check.ts"
+    "db:timer-check": "tsx scripts/timer-check.ts",
+    "db:authz-check": "tsx scripts/authz-check.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

@@ -1,69 +1,64 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { expectChanged, requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import type { ScoringTypeDb, TiebreakTypeDb } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import { field, parseForm } from "@/lib/validation/form";
+
+const WodForm = z.object({
+  name: field.text("WOD name", { max: 100 }),
+  scoring_type: field.oneOf(Constants.public.Enums.scoring_type, "scoring type"),
+  tiebreak_type: field.oneOf(Constants.public.Enums.tiebreak_type, "tie-break"),
+  description: field.optionalText({ label: "Description" }),
+  rules: field.optionalText({ label: "Rules" }),
+  time_cap_minutes: field.optionalNumber("Time cap", { min: 0, max: 600 }),
+});
+
+function wodRow(formData: FormData) {
+  const f = parseForm(WodForm, formData);
+  return {
+    name: f.name,
+    description: f.description,
+    rules: f.rules,
+    scoring_type: f.scoring_type,
+    tiebreak_type: f.tiebreak_type,
+    time_cap_seconds: f.time_cap_minutes === null ? null : Math.round(f.time_cap_minutes * 60),
+    lower_is_better: f.scoring_type === "for_time",
+  };
+}
 
 export async function createWod(eventId: string, formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim();
-  const scoring_type = String(formData.get("scoring_type") ?? "for_time") as ScoringTypeDb;
-  const tiebreak_type = String(formData.get("tiebreak_type") ?? "none") as TiebreakTypeDb;
-  const description = String(formData.get("description") ?? "") || null;
-  const rules = String(formData.get("rules") ?? "") || null;
-  const time_cap_raw = String(formData.get("time_cap_minutes") ?? "");
-  const time_cap_seconds = time_cap_raw ? Math.round(Number(time_cap_raw) * 60) : null;
-  const lower_is_better = scoring_type === "for_time";
-
-  if (!name) throw new Error("WOD name is required.");
+  await requireEventAccess(eventId);
+  const row = wodRow(formData);
 
   const supabase = await createClient();
-  const { error } = await supabase.from("wods").insert({
-    event_id: eventId,
-    name,
-    description,
-    rules,
-    scoring_type,
-    tiebreak_type,
-    time_cap_seconds,
-    lower_is_better,
-  });
+  const { error } = await supabase.from("wods").insert({ event_id: eventId, ...row });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/events/${eventId}/wods`);
 }
 
 export async function updateWod(eventId: string, wodId: string, formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim();
-  const scoring_type = String(formData.get("scoring_type") ?? "for_time") as ScoringTypeDb;
-  const tiebreak_type = String(formData.get("tiebreak_type") ?? "none") as TiebreakTypeDb;
-  const description = String(formData.get("description") ?? "") || null;
-  const rules = String(formData.get("rules") ?? "") || null;
-  const time_cap_raw = String(formData.get("time_cap_minutes") ?? "");
-  const time_cap_seconds = time_cap_raw ? Math.round(Number(time_cap_raw) * 60) : null;
-  const lower_is_better = scoring_type === "for_time";
-
-  if (!name) throw new Error("WOD name is required.");
+  await requireEventAccess(eventId);
+  const row = wodRow(formData);
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("wods")
-    .update({
-      name,
-      description,
-      rules,
-      scoring_type,
-      tiebreak_type,
-      time_cap_seconds,
-      lower_is_better,
-    })
-    .eq("id", wodId);
-  if (error) throw new Error(error.message);
+  expectChanged(
+    await supabase.from("wods").update(row).eq("id", wodId).eq("event_id", eventId).select("id"),
+    "save the WOD",
+  );
 
   revalidatePath(`/admin/events/${eventId}/wods`);
 }
 
 export async function deleteWod(eventId: string, wodId: string) {
+  await requireEventAccess(eventId);
   const supabase = await createClient();
-  await supabase.from("wods").delete().eq("id", wodId);
+  expectChanged(
+    await supabase.from("wods").delete().eq("id", wodId).eq("event_id", eventId).select("id"),
+    "remove the WOD",
+  );
   revalidatePath(`/admin/events/${eventId}/wods`);
 }

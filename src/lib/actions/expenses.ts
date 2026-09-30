@@ -1,31 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { expectChanged, requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import type { ExpenseCategory } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import { field, parseForm } from "@/lib/validation/form";
 
-const CATEGORIES: ExpenseCategory[] = [
-  "venue",
-  "equipment",
-  "staff_judges",
-  "prizes",
-  "marketing",
-  "other",
-];
-
-function readCategory(formData: FormData): ExpenseCategory {
-  const raw = String(formData.get("category") ?? "other");
-  return (CATEGORIES as string[]).includes(raw) ? (raw as ExpenseCategory) : "other";
-}
-
-function readAmountCents(formData: FormData): number {
-  const raw = String(formData.get("amount_dollars") ?? "").trim();
-  const dollars = Number(raw);
-  if (!raw || Number.isNaN(dollars) || dollars < 0)
-    throw new Error("Enter a valid expense amount.");
-  return Math.round(dollars * 100);
-}
+const ExpenseForm = z.object({
+  category: field.oneOf(Constants.public.Enums.expense_category, "expense category"),
+  description: field.text("Expense description", { max: 200 }),
+  amount_dollars: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.coerce
+      .number({ error: "Enter a valid expense amount." })
+      .min(0, "Enter a valid expense amount.")
+      .max(1_000_000, "Expense amount is too large."),
+  ),
+  incurred_on: field.optionalDate("Date incurred"),
+  notes: field.optionalText({ max: 1000, label: "Notes" }),
+});
 
 /**
  * A hand-entered spending record for an event — the other half of the
@@ -34,25 +28,18 @@ function readAmountCents(formData: FormData): number {
  * bank feed or accounting software, it's just what the organizer typed in.
  */
 export async function createExpense(eventId: string, formData: FormData) {
-  const ctx = await getSessionContext();
-  if (!ctx?.organizationId) throw new Error("No organization on this account yet.");
-
-  const description = String(formData.get("description") ?? "").trim();
-  if (!description) throw new Error("Expense description is required.");
-  const category = readCategory(formData);
-  const amount_cents = readAmountCents(formData);
-  const incurred_on = String(formData.get("incurred_on") ?? "") || null;
-  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const { ctx, organizationId } = await requireEventAccess(eventId);
+  const f = parseForm(ExpenseForm, formData);
 
   const supabase = await createClient();
   const { error } = await supabase.from("expenses").insert({
-    organization_id: ctx.organizationId,
+    organization_id: organizationId,
     event_id: eventId,
-    category,
-    description,
-    amount_cents,
-    incurred_on,
-    notes,
+    category: f.category,
+    description: f.description,
+    amount_cents: Math.round(f.amount_dollars * 100),
+    incurred_on: f.incurred_on,
+    notes: f.notes,
     recorded_by: ctx.userId,
   });
   if (error) throw new Error(error.message);
@@ -61,7 +48,16 @@ export async function createExpense(eventId: string, formData: FormData) {
 }
 
 export async function deleteExpense(eventId: string, expenseId: string) {
+  await requireEventAccess(eventId);
   const supabase = await createClient();
-  await supabase.from("expenses").delete().eq("id", expenseId);
+  expectChanged(
+    await supabase
+      .from("expenses")
+      .delete()
+      .eq("id", expenseId)
+      .eq("event_id", eventId)
+      .select("id"),
+    "remove the expense",
+  );
   revalidatePath(`/admin/events/${eventId}/statement`);
 }

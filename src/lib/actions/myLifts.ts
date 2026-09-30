@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { expectChanged, NotAuthorizedError, requireSignedIn } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { getAthleteSessionContext } from "@/lib/auth/session";
-import { LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
-import { parseClockToSeconds } from "@/lib/timer/compute";
+import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
+import { field, parseArg, parseForm } from "@/lib/validation/form";
 
 // Self-service counterparts to lib/actions/athletes.ts's saveAthleteLifts/
 // upsertAthleteBenchmark/deleteAthleteBenchmark — same save logic, but for
@@ -17,10 +19,29 @@ import { parseClockToSeconds } from "@/lib/timer/compute";
 // but this way a bug here can't even attempt a write it shouldn't.
 
 async function requireOwnAthleteId(): Promise<string> {
+  await requireSignedIn();
   const ctx = await getAthleteSessionContext();
-  if (!ctx?.athleteId) throw new Error("Not signed in as an athlete.");
+  if (!ctx?.athleteId) throw new NotAuthorizedError("Not signed in as an athlete.");
   return ctx.athleteId;
 }
+
+// One optional field per lift, named exactly as the lift (the dashboard's inputs).
+const liftShape = {} as Record<LiftName, z.ZodType<number | null, unknown>>;
+for (const lift of LIFT_NAMES) {
+  liftShape[lift] = isTimeLift(lift)
+    ? field.clock(LIFT_LABELS[lift], "21:30")
+    : field.optionalNumber(LIFT_LABELS[lift], { min: 0, max: 2000 });
+}
+const LiftsForm = z.object(liftShape);
+
+const BenchmarkForm = z.object({
+  name: field.text("Benchmark name", { max: 100 }),
+  result_display: field.text("Benchmark result", { max: 100 }),
+});
+
+type LiftRow =
+  | { athlete_id: string; lift: LiftName; weight_lbs: number }
+  | { athlete_id: string; lift: LiftName; time_seconds: number };
 
 /**
  * Saves every basic-lift input on the dashboard's edit form in one submit;
@@ -28,25 +49,18 @@ async function requireOwnAthleteId(): Promise<string> {
  */
 export async function saveMyLifts(formData: FormData) {
   const athleteId = await requireOwnAthleteId();
+  const values = parseForm(LiftsForm, formData);
 
-  const rows = LIFT_NAMES.map((lift) => {
-    const raw = String(formData.get(lift) ?? "").trim();
-    if (!raw) return null;
-    if (isTimeLift(lift)) {
-      const time_seconds = parseClockToSeconds(raw);
-      if (time_seconds == null) return null;
-      return { athlete_id: athleteId, lift, time_seconds };
-    }
-    const weight_lbs = Number(raw);
-    if (Number.isNaN(weight_lbs)) return null;
-    return { athlete_id: athleteId, lift, weight_lbs };
-  }).filter(
-    (
-      r,
-    ): r is
-      | { athlete_id: string; lift: LiftName; weight_lbs: number }
-      | { athlete_id: string; lift: LiftName; time_seconds: number } => r !== null,
-  );
+  const rows: LiftRow[] = [];
+  for (const lift of LIFT_NAMES) {
+    const value = values[lift];
+    if (value === null) continue;
+    rows.push(
+      isTimeLift(lift)
+        ? { athlete_id: athleteId, lift, time_seconds: value }
+        : { athlete_id: athleteId, lift, weight_lbs: value },
+    );
+  }
 
   if (rows.length === 0) return;
 
@@ -61,10 +75,7 @@ export async function saveMyLifts(formData: FormData) {
 
 export async function upsertMyBenchmark(formData: FormData) {
   const athleteId = await requireOwnAthleteId();
-
-  const name = String(formData.get("name") ?? "").trim();
-  const result_display = String(formData.get("result_display") ?? "").trim();
-  if (!name || !result_display) throw new Error("Benchmark name and result are required.");
+  const { name, result_display } = parseForm(BenchmarkForm, formData);
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -77,16 +88,20 @@ export async function upsertMyBenchmark(formData: FormData) {
 
 export async function deleteMyBenchmark(benchmarkId: string) {
   const athleteId = await requireOwnAthleteId();
+  parseArg(field.id("Benchmark"), benchmarkId);
 
   const supabase = await createClient();
-  // athlete_id filter here isn't just belt-and-suspenders against a forged
-  // benchmarkId — RLS's own athlete_id ownership check on athlete_benchmarks
-  // already stops that — it's what keeps this delete from silently no-op'ing
-  // vs. erroring the same way as any other "not yours" attempt.
-  await supabase
-    .from("athlete_benchmarks")
-    .delete()
-    .eq("id", benchmarkId)
-    .eq("athlete_id", athleteId);
+  // The athlete_id filter scopes the delete to the caller's own rows (RLS's
+  // ownership check on athlete_benchmarks backs it up), and expectChanged
+  // turns a forged or stale id into an error instead of a silent no-op.
+  expectChanged(
+    await supabase
+      .from("athlete_benchmarks")
+      .delete()
+      .eq("id", benchmarkId)
+      .eq("athlete_id", athleteId)
+      .select("id"),
+    "remove the benchmark",
+  );
   revalidatePath("/athlete");
 }

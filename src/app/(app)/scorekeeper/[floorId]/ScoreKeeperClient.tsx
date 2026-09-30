@@ -318,7 +318,8 @@ export function ScoreKeeperClient({
                   } catch {
                     setLaneErrors((prev) => ({
                       ...prev,
-                      [laneKey]: "Not saved. Check the connection and press Save Score again.",
+                      [laneKey]:
+                        "Not saved. Check the value and the connection, then press Save Score again.",
                     }));
                   }
                 }}

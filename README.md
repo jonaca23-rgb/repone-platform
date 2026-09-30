@@ -78,6 +78,7 @@ Ports are offset so this runs beside other local Supabase projects:
 | `pnpm db:rls-check` | Prove the database access rules as each dev account (local only) |
 | `pnpm db:standings-check` | Prove concurrent standings rewrites never duplicate or empty a leaderboard (local only) |
 | `pnpm db:timer-check` | Prove the broadcast timer's commands (double resume, concurrent operators, adjust) (local only) |
+| `pnpm db:authz-check` | Prove who may manage the org, act on an event, drive a floor or score a heat (local only) |
 | `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
 | `pnpm format` | Biome formatter |
 

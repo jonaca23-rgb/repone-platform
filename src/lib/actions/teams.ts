@@ -1,14 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import type { EntryFormat } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import { field, parseForm } from "@/lib/validation/form";
 
-function readEntryFormat(formData: FormData): EntryFormat {
-  const raw = String(formData.get("entry_format") ?? "team");
-  return raw === "pair" || raw === "custom" ? raw : "team";
-}
+const TeamForm = z.object({
+  name: field.text("Team name", { max: 200 }),
+  affiliate: field.optionalText({ max: 200, label: "Affiliate" }),
+  entry_format: field.oneOf(Constants.public.Enums.entry_format, "entry format").default("team"),
+  team_size: field
+    .optionalNumber("Headcount", { min: 1, max: 100 })
+    .refine((n) => n === null || Number.isInteger(n), "Headcount must be a whole number."),
+});
+
+const TeamMemberForm = z.object({
+  athlete_id: z.guid({ error: "Choose an athlete to add." }),
+});
 
 /**
  * Teams have existed in the schema since 0001_init.sql (referenced by
@@ -18,41 +28,59 @@ function readEntryFormat(formData: FormData): EntryFormat {
  * the product rule that no fixed roster size (e.g. "teams of 3") is assumed.
  */
 export async function createTeam(formData: FormData) {
-  const ctx = await getSessionContext();
-  if (!ctx?.organizationId) throw new Error("No organization on this account yet.");
-
-  const name = String(formData.get("name") ?? "").trim();
-  const affiliate = String(formData.get("affiliate") ?? "") || null;
-  const entry_format = readEntryFormat(formData);
-  const teamSizeRaw = String(formData.get("team_size") ?? "").trim();
-  const team_size = teamSizeRaw ? Number(teamSizeRaw) : null;
-  if (!name) throw new Error("Team name is required.");
+  const { organizationId } = await requireOrgManager();
+  const f = parseForm(TeamForm, formData);
 
   const supabase = await createClient();
-  const { error } = await supabase.from("teams").insert({
-    organization_id: ctx.organizationId,
-    name,
-    affiliate,
-    entry_format,
-    team_size: team_size && !Number.isNaN(team_size) ? team_size : null,
-  });
+  const { error } = await supabase.from("teams").insert({ organization_id: organizationId, ...f });
   if (error) throw new Error(error.message);
 
   revalidatePath("/admin/teams");
 }
 
 export async function deleteTeam(teamId: string) {
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
-  await supabase.from("teams").delete().eq("id", teamId);
+  expectChanged(
+    await supabase
+      .from("teams")
+      .delete()
+      .eq("id", teamId)
+      .eq("organization_id", organizationId)
+      .select("id"),
+    "delete the team",
+  );
   revalidatePath("/admin/teams");
 }
 
 export async function addTeamMember(teamId: string, formData: FormData) {
-  const athlete_id = String(formData.get("athlete_id") ?? "");
-  if (!athlete_id) throw new Error("Choose an athlete to add.");
+  const { organizationId } = await requireOrgManager();
+  const { athlete_id } = parseForm(TeamMemberForm, formData);
 
   const supabase = await createClient();
-  const { error } = await supabase.from("team_members").insert({ team_id: teamId, athlete_id });
+  const [{ data: team, error: teamError }, { data: athlete, error: athleteError }] =
+    await Promise.all([
+      supabase
+        .from("teams")
+        .select("id")
+        .eq("id", teamId)
+        .eq("organization_id", organizationId)
+        .maybeSingle(),
+      supabase
+        .from("athletes")
+        .select("id")
+        .eq("id", athlete_id)
+        .eq("organization_id", organizationId)
+        .maybeSingle(),
+    ]);
+  if (teamError) throw new Error(teamError.message);
+  if (athleteError) throw new Error(athleteError.message);
+  if (!team) throw new Error("That team doesn't belong to your organization.");
+  if (!athlete) throw new Error("That athlete doesn't belong to your organization.");
+
+  const { error } = await supabase
+    .from("team_members")
+    .insert({ team_id: team.id, athlete_id: athlete.id });
   if (error) {
     if (error.message.includes("team_members_team_id_athlete_id_key")) {
       throw new Error("That athlete is already on this team's roster.");
@@ -64,7 +92,35 @@ export async function addTeamMember(teamId: string, formData: FormData) {
 }
 
 export async function removeTeamMember(teamMemberId: string) {
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
-  await supabase.from("team_members").delete().eq("id", teamMemberId);
+
+  // team_members has no organization column; it's owned through its team.
+  const { data: member, error: memberError } = await supabase
+    .from("team_members")
+    .select("id, team_id")
+    .eq("id", teamMemberId)
+    .maybeSingle();
+  if (memberError) throw new Error(memberError.message);
+  if (!member) throw new Error("That roster entry doesn't exist.");
+
+  const { data: team, error: teamError } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("id", member.team_id)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (teamError) throw new Error(teamError.message);
+  if (!team) throw new Error("That team doesn't belong to your organization.");
+
+  expectChanged(
+    await supabase
+      .from("team_members")
+      .delete()
+      .eq("id", member.id)
+      .eq("team_id", team.id)
+      .select("id"),
+    "remove the team member",
+  );
   revalidatePath("/admin/teams");
 }
