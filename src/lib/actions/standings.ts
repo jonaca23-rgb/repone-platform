@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/db/server";
+import { sqlNull } from "@/lib/db/sqlNull";
 import {
   rankWodResults,
   computeOverallStandings,
@@ -163,7 +164,7 @@ async function writeStandings(
 ) {
   const { error } = await supabase.rpc("replace_standings", {
     p_division_id: args.divisionId,
-    p_wod_id: args.wodId,
+    p_wod_id: sqlNull(args.wodId),
     p_rows: args.rows.map((r) => {
       const isTeam = args.kinds.get(r.competitorId) === "team";
       return {

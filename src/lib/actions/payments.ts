@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
-import type { PaymentMethodType, PaymentStatus } from "@/lib/db/database.types";
+import type { Insert, PaymentMethodType, PaymentStatus } from "@/lib/db/database.types";
 
 function readStatus(formData: FormData): PaymentStatus {
   const raw = String(formData.get("status") ?? "unpaid");
@@ -50,7 +50,7 @@ export async function updateRegistrationPayment(
     if (fee) amount_cents = fee.amount_cents;
   }
 
-  const payload: Record<string, unknown> = {
+  const payload: Insert<"payments"> = {
     registration_id: registrationId,
     fee_schedule_id,
     status,
@@ -77,7 +77,7 @@ export async function markPaymentStatus(
   const ctx = await getSessionContext();
   const supabase = await createClient();
 
-  const payload: Record<string, unknown> = {
+  const payload: Insert<"payments"> = {
     registration_id: registrationId,
     status,
     recorded_by: ctx?.userId ?? null,

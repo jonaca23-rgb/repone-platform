@@ -1,19 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { supabaseAnonKey, supabaseUrl } from "./env";
+import type { Database } from "./database.types";
 
 /**
  * Server-side Supabase client for Server Components, Server Actions, and Route
  * Handlers. Reads/writes the auth cookie so RLS policies see the signed-in user.
- *
- * NOTE: intentionally untyped — see the matching comment in client.ts. Swap in
- * `createServerClient<Database>` once database.types.ts is replaced with real
- * `supabase gen types` output that includes Relationships metadata.
  */
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(supabaseUrl(), supabaseAnonKey(), {
+  return createServerClient<Database>(supabaseUrl(), supabaseAnonKey(), {
     cookies: {
       getAll() {
         return cookieStore.getAll();

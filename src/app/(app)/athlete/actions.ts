@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/db/server";
 import { friendlyAthleteWriteError, nullIfBlank, requireEmail } from "@/lib/db/athleteErrors";
+import { sqlNull } from "@/lib/db/sqlNull";
 
 /**
  * Athlete accounts are a separate identity space from staff accounts (see
@@ -117,11 +118,11 @@ export async function completeAthleteOnboarding(formData: FormData) {
   const { error } = await supabase.rpc("bootstrap_athlete", {
     p_first_name: first_name,
     p_last_name: last_name,
-    p_affiliate: affiliate,
-    p_date_of_birth: date_of_birth,
-    p_gender: gender,
+    p_affiliate: sqlNull(affiliate),
+    p_date_of_birth: sqlNull(date_of_birth),
+    p_gender: sqlNull(gender),
     p_email: email,
-    p_phone: phone,
+    p_phone: phone ?? undefined,
   });
   if (error) throw new Error(friendlyAthleteWriteError(error));
 

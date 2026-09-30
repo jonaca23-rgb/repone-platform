@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/db/server";
 import { hasAnyRole, type SessionContext } from "@/lib/auth/session";
+import type { EventStatus } from "@/lib/db/database.types";
 
 // Event-scoped staff assignment checks (0024_event_role_assignments.sql) —
 // Scorekeeper/Producer/Commentator are per-event, unlike Admin, which stays
@@ -15,17 +16,17 @@ import { hasAnyRole, type SessionContext } from "@/lib/auth/session";
 
 export type EventStaffRole = "scorekeeper" | "producer" | "commentator";
 
-const ASSIGNMENT_TABLE: Record<EventStaffRole, string> = {
+const ASSIGNMENT_TABLE = {
   scorekeeper: "event_scorekeeper_assignments",
   producer: "event_producer_assignments",
   commentator: "event_commentator_assignments",
-};
+} as const;
 
-const ASSIGNMENT_USER_COLUMN: Record<EventStaffRole, string> = {
+const ASSIGNMENT_USER_COLUMN = {
   scorekeeper: "scorekeeper_user_id",
   producer: "producer_user_id",
   commentator: "commentator_user_id",
-};
+} as const;
 
 /**
  * Is this signed-in staff member allowed onto `eventId`'s screens for
@@ -50,21 +51,31 @@ export async function isAssignedToEvent(
     return !!event && event.organization_id === ctx.organizationId;
   }
 
-  const { data } = await supabase
-    .from(ASSIGNMENT_TABLE[role])
+  const { table, userColumn } = assignments(supabase, role);
+  const { data } = await table
     .select("id")
     .eq("event_id", eventId)
-    .eq(ASSIGNMENT_USER_COLUMN[role], ctx.userId)
+    .eq(userColumn, ctx.userId)
     .eq("status", "active")
     .maybeSingle();
 
   return !!data;
 }
 
+// The three assignment tables share every column except the user id one, so
+// the scorekeeper table's types stand in for all three in the query builder.
+// This is the one place that bridges the dynamic table name.
+function assignments(supabase: Awaited<ReturnType<typeof createClient>>, role: EventStaffRole) {
+  return {
+    table: supabase.from(ASSIGNMENT_TABLE[role] as "event_scorekeeper_assignments"),
+    userColumn: ASSIGNMENT_USER_COLUMN[role] as "scorekeeper_user_id",
+  };
+}
+
 export interface AssignedEvent {
   id: string;
   name: string;
-  status: string;
+  status: EventStatus;
   starts_on: string | null;
   ends_on: string | null;
 }
@@ -91,16 +102,13 @@ export async function getAssignedEvents(
     return data ?? [];
   }
 
-  const { data: assignments } = await supabase
-    .from(ASSIGNMENT_TABLE[role])
+  const { table, userColumn } = assignments(supabase, role);
+  const { data: rows } = await table
     .select(`event_id, events(id, name, status, starts_on, ends_on)`)
-    .eq(ASSIGNMENT_USER_COLUMN[role], ctx.userId)
+    .eq(userColumn, ctx.userId)
     .eq("status", "active");
 
-  // See lib/db/queries.ts header comment — our untyped Supabase client can't
-  // infer that a many-to-one embed comes back as one object, not an array.
-  const rows = (assignments ?? []) as unknown as Array<{ events: AssignedEvent | null }>;
-  return rows.map((r) => r.events).filter((e): e is AssignedEvent => !!e);
+  return (rows ?? []).map((r) => r.events).filter((e): e is AssignedEvent => !!e);
 }
 
 /** Roles allowed into /admin. Everyone else is sent to staffLandingPath(). */
@@ -124,10 +132,10 @@ export async function staffLandingPath(ctx: SessionContext): Promise<string> {
 
   const supabase = await createClient();
   for (const role of ["scorekeeper", "producer", "commentator"] as const) {
-    const { data } = await supabase
-      .from(ASSIGNMENT_TABLE[role])
+    const { table, userColumn } = assignments(supabase, role);
+    const { data } = await table
       .select("id")
-      .eq(ASSIGNMENT_USER_COLUMN[role], ctx.userId)
+      .eq(userColumn, ctx.userId)
       .eq("status", "active")
       .limit(1);
     if (data?.length) return roleHome[role];

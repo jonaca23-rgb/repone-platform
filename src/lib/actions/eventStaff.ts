@@ -22,34 +22,44 @@ const TABLE = {
   commentator: "event_commentator_assignments",
 } as const;
 
-const USER_COLUMN = {
-  scorekeeper: "scorekeeper_user_id",
-  producer: "producer_user_id",
-  commentator: "commentator_user_id",
-} as const;
-
 type EventStaffRole = keyof typeof TABLE;
 
 async function assign(role: EventStaffRole, eventId: string, userId: string, roleLabel?: string) {
   const ctx = await requireAdmin();
   const supabase = await createClient();
 
-  const row: Record<string, unknown> = {
+  const common = {
     event_id: eventId,
-    [USER_COLUMN[role]]: userId,
     assigned_by_admin_id: ctx.userId,
-    status: "active",
+    status: "active" as const,
     assigned_at: new Date().toISOString(),
     removed_at: null,
   };
-  if (role === "commentator") row.role_label = roleLabel || null;
 
   // Re-assigning someone previously removed just flips status back to
   // active on their existing row (unique(event_id, <role>_user_id)) rather
   // than erroring on a duplicate or leaving two rows behind.
-  const { error } = await supabase
-    .from(TABLE[role])
-    .upsert(row, { onConflict: `event_id,${USER_COLUMN[role]}` });
+  const { error } =
+    role === "scorekeeper"
+      ? await supabase
+          .from("event_scorekeeper_assignments")
+          .upsert(
+            { ...common, scorekeeper_user_id: userId },
+            { onConflict: "event_id,scorekeeper_user_id" },
+          )
+      : role === "producer"
+        ? await supabase
+            .from("event_producer_assignments")
+            .upsert(
+              { ...common, producer_user_id: userId },
+              { onConflict: "event_id,producer_user_id" },
+            )
+        : await supabase
+            .from("event_commentator_assignments")
+            .upsert(
+              { ...common, commentator_user_id: userId, role_label: roleLabel || null },
+              { onConflict: "event_id,commentator_user_id" },
+            );
   if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/events/${eventId}/staff`);

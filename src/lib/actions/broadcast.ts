@@ -2,7 +2,9 @@
 
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
-import type { ActiveGraphic, TimerDirection } from "@/lib/db/database.types";
+import type { ActiveGraphic, Database, Json, TimerDirection } from "@/lib/db/database.types";
+
+type BroadcastStatePatch = Database["public"]["Tables"]["broadcast_state"]["Update"];
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -15,7 +17,7 @@ async function logAction(
   eventId: string | null,
   floorId: string,
   action: string,
-  details?: Record<string, unknown>,
+  details?: { [key: string]: Json | undefined },
 ) {
   const ctx = await getSessionContext();
   const { error } = await supabase.from("operator_actions").insert({
@@ -36,7 +38,7 @@ async function logAction(
 async function updateBroadcastState(
   supabase: SupabaseServerClient,
   floorId: string,
-  patch: Record<string, unknown>,
+  patch: BroadcastStatePatch,
 ) {
   const { data, error } = await supabase
     .from("broadcast_state")

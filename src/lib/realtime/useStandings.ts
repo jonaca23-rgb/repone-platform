@@ -23,6 +23,7 @@ export function useStandings(divisionId: string | null) {
       setRows([]);
       return;
     }
+    const division = divisionId; // narrowed to string for the async loader below
     const supabase = createClient();
     let cancelled = false;
 
@@ -30,7 +31,7 @@ export function useStandings(divisionId: string | null) {
       const { data } = await supabase
         .from("standings")
         .select("placement, points, athletes(first_name, last_name), teams(name)")
-        .eq("division_id", divisionId)
+        .eq("division_id", division)
         .is("wod_id", null)
         .order("placement", { ascending: true, nullsFirst: false });
 

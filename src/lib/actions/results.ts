@@ -6,7 +6,7 @@ import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
 import { recomputeWodStandings } from "./standings";
 import { parseClockToSeconds } from "@/lib/timer/compute";
-import type { ScoringTypeDb } from "@/lib/db/database.types";
+import type { Insert, ScoringTypeDb } from "@/lib/db/database.types";
 
 /**
  * Enters/updates the RAW result for one competitor in one heat, matching the
@@ -34,7 +34,7 @@ export async function enterResult(
     | "dq";
   const manuallyAdjusted = formData.get("manual_adjustment") === "on";
 
-  const row: Record<string, unknown> = {
+  const row: Insert<"results"> = {
     heat_id: heatId,
     wod_id: wodId,
     athlete_id: competitorType === "athlete" ? competitorId : null,
@@ -110,7 +110,7 @@ export async function saveHeatResults(
     const capped = formData.get(`capped__${athleteId}`) === "on";
     const manuallyAdjusted = formData.get(`manual_adjustment__${athleteId}`) === "on";
 
-    const row: Record<string, unknown> = {
+    const row: Insert<"results"> = {
       heat_id: heatId,
       wod_id: wodId,
       athlete_id: athleteId,
