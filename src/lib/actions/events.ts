@@ -2,43 +2,64 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+import { expectChanged, requireEventAccess, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
 import type { EventStatus } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import { field, imageUpload, parseForm } from "@/lib/validation/form";
+
+const EventForm = z.object({
+  name: field.text("Event name", { max: 200 }),
+  starts_on: field.optionalDate("Start date"),
+  ends_on: field.optionalDate("End date"),
+  // "" = standalone, "new" = start a new circuit, otherwise an existing circuit's id.
+  circuit_choice: z.union([z.literal("new"), field.optionalId("Circuit")]),
+  new_circuit_name: field.optionalText({ max: 200, label: "Circuit name" }),
+});
 
 export async function createEvent(formData: FormData) {
-  const ctx = await getSessionContext();
-  if (!ctx?.organizationId) throw new Error("No organization on this account yet.");
-
-  const name = String(formData.get("name") ?? "").trim();
-  const starts_on = String(formData.get("starts_on") ?? "") || null;
-  const ends_on = String(formData.get("ends_on") ?? "") || null;
-  if (!name) throw new Error("Event name is required.");
+  const { organizationId } = await requireOrgManager();
+  const f = parseForm(EventForm, formData);
 
   const supabase = await createClient();
 
   // Single Event vs. Circuit, decided right here at creation time:
   // "" = standalone (default), an existing circuit's id = join that circuit,
   // "new" = start a brand new circuit and put this event in it as its first stop.
-  const circuitChoice = String(formData.get("circuit_choice") ?? "");
   let circuit_id: string | null = null;
-  if (circuitChoice === "new") {
-    const newCircuitName = String(formData.get("new_circuit_name") ?? "").trim();
-    if (!newCircuitName) throw new Error("Circuit name is required when starting a new circuit.");
+  if (f.circuit_choice === "new") {
+    if (!f.new_circuit_name) {
+      throw new Error("Circuit name is required when starting a new circuit.");
+    }
     const { data: circuit, error: circuitError } = await supabase
       .from("circuits")
-      .insert({ organization_id: ctx.organizationId, name: newCircuitName })
+      .insert({ organization_id: organizationId, name: f.new_circuit_name })
       .select("id")
       .single();
     if (circuitError) throw new Error(circuitError.message);
     circuit_id = circuit.id;
-  } else if (circuitChoice) {
-    circuit_id = circuitChoice;
+  } else if (f.circuit_choice) {
+    const { data: circuit, error: circuitError } = await supabase
+      .from("circuits")
+      .select("id")
+      .eq("id", f.circuit_choice)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (circuitError) throw new Error(circuitError.message);
+    if (!circuit) throw new Error("That circuit doesn't belong to your organization.");
+    circuit_id = circuit.id;
   }
 
   const { data, error } = await supabase
     .from("events")
-    .insert({ organization_id: ctx.organizationId, name, starts_on, ends_on, circuit_id })
+    .insert({
+      organization_id: organizationId,
+      name: f.name,
+      starts_on: f.starts_on,
+      ends_on: f.ends_on,
+      circuit_id,
+    })
     .select("id")
     .single();
 
@@ -47,21 +68,29 @@ export async function createEvent(formData: FormData) {
   // A fresh event needs at least one venue + floor before heats can be created
   // (floors are the unit heats/broadcast_state attach to). Create sensible
   // defaults so the operator isn't forced through extra setup screens first.
-  const { data: venue } = await supabase
+  const { data: venue, error: venueError } = await supabase
     .from("venues")
     .insert({ event_id: data.id, name: "Main Venue" })
     .select("id")
     .single();
+  if (venueError)
+    throw new Error(`Event created, but its default venue wasn't: ${venueError.message}`);
 
-  if (venue) {
-    const { data: floor } = await supabase
-      .from("floors")
-      .insert({ venue_id: venue.id, name: "Floor A", sort_order: 0 })
-      .select("id")
-      .single();
-    if (floor) {
-      await supabase.from("broadcast_state").insert({ floor_id: floor.id });
-    }
+  const { data: floor, error: floorError } = await supabase
+    .from("floors")
+    .insert({ venue_id: venue.id, name: "Floor A", sort_order: 0 })
+    .select("id")
+    .single();
+  if (floorError)
+    throw new Error(`Event created, but its default floor wasn't: ${floorError.message}`);
+
+  const { error: broadcastError } = await supabase
+    .from("broadcast_state")
+    .insert({ floor_id: floor.id });
+  if (broadcastError) {
+    throw new Error(
+      `Event created, but its floor's broadcast state wasn't: ${broadcastError.message}`,
+    );
   }
 
   revalidatePath("/admin");
@@ -69,8 +98,6 @@ export async function createEvent(formData: FormData) {
   revalidatePath("/admin/circuits");
   redirect(`/admin/events/${data.id}`);
 }
-
-const MAX_COVER_PHOTO_BYTES = 8 * 1024 * 1024;
 
 /**
  * Cover photo for the Events list card grid — mirrors
@@ -80,15 +107,11 @@ const MAX_COVER_PHOTO_BYTES = 8 * 1024 * 1024;
  * (0011_event_cover_photo.sql) instead of athlete photos.
  */
 export async function uploadEventCoverPhoto(eventId: string, formData: FormData) {
-  const file = formData.get("cover_photo");
-  if (!(file instanceof File) || file.size === 0)
-    throw new Error("Choose an image file to upload.");
-  if (!file.type.startsWith("image/")) throw new Error("Please upload an image file.");
-  if (file.size > MAX_COVER_PHOTO_BYTES) throw new Error("Image must be under 8MB.");
+  const { organizationId } = await requireEventAccess(eventId);
+
+  const { file, ext } = imageUpload(formData.get("cover_photo"));
 
   const supabase = await createClient();
-  const extMatch = /\.([a-zA-Z0-9]+)$/.exec(file.name);
-  const ext = (extMatch?.[1] ?? "jpg").toLowerCase();
   const path = `${eventId}/${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
@@ -98,31 +121,54 @@ export async function uploadEventCoverPhoto(eventId: string, formData: FormData)
 
   const { data: publicUrlData } = supabase.storage.from("event-photos").getPublicUrl(path);
 
-  const { error } = await supabase
-    .from("events")
-    .update({ cover_image_url: publicUrlData.publicUrl })
-    .eq("id", eventId);
-  if (error) throw new Error(error.message);
+  expectChanged(
+    await supabase
+      .from("events")
+      .update({ cover_image_url: publicUrlData.publicUrl })
+      .eq("id", eventId)
+      .eq("organization_id", organizationId)
+      .select("id"),
+    "save the cover photo",
+  );
 
   revalidatePath("/admin");
   revalidatePath(`/admin/events/${eventId}`);
 }
 
 export async function removeEventCoverPhoto(eventId: string) {
+  const { organizationId } = await requireEventAccess(eventId);
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("events")
-    .update({ cover_image_url: null })
-    .eq("id", eventId);
-  if (error) throw new Error(error.message);
+  expectChanged(
+    await supabase
+      .from("events")
+      .update({ cover_image_url: null })
+      .eq("id", eventId)
+      .eq("organization_id", organizationId)
+      .select("id"),
+    "remove the cover photo",
+  );
 
   revalidatePath("/admin");
   revalidatePath(`/admin/events/${eventId}`);
 }
 
+const EventStatusValue = field.oneOf(Constants.public.Enums.event_status, "event status");
+
 export async function updateEventStatus(eventId: string, status: EventStatus) {
+  const { organizationId } = await requireEventAccess(eventId);
+  const parsed = EventStatusValue.safeParse(status);
+  if (!parsed.success) throw new Error("Choose a valid event status.");
+
   const supabase = await createClient();
-  await supabase.from("events").update({ status }).eq("id", eventId);
+  expectChanged(
+    await supabase
+      .from("events")
+      .update({ status: parsed.data })
+      .eq("id", eventId)
+      .eq("organization_id", organizationId)
+      .select("id"),
+    "change the event status",
+  );
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath("/admin");
 }
@@ -136,17 +182,19 @@ export async function updateEventStatus(eventId: string, status: EventStatus) {
  * one delete here removes the entire event's data. There is no undo.
  */
 export async function deleteEvent(eventId: string) {
+  const { organizationId } = await requireEventAccess(eventId);
   const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from("events")
-    .select("circuit_id")
-    .eq("id", eventId)
-    .single();
-
-  const { error } = await supabase.from("events").delete().eq("id", eventId);
-  if (error) throw new Error(error.message);
+  const [deleted] = expectChanged(
+    await supabase
+      .from("events")
+      .delete()
+      .eq("id", eventId)
+      .eq("organization_id", organizationId)
+      .select("id, circuit_id"),
+    "delete the event",
+  );
 
   revalidatePath("/admin");
-  if (existing?.circuit_id) revalidatePath(`/admin/circuits/${existing.circuit_id}`);
+  if (deleted.circuit_id) revalidatePath(`/admin/circuits/${deleted.circuit_id}`);
   redirect("/admin");
 }
