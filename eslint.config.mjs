@@ -15,19 +15,20 @@ const eslintConfig = defineConfig([
   {
     // @/db connects as the database owner, which RLS policies do not apply to.
     // App reads and writes go through supabase-js with the signed-in person's
-    // token so the database decides them; only BetterAuth (src/lib/auth) owns
-    // tables it must reach directly.
-    files: ["src/app/**", "src/components/**", "src/lib/actions/**"],
-    ignores: ["src/lib/auth/**"],
+    // token so the database decides them. Only BetterAuth's config
+    // (src/lib/auth/auth.ts) and src/db itself may reach it; scripts/ are not
+    // linted by this rule. The regex catches relative spellings (../../db).
+    files: ["src/**"],
+    ignores: ["src/lib/auth/auth.ts", "src/db/**"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@/db", "@/db/*"],
+              regex: "^(@/db|(\\./|(\\.\\./)+)db)(/index|/schema(/.*)?)?$",
               message:
-                "@/db is the owner connection and bypasses RLS. Use the Supabase client (@/lib/db/server) so policies decide; only src/lib/auth may import @/db.",
+                "@/db is the owner connection and bypasses RLS. Use the Supabase client (@/lib/db/server) so policies decide; only src/lib/auth/auth.ts may import @/db.",
             },
           ],
         },
