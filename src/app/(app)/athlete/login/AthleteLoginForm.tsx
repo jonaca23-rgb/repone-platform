@@ -2,11 +2,11 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { athleteSignIn, athleteSignInWithGoogle } from "../actions";
-import { GoogleIcon } from "../GoogleIcon";
+import { athleteSignIn } from "../actions";
 
-// First screen an athlete sees is three plain choices — Google, Email &
-// Password, Create Account — rather than a full form up front. The email/
+// First screen an athlete sees is plain choices — Email & Password, Create
+// Account (Google returns with its BetterAuth wiring) — rather than a full
+// form up front. The email/
 // password fields only mount once "Sign in with Email & Password" is
 // clicked, per Jonathan's request; useState here is just local UI toggle
 // state (nothing persisted), so it doesn't change this page's otherwise
@@ -26,58 +26,40 @@ export function AthleteLoginForm({ oauthError = false }: { oauthError?: boolean 
         </p>
       ) : null}
 
-      <form action={athleteSignInWithGoogle}>
-        <button
-          type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-md border border-white/20 bg-white px-4 py-3 font-semibold text-black transition hover:bg-white/90"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
-      </form>
-
       {showEmailForm ? (
-        <>
-          <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-white/40">
-            <span className="h-px flex-1 bg-white/10" />
-            or
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
+        <form action={formAction} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-sm text-white/80">
+            Email
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              autoFocus
+              className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-white/80">
+            Password
+            <input
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
+            />
+          </label>
 
-          <form action={formAction} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 text-sm text-white/80">
-              Email
-              <input
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                autoFocus
-                className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm text-white/80">
-              Password
-              <input
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-              />
-            </label>
+          {state.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
 
-            {state.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
-
-            <button
-              type="submit"
-              disabled={pending}
-              className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
-            >
-              {pending ? "Signing in…" : "Sign In"}
-            </button>
-          </form>
-        </>
+          <button
+            type="submit"
+            disabled={pending}
+            className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
+          >
+            {pending ? "Signing in…" : "Sign In"}
+          </button>
+        </form>
       ) : (
         <button
           type="button"

@@ -1,7 +1,9 @@
 "use server";
 
+import { isAPIError } from "better-auth/api";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/db/server";
+import { auth } from "@/lib/auth/server";
 
 export async function signIn(_prevState: { error: string }, formData: FormData) {
   const email = String(formData.get("email") ?? "");
@@ -11,18 +13,18 @@ export async function signIn(_prevState: { error: string }, formData: FormData) 
     return { error: "Email and password are required." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    return { error: error.message };
+  // BetterAuth's nextCookies() plugin sets the session cookie on this response.
+  try {
+    await auth.api.signInEmail({ body: { email, password }, headers: await headers() });
+  } catch (e) {
+    if (isAPIError(e)) return { error: "Email or password is incorrect." };
+    throw e;
   }
 
   redirect("/admin");
 }
 
 export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  await auth.api.signOut({ headers: await headers() });
   redirect("/login");
 }
