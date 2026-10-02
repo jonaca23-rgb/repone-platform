@@ -1,13 +1,17 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getEventLiveContext } from "@/lib/db/queries";
 import { getCommentatorAthleteDetails } from "@/lib/db/commentator";
+import { commentatorEventTitle } from "../commentatorEvent";
 import { EventCommentatorDashboard } from "./EventCommentatorDashboard";
 
-export default async function CommentatorEventDashboardPage({
-  params,
-}: {
-  params: Promise<{ eventId: string }>;
-}) {
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  return { title: await commentatorEventTitle((await params).eventId, "Dashboard") };
+}
+
+export default async function CommentatorEventDashboardPage({ params }: Props) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();
@@ -21,10 +25,6 @@ export default async function CommentatorEventDashboardPage({
   const detailsByAthleteId = await getCommentatorAthleteDetails(athleteIds);
 
   return (
-    <EventCommentatorDashboard
-      eventName={context.eventName}
-      floors={context.floors}
-      detailsByAthleteId={detailsByAthleteId}
-    />
+    <EventCommentatorDashboard floors={context.floors} detailsByAthleteId={detailsByAthleteId} />
   );
 }

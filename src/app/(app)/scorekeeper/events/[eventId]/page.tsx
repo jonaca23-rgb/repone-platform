@@ -1,22 +1,42 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ChevronLeft, MapPinOff } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { createClient } from "@/lib/db/server";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { PickLink } from "@/components/app/PickLink";
+import { OperatorShell } from "@/components/shells/OperatorShell";
+
+type Props = { params: Promise<{ eventId: string }> };
+
+// Read once per request: the page and its title share it.
+const getEventWithFloors = cache(async (eventId: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("events")
+    .select("id, name, venues(id, name, floors(id, name))")
+    .eq("id", eventId)
+    .maybeSingle();
+  return data;
+});
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getEventWithFloors((await params).eventId);
+  return { title: event ? `Score Keeper · ${event.name}` : "Score Keeper" };
+}
 
 /**
  * Event-scoped floor picker for Scorekeeper — the actual scoring screen
- * stays exactly where it already is (/scorekeeper/[floorId], unchanged and
- * untouched here, since that's the safety-critical, already-tested live
- * scoring UI). This page just adds the assignment gate + a floor list
- * scoped to one specific event, replacing the old flat "pick any org event,
- * then a floor" two-step picker at /scorekeeper.
+ * stays exactly where it already is (/scorekeeper/[floorId]). This page just
+ * adds the assignment gate + a floor list scoped to one specific event,
+ * replacing the old flat "pick any org event, then a floor" two-step picker
+ * at /scorekeeper.
  */
-export default async function ScoreKeeperEventPage({
-  params,
-}: {
-  params: Promise<{ eventId: string }>;
-}) {
+export default async function ScoreKeeperEventPage({ params }: Props) {
   const { eventId } = await params;
   const ctx = await getSessionContext();
   if (!ctx) redirect("/login");
@@ -24,12 +44,7 @@ export default async function ScoreKeeperEventPage({
   const allowed = await isAssignedToEvent(ctx, eventId, "scorekeeper");
   if (!allowed) redirect("/scorekeeper");
 
-  const supabase = await createClient();
-  const { data: event } = await supabase
-    .from("events")
-    .select("id, name, venues(id, name, floors(id, name))")
-    .eq("id", eventId)
-    .single();
+  const event = await getEventWithFloors(eventId);
   if (!event) notFound();
 
   const floors = (event.venues ?? []).flatMap((v) =>
@@ -37,35 +52,32 @@ export default async function ScoreKeeperEventPage({
   );
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-16">
-      <p className="mb-4 text-sm">
-        <Link href="/scorekeeper" className="text-repone-red underline">
-          ← Choose a different event
+    <OperatorShell module="scorekeeper" moduleLabel="Scorekeeper" eventName={event.name}>
+      <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-10 sm:px-6">
+        <Link
+          href="/scorekeeper"
+          className="inline-flex min-h-11 w-fit items-center gap-1 rounded-sm text-sm text-brand-text underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+          Choose a different event
         </Link>
-      </p>
-      <h1 className="mb-1 font-[family-name:var(--font-display)] text-3xl font-bold uppercase tracking-wide">
-        {event.name}
-      </h1>
-      <p className="mb-6 text-sm text-white/50">Select a Floor to Score</p>
-      <div className="flex flex-col gap-4">
-        {floors.map((f) => (
-          <Link
-            key={f.id}
-            href={`/scorekeeper/${f.id}`}
-            className="control-btn control-btn-red flex-col !items-start gap-1 py-6"
-          >
-            <span className="text-2xl">{f.name}</span>
-            <span className="text-sm font-normal normal-case tracking-normal opacity-80">
-              {f.venueName}
-            </span>
-          </Link>
-        ))}
-        {floors.length === 0 && (
-          <p className="text-white/50">
-            No floors set up for this event yet — set one up in Admin.
-          </p>
+        <PageHeader title="Select a floor to score" />
+        {floors.length > 0 ? (
+          <ul className="flex flex-col gap-3">
+            {floors.map((f) => (
+              <li key={f.id}>
+                <PickLink href={`/scorekeeper/${f.id}`} title={f.name} detail={f.venueName} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            icon={MapPinOff}
+            title="No floors set up for this event yet"
+            description="Set one up in Admin."
+          />
         )}
       </div>
-    </div>
+    </OperatorShell>
   );
 }

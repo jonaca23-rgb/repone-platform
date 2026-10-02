@@ -1,11 +1,20 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Dumbbell } from "lucide-react";
 import { getEventLiveContext } from "@/lib/db/queries";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { commentatorEventTitle } from "../commentatorEvent";
 
-export default async function CommentatorEventWodsPage({
-  params,
-}: {
-  params: Promise<{ eventId: string }>;
-}) {
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  return { title: await commentatorEventTitle((await params).eventId, "WODs") };
+}
+
+export default async function CommentatorEventWodsPage({ params }: Props) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();
@@ -19,23 +28,28 @@ export default async function CommentatorEventWodsPage({
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+      <PageHeader title="WODs" />
       {wods.map((w) => (
-        <div key={w.id} className="rounded-xl bg-repone-gray p-5">
-          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-xl font-bold text-white">{w.name}</p>
-            <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-repone-red">
+        <Card key={w.id}>
+          <CardHeader className="flex flex-wrap items-baseline justify-between gap-2">
+            <CardTitle className="text-xl font-bold">{w.name}</CardTitle>
+            <Badge variant="outline" className="tracking-wide text-brand-text uppercase">
               {w.scoring_type.replace("_", " ")}
               {w.time_cap_seconds ? ` · ${Math.round(w.time_cap_seconds / 60)} min cap` : ""}
-            </span>
-          </div>
-          {w.description ? (
-            <p className="whitespace-pre-wrap text-sm text-white/70">{w.description}</p>
-          ) : (
-            <p className="text-sm text-white/40">No description on file.</p>
-          )}
-        </div>
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            {w.description ? (
+              <p className="text-sm whitespace-pre-wrap">{w.description}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">No description on file.</p>
+            )}
+          </CardContent>
+        </Card>
       ))}
-      {wods.length === 0 && <p className="text-white/50">No WODs scheduled for this event yet.</p>}
+      {wods.length === 0 && (
+        <EmptyState icon={Dumbbell} title="No WODs scheduled for this event yet" />
+      )}
     </div>
   );
 }
