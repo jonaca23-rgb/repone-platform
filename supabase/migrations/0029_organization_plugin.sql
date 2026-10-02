@@ -35,7 +35,8 @@ create table public.member (
   created_at timestamptz not null default now()
 );
 create unique index member_organization_user_idx on public.member (organization_id, user_id);
--- One owner per organization; ownership changes hands, it is never shared.
+-- One owner per organization. Ownership is not transferable in the app yet:
+-- moving it is a manual SQL step (demote the owner, then promote the new one).
 create unique index member_one_owner_idx on public.member (organization_id)
   where role ~ '(^|,)\s*owner\s*(,|$)';
 create index member_user_id_idx on public.member (user_id);

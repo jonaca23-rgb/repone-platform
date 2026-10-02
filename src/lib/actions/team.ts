@@ -17,7 +17,7 @@ import { field, parseArg, parseForm } from "@/lib/validation/form";
 // again wherever the call carries the caller's headers (updateMemberRole,
 // removeMember). See lib/auth/invite.ts for how an invitation works.
 
-/** Every org role except owner, which is transferred rather than granted. */
+/** Every org role except owner: ownership is not granted here, nor transferable in the app yet (a manual SQL step). */
 const INVITABLE_ROLES = ORG_ROLES.filter((r) => r !== "owner") as [OrgRole, ...OrgRole[]];
 
 const InviteForm = z.object({

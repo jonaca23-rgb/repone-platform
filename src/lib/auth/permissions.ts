@@ -47,7 +47,10 @@ const runsEvents = {
   staff: ["invite"],
 } as const;
 
-/** Answers for the organization. One per organization (member_one_owner_idx). */
+/**
+ * Answers for the organization. One per organization (member_one_owner_idx).
+ * Ownership is not transferable in the app yet: moving it is a manual SQL step.
+ */
 const owner = ac.newRole({ ...ownerAc.statements, ...runsEvents });
 /** Everything the owner can do except delete the organization. */
 const admin = ac.newRole({ ...adminAc.statements, ...runsEvents });

@@ -14,7 +14,7 @@ const ROLE_LABEL: Record<OrgRole, string> = {
   commentator: "Commentator",
 };
 
-/** Owner is transferred, never granted by invitation (lib/actions/team.ts). */
+/** Owner is never granted by invitation; ownership is not transferable in the app yet (lib/actions/team.ts). */
 const INVITABLE = ORG_ROLES.filter((r) => r !== "owner").map((r) => ({
   value: r,
   label: ROLE_LABEL[r],

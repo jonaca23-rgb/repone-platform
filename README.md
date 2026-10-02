@@ -171,6 +171,14 @@ Apply the migrations to the hosted database (`supabase db push`) before the
 first deploy. BetterAuth's sign-in/sign-up rate limit is on in every
 environment (3 requests per 10 s per IP, stored in `public.rate_limit`).
 
+7. **Client IP for the rate limit.** Set BetterAuth's `advanced.ipAddress` in
+   `src/lib/auth/auth.ts` for the deploy target: `ipAddressHeaders` naming the
+   header your platform sets with the real client address (on Vercel,
+   `x-real-ip` / `x-forwarded-for`), or `trustedProxies` for your proxy
+   chain. If BetterAuth can't resolve a client IP it falls back to one shared
+   bucket per path, so 3 failed sign-ins anywhere lock out everyone for 10 s
+   (its log says "falling back to a single shared per-path bucket").
+
 ### Schema changes
 
 Add a new file `supabase/migrations/NNNN_description.sql`, then

@@ -322,9 +322,10 @@ async function main() {
       }).catch(() => null);
       if (http) {
         const text = await http.text();
+        // The plugin's HTTP routes are closed (auth.ts, disabledPaths).
         expect(
-          "owner's POST /api/auth/organization/delete is refused",
-          !http.ok && text.includes("ORGANIZATION_DELETION_DISABLED"),
+          "owner's POST /api/auth/organization/delete answers 404",
+          http.status === 404,
           `${http.status} ${text}`,
         );
       } else {

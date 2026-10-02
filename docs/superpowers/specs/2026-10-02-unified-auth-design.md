@@ -81,7 +81,8 @@ export const statement = {
 | `commentator` | `commentary` | `commentator` |
 
 - **Several roles per person:** the plugin stores them comma-joined in `member.role` and grants a permission if any of them authorizes it.
-- **The same `ac` and `roles` go to `organization({ ac, roles })` and `organizationClient`.**
+- **`ac` and `roles` go to `organization({ ac, roles })`.** The browser uses no `organizationClient`: every organization-plugin HTTP route is closed with BetterAuth's top-level `disabledPaths` (derived from the installed plugin's endpoints), because `list-members` and `get-full-organization` would give any member every other member's email. The server calls the plugin through `auth.api`, which `disabledPaths` does not affect.
+- **Ownership is not transferable in the app yet.** `member_one_owner_idx` allows one owner per organization; moving ownership is a manual SQL step.
 - **The plugin's own `member`/`invitation` permissions** guard its endpoints. The plugin also prevents removing or demoting the last owner (`YOU_CANNOT_LEAVE_THE_ORGANIZATION_WITHOUT_AN_OWNER`), so no separate last-admin trigger is needed.
 
 ### Event-scoped staff
@@ -222,6 +223,7 @@ The (app) header gets an account menu with the person's name. It contains "Inici
   - `autoSignInAfterVerification: true`
   - `expiresIn: 24 h`
   - callback `/`
+- `emailAndPassword.onExistingUserSignUp`: signing up with an address that already has an account answers exactly like a new sign-up (`customSyntheticUser` gives the made-up user the admin plugin's defaults, so the fields match). The address gets its password link (`/invite` or `/reset-password`) when the account has no password or was never verified, and otherwise a "You already have a RepOne account" email linking to `/login` and `/forgot-password`.
 - `emailAndPassword.sendResetPassword`:
   - The link's `redirectTo` is `/invite` when the account has no credential yet and `/reset-password` otherwise, as in the sibling's `sendPasswordLink`.
   - `resetPasswordTokenExpiresIn: 3 days`. It is a single setting that covers both reset and invite links, and invites need days.
@@ -238,7 +240,7 @@ The plugin's `inviteMember` / `acceptInvitation` require the invitee to already 
    - Then grant the role.
    - Then `auth.api.requestPasswordReset({ body: { email, redirectTo: "/invite" } })`, checked with `expectEmailSent`.
    - The person can either set a password or use "Continue with Google". Google works because the account is already verified.
-3. **The account exists:** grant the role. Email a notice with a link to `/login`.
+3. **The account exists:** grant the role. Email a notice with a link to `/login`. If it has never signed in, send its password link instead. If it was also never verified (anyone can sign up with someone else's address), its password and sessions are deleted and it is marked verified first, so only the `/invite` link or Google gets in.
 4. **Granting the role:**
    - **Org role:** `auth.api.addMember({ body: { userId, role, organizationId } })` if the person isn't a member yet. This call is server-only and has no permission check of its own, so the action authorizes first.
    - If the person is already a member, `auth.api.updateMemberRole` with the inviter's headers, adding the role to the comma-joined list.

@@ -17,9 +17,24 @@ export function verifyEmail({ to, url }: { to: string; url: string }): Email {
   };
 }
 
+/**
+ * True when a password link lands on /invite (sendPasswordLink chose it for an
+ * account with no password yet); BetterAuth carries it as the callbackURL.
+ */
+export function isInvitationLink(url: string): boolean {
+  try {
+    const callback = new URL(url).searchParams.get("callbackURL");
+    return callback !== null && new URL(callback, url).pathname === "/invite";
+  } catch {
+    return false;
+  }
+}
+
+/** Invitation copy only for an /invite link; /forgot-password always reads as a reset. */
 export function passwordLinkEmail({
-  to, url, firstTime, organization,
-}: { to: string; url: string; firstTime: boolean; organization: string | null }): Email {
+  to, url, organization,
+}: { to: string; url: string; organization: string | null }): Email {
+  const firstTime = isInvitationLink(url);
   const who = organization ? ` by ${organization}` : "";
   const whoHtml = organization ? ` by ${escapeHtml(organization)}` : "";
   return firstTime
@@ -43,5 +58,17 @@ export function roleGrantedEmail({ to, what, loginUrl }: { to: string; what: str
     subject: `You now have access: ${what}`,
     text: `You were given access in RepOne: ${what}.\n\nSign in: ${loginUrl}`,
     html: wrap(`<p>You were given access in RepOne: <strong>${escapeHtml(what)}</strong>.</p>${button(loginUrl, "Sign in")}`),
+  };
+}
+
+/** Someone signed up with an address that already has a working account. */
+export function existingAccountEmail({ to, loginUrl, forgotUrl }: { to: string; loginUrl: string; forgotUrl: string }): Email {
+  return {
+    to,
+    subject: "You already have a RepOne account",
+    text: `Someone tried to create a RepOne account with this email, but you already have one.\n\nSign in: ${loginUrl}\nForgot your password? ${forgotUrl}\n\nIf it wasn't you, ignore this email.`,
+    html: wrap(
+      `<p>Someone tried to create a RepOne account with this email, but you already have one.</p>${button(loginUrl, "Sign in")}<p>Forgot your password? <a href="${escapeHtml(forgotUrl)}">Reset it</a>.</p><p>If it wasn't you, ignore this email.</p>`,
+    ),
   };
 }

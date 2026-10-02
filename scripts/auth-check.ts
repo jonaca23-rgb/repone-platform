@@ -174,6 +174,65 @@ async function main() {
       const ok = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
       expect("verified account signs in", !!ok?.user, ok?.body);
 
+      // Signing up again with an address that already has an account: the
+      // answer stays generic (no token, no error), and the email says so.
+      await clearMailbox();
+      const again = await auth.api
+        .signUpEmail({ body: { email: fresh, password: "Another12345!", name: "" } })
+        .catch((e: unknown) => e);
+      expect(
+        "sign-up with an existing verified email answers like a new sign-up",
+        !(again instanceof Error) && (again as { token?: unknown }).token === null,
+        again,
+      );
+      // Over HTTP the two answers must match field for field (the admin
+      // plugin's role/banned fields included), or the page leaks the account.
+      const signUpOverHttp = async (address: string) => {
+        const res = await fetch("http://localhost:3200/api/auth/sign-up/email", {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: "http://localhost:3200" },
+          body: JSON.stringify({ email: address, password: "Another12345!", name: "" }),
+        });
+        const body = (await res.json()) as { token: unknown; user: Record<string, unknown> };
+        const varies = ["id", "email", "createdAt", "updatedAt"];
+        const fields = Object.entries(body.user ?? {}).filter(([k]) => !varies.includes(k)).sort();
+        return JSON.stringify({ status: res.status, token: body.token, user: fields });
+      };
+      const newcomer = `newcomer+${Date.now()}@example.test`;
+      const [existingAnswer, newAnswer] = [await signUpOverHttp(fresh), await signUpOverHttp(newcomer)];
+      expect("over HTTP, sign-up answers an existing email exactly as a new one", existingAnswer === newAnswer, { existingAnswer, newAnswer });
+      await service.from("user").delete().eq("email", newcomer);
+      const already = await latestEmailTo(fresh);
+      expect(
+        "…and emails 'You already have a RepOne account' with /login and /forgot-password",
+        !!already?.subject.includes("already have a RepOne account") &&
+          already.links.some((l) => l.endsWith("/login")) &&
+          already.links.some((l) => l.endsWith("/forgot-password")),
+        already,
+      );
+      const stillOld = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
+      expect("…and the existing password is unchanged", !!stillOld?.user, stillOld?.body);
+
+      // An invited account (no password yet) signing up gets its invitation link.
+      const invitedEmail = `invited-signup+${Date.now()}@example.test`;
+      await auth.api.createUser({ body: { email: invitedEmail, name: "", data: { emailVerified: true } } });
+      await clearMailbox();
+      await auth.api.signUpEmail({ body: { email: invitedEmail, password: "Another12345!", name: "" } });
+      const invitedMail = await latestEmailTo(invitedEmail);
+      expect(
+        "sign-up with an invited, passwordless email sends the /invite link",
+        !!invitedMail?.links.some((l) => l.includes("callbackURL=%2Finvite")),
+        invitedMail,
+      );
+      // Forgot-password (redirectTo /reset-password) for a passwordless
+      // account reads as a reset, not an invitation.
+      await auth.api.createUser({ body: { email: invitedEmail.replace("invited-signup", "invited-forgot"), name: "", data: { emailVerified: true } } });
+      await clearMailbox();
+      await auth.api.requestPasswordReset({ body: { email: invitedEmail.replace("invited-signup", "invited-forgot"), redirectTo: "/reset-password" } });
+      const forgotMail = await latestEmailTo(invitedEmail.replace("invited-signup", "invited-forgot"));
+      expect("forgot-password for a passwordless account uses the reset copy", !!forgotMail?.subject.includes("Reset your RepOne password"), forgotMail?.subject);
+      await service.from("user").delete().in("email", [invitedEmail, invitedEmail.replace("invited-signup", "invited-forgot")]);
+
       await clearMailbox();
       await auth.api.requestPasswordReset({ body: { email: fresh, redirectTo: "/reset-password" } });
       const resetMail = await latestEmailTo(fresh);

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { member, user } from "@/db/schema";
+import { account, member, session, user } from "@/db/schema";
 // auth.ts, not ./server: scripts/invite-check.ts imports this module under tsx,
 // where the server-only guard throws. App code reaches it only from the server:
 // the "use server" actions (lib/actions/team.ts, eventStaff.ts) and the event
@@ -38,14 +38,31 @@ export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
-/** The account for `email`, created verified and without a password when missing. */
+/**
+ * The account for `email`, created verified and without a password when missing.
+ *
+ * An existing account that never verified its email and never signed in is
+ * taken over: anyone can sign up with someone else's address, so its password
+ * may not be the invitee's. Its password and sessions go and it is marked
+ * verified, so only the emailed /invite link (sendPasswordLink picks it when
+ * there is no credential) or Google gets in.
+ */
 export async function ensureUser(email: string): Promise<{ userId: string; created: boolean }> {
   const address = normalizeEmail(email);
   const [found] = await db
-    .select({ id: user.id })
+    .select({ id: user.id, emailVerified: user.emailVerified, lastSignInAt: user.lastSignInAt })
     .from(user)
     .where(sql`lower(${user.email}) = ${address}`);
-  if (found) return { userId: found.id, created: false };
+  if (found) {
+    if (!found.emailVerified && found.lastSignInAt === null) {
+      await db.transaction(async (tx) => {
+        await tx.delete(account).where(and(eq(account.userId, found.id), eq(account.providerId, "credential")));
+        await tx.delete(session).where(eq(session.userId, found.id));
+        await tx.update(user).set({ emailVerified: true }).where(eq(user.id, found.id));
+      });
+    }
+    return { userId: found.id, created: false };
+  }
   // No headers: the admin plugin skips its own permission check (installed
   // 1.7.6 behaviour); the caller has already authorized the inviter.
   const { user: created } = await auth.api.createUser({
@@ -86,7 +103,7 @@ export async function inviteToOrg(input: {
   orgName: string;
   headers: Headers;
 }): Promise<InviteOutcome> {
-  if (input.role === "owner") throw new InviteError("Ownership is transferred, not granted by invitation.");
+  if (input.role === "owner") throw new InviteError("Ownership can't be granted by invitation.");
   const allowed = await auth.api.hasPermission({
     headers: input.headers,
     body: { organizationId: input.organizationId, permissions: { member: ["create"] } },

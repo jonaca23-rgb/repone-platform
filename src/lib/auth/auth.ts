@@ -15,7 +15,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { reportDelivery } from "@/lib/auth/delivery";
-import { passwordLinkEmail, verifyEmail } from "@/lib/auth/emails";
+import { existingAccountEmail, passwordLinkEmail, verifyEmail } from "@/lib/auth/emails";
 import { ac, roles } from "@/lib/auth/permissions";
 import { sendEmail } from "@/lib/mailer";
 
@@ -24,7 +24,41 @@ export const googleEnabled = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
 );
 
+const orgPlugin = organization({
+  ac,
+  roles,
+  schema: { organization: { modelName: "organizations" } },
+  // One organization, created by first-run setup (bootstrap_organization).
+  allowUserToCreateOrganization: false,
+  // The single org cascades to every event, athlete and result; nothing needs this route.
+  disableOrganizationDeletion: true,
+  organizationHooks: {
+    // Invitations create the person instead (lib/auth/invite.ts, the Team
+    // page). The plugin's flow would make them sign up and then accept, and
+    // would grant roles outside the Team page's checks. Its route is closed
+    // (disabledPaths); this refuses the server call too.
+    beforeCreateInvitation: async () => {
+      throw new APIError("FORBIDDEN", { message: "Invite people from the Team page." });
+    },
+  },
+});
+
+/**
+ * Every organization-plugin HTTP route is closed (404). RepOne's browser code
+ * calls none of them (lib/auth/client.ts has no organizationClient); the
+ * server calls the plugin through auth.api, which disabledPaths does not touch.
+ * Left open, list-members and get-full-organization would hand any member
+ * every other member's email (only owners and admins may read those:
+ * org_member_emails, 0030). Derived from the installed plugin, so a route an
+ * upgrade adds starts closed too. Add a path to ORG_ROUTES_IN_USE to open it.
+ */
+const ORG_ROUTES_IN_USE: string[] = [];
+const closedOrgRoutes = Object.values(orgPlugin.endpoints)
+  .map((endpoint) => (endpoint as { path?: string }).path)
+  .filter((path): path is string => !!path && !ORG_ROUTES_IN_USE.includes(path));
+
 export const auth = betterAuth({
+  disabledPaths: closedOrgRoutes,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
@@ -61,11 +95,6 @@ export const auth = betterAuth({
     // here; reportDelivery hands the outcome to the inviting action
     // (lib/auth/delivery.ts).
     sendResetPassword: async ({ user, url }) => {
-      const [credential] = await db
-        .select({ id: schema.account.id })
-        .from(schema.account)
-        .where(and(eq(schema.account.userId, user.id), eq(schema.account.providerId, "credential")))
-        .limit(1);
       const [org] = await db
         .select({ name: schema.organizations.name })
         .from(schema.member)
@@ -73,8 +102,47 @@ export const auth = betterAuth({
         .where(eq(schema.member.userId, user.id))
         .limit(1);
       await reportDelivery(() =>
-        sendEmail(passwordLinkEmail({ to: user.email, url, firstTime: !credential, organization: org?.name ?? null })),
+        sendEmail(passwordLinkEmail({ to: user.email, url, organization: org?.name ?? null })),
       );
+    },
+    // Signing up with an address that already has an account. BetterAuth
+    // answers exactly as for a new sign-up (requireEmailVerification), so the
+    // page reveals nothing; the email tells the owner of the address what to
+    // do. No password yet (invited) or never verified: their password link
+    // (/invite or /reset-password). Otherwise: sign in or reset. A failure is
+    // logged, never surfaced, so the answer stays the same.
+    // The generic answer is a made-up user; give it the admin plugin's
+    // defaults (role "user", not banned) so it matches a real new sign-up
+    // field for field (db:auth-check compares them over HTTP).
+    customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+      ...coreFields,
+      role: "user",
+      banned: false,
+      banReason: null,
+      banExpires: null,
+      ...additionalFields,
+      id,
+    }),
+    onExistingUserSignUp: async ({ user }) => {
+      try {
+        const [credential] = await db
+          .select({ id: schema.account.id })
+          .from(schema.account)
+          .where(and(eq(schema.account.userId, user.id), eq(schema.account.providerId, "credential")))
+          .limit(1);
+        if (!credential || !user.emailVerified) {
+          // Imported here: passwordLink.ts imports this module.
+          const { sendPasswordLink } = await import("@/lib/auth/passwordLink");
+          await sendPasswordLink(user.id, user.email);
+        } else {
+          const base = process.env.BETTER_AUTH_URL;
+          await sendEmail(
+            existingAccountEmail({ to: user.email, loginUrl: `${base}/login`, forgotUrl: `${base}/forgot-password` }),
+          );
+        }
+      } catch (error) {
+        console.error("sign-up: the existing-account email was not sent", error);
+      }
     },
     resetPasswordTokenExpiresIn: 60 * 60 * 24 * 3, // invitations need days
     revokeSessionsOnPasswordReset: true,
@@ -138,23 +206,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    organization({
-      ac,
-      roles,
-      schema: { organization: { modelName: "organizations" } },
-      // One organization, created by first-run setup (bootstrap_organization).
-      allowUserToCreateOrganization: false,
-      // The single org cascades to every event, athlete and result; nothing needs this route.
-      disableOrganizationDeletion: true,
-      organizationHooks: {
-        // Invitations create the person instead (lib/auth/invite.ts, the Team
-        // page). The plugin's flow would make them sign up and then accept,
-        // and its route would grant roles outside the Team page's checks.
-        beforeCreateInvitation: async () => {
-          throw new APIError("FORBIDDEN", { message: "Invite people from the Team page." });
-        },
-      },
-    }),
+    orgPlugin,
     // createUser for invitations (called server-side with no headers).
     adminPlugin(),
     nextCookies(), // must stay last: it sets cookies from the other plugins' responses
