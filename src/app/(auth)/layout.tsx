@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "../globals.css";
+import { fontVariables } from "../fonts";
 
 export const metadata: Metadata = {
   title: "RepOne",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 // reason as (app)/layout.tsx.
 export default function AuthRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`h-full antialiased ${fontVariables}`}>
       <body className="min-h-full bg-repone-black">{children}</body>
     </html>
   );

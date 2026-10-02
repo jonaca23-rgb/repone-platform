@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "../globals.css";
+import { fontVariables } from "../fonts";
 
 export const metadata: Metadata = {
   title: "RepOne Broadcast Overlay",
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 // No next/font/google here either — see the matching comment in (app)/layout.tsx.
 export default function OverlayRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className={`h-full ${fontVariables}`}>
       <body className="h-full w-full bg-transparent">{children}</body>
     </html>
   );
