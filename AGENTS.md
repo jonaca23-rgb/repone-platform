@@ -26,7 +26,7 @@ schema changes go in `supabase/migrations/` and are verified with
 1. **Branch from an up-to-date `main`**, named with a type prefix and a short
    kebab-case description: `fix/…`, `feat/…`, `chore/…`, `docs/…`,
    `refactor/…`. Never commit directly to `main`.
-2. **`pnpm check` passes** (lint, types, unit tests) before every commit. Say
+2. **`pnpm check` passes** (lint, types, unit tests, Biome format) before every commit. Say
    so if it was skipped or failed; do not commit around it.
 3. **Commit only what belongs to the change.** Stage files by name, not
    `git add -A`.

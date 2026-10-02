@@ -130,7 +130,7 @@ values, which you add by hand) holds:
 | `pnpm db:auth-check` | Prove BetterAuth sign-up, sign-in and sign-out, and that a session reaches Supabase with the minted token (local only) |
 | `pnpm db:invite-check` | Prove invitations: sending, accepting, resending and the mailer failing (local only) |
 | `pnpm db:token-check` | Prove local PostgREST accepts tokens the app mints and rejects forged, expired or role-less ones (local only) |
-| `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
+| `pnpm check` | Lint + typecheck + unit tests + format check, the same as CI (run before every commit) |
 | `pnpm format` | Biome formatter |
 
 ### Production

@@ -31,7 +31,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm format:check
 
   db:
     runs-on: ubuntu-latest

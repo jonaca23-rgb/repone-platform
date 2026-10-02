@@ -20,7 +20,7 @@
     "db:seed:qa": "./scripts/seed-qa.sh",
     "db:types": "./scripts/supabase.sh gen types typescript --local > src/lib/db/supabase.types.ts",
     "typecheck": "next typegen && tsc --noEmit",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "db:rls-check": "tsx scripts/rls-check.ts",
