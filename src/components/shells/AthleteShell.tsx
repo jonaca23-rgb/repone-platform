@@ -51,7 +51,7 @@ export function AthleteShell({
         id="main"
         tabIndex={-1}
         className={`mx-auto w-full max-w-3xl flex-1 px-4 pt-6 outline-hidden sm:px-6 ${
-          showNav ? "pb-20 md:pb-6" : "pb-6"
+          showNav ? "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6" : "pb-6"
         }`}
       >
         {children}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { ChevronLeft, Dumbbell, History, MessageSquare } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
@@ -12,15 +13,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+// Read once per request: the page and its title share them.
+const sessionContext = cache(getAthleteSessionContext);
+const athleteProfile = cache(getAthleteProfile);
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ athleteId: string }>;
 }): Promise<Metadata> {
   const { athleteId } = await params;
-  const ctx = await getAthleteSessionContext();
+  const ctx = await sessionContext();
   if (!ctx?.athleteId) return { title: "Athletes" };
-  const athlete = await getAthleteProfile(athleteId, ctx.organizationId ?? "");
+  const athlete = await athleteProfile(athleteId, ctx.organizationId ?? "");
   return { title: athlete ? `${athlete.firstName} ${athlete.lastName}` : "Athletes" };
 }
 
@@ -30,11 +35,11 @@ export default async function AthleteDirectoryProfilePage({
   params: Promise<{ athleteId: string }>;
 }) {
   const { athleteId } = await params;
-  const ctx = await getAthleteSessionContext();
+  const ctx = await sessionContext();
   if (!ctx) redirect("/login");
   if (!ctx.athleteId) redirect("/");
 
-  const athlete = await getAthleteProfile(athleteId, ctx.organizationId ?? "");
+  const athlete = await athleteProfile(athleteId, ctx.organizationId ?? "");
   if (!athlete) notFound();
 
   const isSelf = athlete.id === ctx.athleteId;

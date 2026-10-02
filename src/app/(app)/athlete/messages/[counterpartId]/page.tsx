@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, Send } from "lucide-react";
@@ -9,16 +10,23 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+// Read once per request: the page and its title share them.
+const sessionContext = cache(getAthleteSessionContext);
+// Keyed by the id string: cache() compares arguments by identity, so an array would never hit.
+const counterpartOf = cache(
+  async (counterpartId: string, organizationId: string) =>
+    (await resolveCounterparts([counterpartId], organizationId)).get(counterpartId) ?? null,
+);
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ counterpartId: string }>;
 }): Promise<Metadata> {
   const { counterpartId } = await params;
-  const ctx = await getAthleteSessionContext();
+  const ctx = await sessionContext();
   if (!ctx?.athleteId) return { title: "Messages" };
-  const labels = await resolveCounterparts([counterpartId], ctx.organizationId ?? "");
-  const counterpart = labels.get(counterpartId);
+  const counterpart = await counterpartOf(counterpartId, ctx.organizationId ?? "");
   return { title: counterpart ? `Messages · ${counterpart.name}` : "Messages" };
 }
 
@@ -28,12 +36,11 @@ export default async function AthleteThreadPage({
   params: Promise<{ counterpartId: string }>;
 }) {
   const { counterpartId } = await params;
-  const ctx = await getAthleteSessionContext();
+  const ctx = await sessionContext();
   if (!ctx) redirect("/login");
   if (!ctx.athleteId) redirect("/");
 
-  const labels = await resolveCounterparts([counterpartId], ctx.organizationId ?? "");
-  const counterpart = labels.get(counterpartId);
+  const counterpart = await counterpartOf(counterpartId, ctx.organizationId ?? "");
   if (!counterpart) notFound();
 
   // Viewing the thread is what marks it read — there's no separate "mark as
