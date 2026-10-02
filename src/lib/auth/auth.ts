@@ -8,9 +8,12 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { admin as adminPlugin, organization } from "better-auth/plugins";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { ac, roles } from "@/lib/auth/permissions";
 
 /** Google sign-in is offered only where its credentials are configured. */
 export const googleEnabled = Boolean(
@@ -26,6 +29,11 @@ export const auth = betterAuth({
       account: schema.account,
       verification: schema.verification,
       rateLimit: schema.rateLimit,
+      // Keyed by the model name the organization plugin is given below
+      // (modelName: "organizations"); the adapter and its schema check look it up by that.
+      organizations: schema.organizations,
+      member: schema.member,
+      invitation: schema.invitation,
     },
   }),
   // auth.uid() casts the minted token's sub to uuid, and every FK is a uuid.
@@ -56,5 +64,34 @@ export const auth = betterAuth({
   // account once the victim signs in with Google. Real linking needs email
   // verification first.
   account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
-  plugins: [nextCookies()], // must stay last: it sets cookies from the other plugins' responses
+  databaseHooks: {
+    session: {
+      create: {
+        // Every session opens in the person's organization (their first
+        // membership), as the plugin's docs recommend; event-only staff and
+        // athletes have none and open with null.
+        before: async (session) => {
+          const [first] = await db
+            .select({ organizationId: schema.member.organizationId })
+            .from(schema.member)
+            .where(eq(schema.member.userId, session.userId))
+            .orderBy(asc(schema.member.createdAt))
+            .limit(1);
+          return { data: { ...session, activeOrganizationId: first?.organizationId ?? null } };
+        },
+      },
+    },
+  },
+  plugins: [
+    organization({
+      ac,
+      roles,
+      schema: { organization: { modelName: "organizations" } },
+      // One organization, created by first-run setup (bootstrap_organization).
+      allowUserToCreateOrganization: false,
+    }),
+    // createUser for invitations (called server-side with no headers).
+    adminPlugin(),
+    nextCookies(), // must stay last: it sets cookies from the other plugins' responses
+  ],
 });

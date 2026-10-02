@@ -928,6 +928,54 @@ export type Database = {
           },
         ]
       }
+      invitation: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          inviter_id: string
+          organization_id: string
+          role: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          inviter_id: string
+          organization_id: string
+          role?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          inviter_id?: string
+          organization_id?: string
+          role?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitation_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lanes: {
         Row: {
           athlete_id: string | null
@@ -973,6 +1021,45 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -1075,17 +1162,26 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          logo: string | null
+          metadata: string | null
           name: string
+          slug: string
         }
         Insert: {
           created_at?: string
           id?: string
+          logo?: string | null
+          metadata?: string | null
           name: string
+          slug: string
         }
         Update: {
           created_at?: string
           id?: string
+          logo?: string | null
+          metadata?: string | null
           name?: string
+          slug?: string
         }
         Relationships: []
       }
@@ -1241,19 +1337,16 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
-          organization_id: string | null
         }
         Insert: {
           created_at?: string
           full_name?: string | null
           id: string
-          organization_id?: string | null
         }
         Update: {
           created_at?: string
           full_name?: string | null
           id?: string
-          organization_id?: string | null
         }
         Relationships: [
           {
@@ -1261,13 +1354,6 @@ export type Database = {
             columns: ["id"]
             isOneToOne: true
             referencedRelation: "user"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1463,9 +1549,11 @@ export type Database = {
       }
       session: {
         Row: {
+          active_organization_id: string | null
           created_at: string
           expires_at: string
           id: string
+          impersonated_by: string | null
           ip_address: string | null
           token: string
           updated_at: string
@@ -1473,9 +1561,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_organization_id?: string | null
           created_at?: string
           expires_at: string
           id?: string
+          impersonated_by?: string | null
           ip_address?: string | null
           token: string
           updated_at?: string
@@ -1483,9 +1573,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_organization_id?: string | null
           created_at?: string
           expires_at?: string
           id?: string
+          impersonated_by?: string | null
           ip_address?: string | null
           token?: string
           updated_at?: string
@@ -1493,6 +1585,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "session_active_organization_id_fkey"
+            columns: ["active_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_impersonated_by_fkey"
+            columns: ["impersonated_by"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "session_user_id_fkey"
             columns: ["user_id"]
@@ -1710,75 +1816,45 @@ export type Database = {
       }
       user: {
         Row: {
+          ban_expires: string | null
+          ban_reason: string | null
+          banned: boolean | null
           created_at: string
           email: string
           email_verified: boolean
           id: string
           image: string | null
           name: string
+          role: string | null
           updated_at: string
         }
         Insert: {
+          ban_expires?: string | null
+          ban_reason?: string | null
+          banned?: boolean | null
           created_at?: string
           email: string
           email_verified?: boolean
           id?: string
           image?: string | null
           name: string
+          role?: string | null
           updated_at?: string
         }
         Update: {
+          ban_expires?: string | null
+          ban_reason?: string | null
+          banned?: boolean | null
           created_at?: string
           email?: string
           email_verified?: boolean
           id?: string
           image?: string | null
           name?: string
+          role?: string | null
           updated_at?: string
         }
         Relationships: []
-      }
-      user_roles: {
-        Row: {
-          created_at: string
-          event_id: string | null
-          id: string
-          organization_id: string
-          role: Database["public"]["Enums"]["user_role"]
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          event_id?: string | null
-          id?: string
-          organization_id: string
-          role: Database["public"]["Enums"]["user_role"]
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          event_id?: string | null
-          id?: string
-          organization_id?: string
-          role?: Database["public"]["Enums"]["user_role"]
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       venues: {
         Row: {

@@ -1,8 +1,7 @@
 -- Sample data for local development: one event, one floor, one WOD, one heat.
 -- Run after 0001/0002 migrations: `supabase db reset` applies migrations + this seed.
 
-insert into organizations (id, name) values
-  ('00000000-0000-0000-0000-000000000001', 'RepOneLive');
+insert into organizations (id, name, slug) values ('00000000-0000-0000-0000-000000000001', 'RepOneLive', 'repone-live');
 
 insert into events (id, organization_id, name, status, starts_on, ends_on) values
   ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001',

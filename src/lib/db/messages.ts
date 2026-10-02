@@ -2,7 +2,8 @@ import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { computeAgeCategory, type AgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { ROLE_LABELS } from "@/lib/constants/roles";
-import type { Database, UserRoleDb } from "@/lib/db/database.types";
+import type { Database } from "@/lib/db/database.types";
+import { splitRoles } from "@/lib/auth/permissions";
 
 type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 
@@ -178,20 +179,15 @@ export interface StaffContact {
 
 export async function getOrgStaffDirectory(organizationId: string): Promise<StaffContact[]> {
   const supabase = await createClient();
-  const { data: roleRows } = await supabase
-    .from("user_roles")
+  const { data: memberRows } = await supabase
+    .from("member")
     .select("user_id, role")
     .eq("organization_id", organizationId);
 
-  const userIds = [...new Set((roleRows ?? []).map((r) => r.user_id as string))];
+  const userIds = [...new Set((memberRows ?? []).map((r) => r.user_id))];
   if (userIds.length === 0) return [];
 
-  const rolesByUser = new Map<string, string[]>();
-  for (const r of roleRows ?? []) {
-    const list = rolesByUser.get(r.user_id) ?? [];
-    if (!list.includes(r.role)) list.push(r.role);
-    rolesByUser.set(r.user_id, list);
-  }
+  const rolesByUser = new Map((memberRows ?? []).map((r) => [r.user_id, splitRoles(r.role)]));
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -202,7 +198,7 @@ export async function getOrgStaffDirectory(organizationId: string): Promise<Staf
     .map((id) => ({
       userId: id,
       fullName: profiles?.find((p) => p.id === id)?.full_name || "Staff member",
-      roleLabels: (rolesByUser.get(id) ?? []).map((r) => ROLE_LABELS[r as UserRoleDb] ?? r),
+      roleLabels: (rolesByUser.get(id) ?? []).map((r) => ROLE_LABELS[r]),
     }))
     .sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
@@ -260,25 +256,20 @@ export async function resolveCounterparts(
 
   const remaining = userIds.filter((id) => !map.has(id));
   if (remaining.length > 0) {
-    const [{ data: profiles }, { data: roleRows }] = await Promise.all([
+    const [{ data: profiles }, { data: memberRows }] = await Promise.all([
       supabase.from("profiles").select("id, full_name").in("id", remaining),
       supabase
-        .from("user_roles")
+        .from("member")
         .select("user_id, role")
         .eq("organization_id", organizationId)
         .in("user_id", remaining),
     ]);
 
-    const rolesByUser = new Map<string, string[]>();
-    for (const r of roleRows ?? []) {
-      const list = rolesByUser.get(r.user_id) ?? [];
-      if (!list.includes(r.role)) list.push(r.role);
-      rolesByUser.set(r.user_id, list);
-    }
+    const rolesByUser = new Map((memberRows ?? []).map((r) => [r.user_id, splitRoles(r.role)]));
 
     for (const id of remaining) {
       const profile = profiles?.find((p) => p.id === id);
-      const roles = (rolesByUser.get(id) ?? []).map((r) => ROLE_LABELS[r as UserRoleDb] ?? r);
+      const roles = (rolesByUser.get(id) ?? []).map((r) => ROLE_LABELS[r]);
       map.set(id, {
         name: profile?.full_name || "Staff member",
         kind: "staff",

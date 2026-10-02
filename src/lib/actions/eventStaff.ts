@@ -4,19 +4,20 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { expectChanged, NotAuthorizedError, requireEventAccess } from "@/lib/auth/guards";
 import { getEventStaffCandidates } from "@/lib/auth/eventStaffCandidates";
-import { hasAnyRole } from "@/lib/auth/session";
+import { orgCan } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
 import { field, parseForm } from "@/lib/validation/form";
 
-// Admin-only: assign/remove event-scoped Scorekeeper/Producer/Commentator
-// staff (0024_event_role_assignments.sql). RLS only lets an admin of the
-// event's organization write these tables (event directors can't), so the
-// guard requires both: access to the event, and the admin role. Checking
-// here gives a clear error instead of a silent RLS-denied failure.
+// Assign/remove event-scoped Scorekeeper/Producer/Commentator staff
+// (0024_event_role_assignments.sql). RLS lets an owner, admin or event
+// director of the event's organization write these tables (0029), which is
+// the staff:invite permission, so the guard requires both: access to the
+// event, and staff:invite. Checking here gives a clear error instead of a
+// silent RLS-denied failure.
 async function requireEventAdmin(eventId: string) {
   const access = await requireEventAccess(eventId);
-  if (!hasAnyRole(access.ctx, ["admin"]))
-    throw new NotAuthorizedError("Only an admin can manage event staff assignments.");
+  if (!orgCan(access.ctx, { staff: ["invite"] }))
+    throw new NotAuthorizedError("Only an admin or event director can manage event staff.");
   return access;
 }
 
