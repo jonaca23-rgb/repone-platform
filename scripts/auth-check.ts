@@ -113,10 +113,7 @@ async function main() {
     expect("sign-out ends the session", after === null, after?.user);
 
     const admin = await signInAs("admin@repone.test");
-    const roles = await admin.db
-      .from("member")
-      .select("user_id, role")
-      .eq("user_id", admin.userId);
+    const roles = await admin.db.from("member").select("user_id, role").eq("user_id", admin.userId);
     expect(
       "signInAs(admin) reads the admin's own member row (owner) through RLS",
       !roles.error && roles.data?.some((r) => splitRoles(r.role).includes("owner")) === true,

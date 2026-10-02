@@ -117,7 +117,9 @@ async function main() {
         .from(member)
         .where(and(eq(member.userId, user.id), eq(member.organizationId, ORG_ID)));
       if (!existing) {
-        await auth.api.addMember({ body: { userId: user.id, role: "owner", organizationId: ORG_ID } });
+        await auth.api.addMember({
+          body: { userId: user.id, role: "owner", organizationId: ORG_ID },
+        });
       }
       continue;
     }
