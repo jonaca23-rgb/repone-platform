@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/db/server";
-import { getDisplayNamesByUserId } from "@/lib/auth/eventStaffCandidates";
+import { getDisplayNamesByUserId } from "@/lib/db/people";
 
 // Read view of who's assigned to commentate this event — "View commentator
 // dashboard" + visibility into commentator access per spec. Assigning/
@@ -9,8 +9,8 @@ import { getDisplayNamesByUserId } from "@/lib/auth/eventStaffCandidates";
 // allows it" — not exposed here yet.
 //
 // Name resolution goes through getDisplayNamesByUserId rather than a local
-// profiles-only lookup: since the Staff page can assign an athlete account
-// as a commentator (see lib/auth/eventStaffCandidates.ts), a profiles-only
+// profiles-only lookup: since the Staff page can invite an athlete account
+// as a commentator (lib/auth/invite.ts), a profiles-only
 // query here would show "Unnamed staff account" for any commentator who is
 // actually an athlete.
 export default async function ProducerEventCommentaryPage({

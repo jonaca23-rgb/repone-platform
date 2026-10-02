@@ -3,17 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { expectChanged, NotAuthorizedError, requireEventAccess } from "@/lib/auth/guards";
-import { getEventStaffCandidates } from "@/lib/auth/eventStaffCandidates";
+import { InviteError, inviteToEvent, pendingEmail } from "@/lib/auth/invite";
 import { orgCan } from "@/lib/auth/session";
+import { failure, inviteMessage, resendMessage, type FormResult } from "@/lib/actions/inviteResult";
 import { createClient } from "@/lib/db/server";
-import { field, parseForm } from "@/lib/validation/form";
+import { field, parseArg, parseForm } from "@/lib/validation/form";
 
-// Assign/remove event-scoped Scorekeeper/Producer/Commentator staff
+// Invite/remove event-scoped Scorekeeper/Producer/Commentator staff
 // (0024_event_role_assignments.sql). RLS lets an owner, admin or event
 // director of the event's organization write these tables (0029), which is
 // the staff:invite permission, so the guard requires both: access to the
 // event, and staff:invite. Checking here gives a clear error instead of a
-// silent RLS-denied failure.
+// silent RLS-denied failure. Invitations themselves: lib/auth/invite.ts.
 async function requireEventAdmin(eventId: string) {
   const access = await requireEventAccess(eventId);
   if (!orgCan(access.ctx, { staff: ["invite"] }))
@@ -27,66 +28,87 @@ const TABLE = {
   commentator: "event_commentator_assignments",
 } as const;
 
-type EventStaffRole = keyof typeof TABLE;
+const USER_COLUMN = {
+  scorekeeper: "scorekeeper_user_id",
+  producer: "producer_user_id",
+  commentator: "commentator_user_id",
+} as const;
 
-const StaffForm = z.object({
-  userId: z.guid({ error: "Select a staff account first." }),
-});
+type EventStaffRole = keyof typeof TABLE;
+const STAFF_ROLES = Object.keys(TABLE) as [EventStaffRole, ...EventStaffRole[]];
+
+const StaffForm = z.object({ email: field.email() });
 
 const CommentatorForm = StaffForm.extend({
   roleLabel: field.optionalText({ max: 50, label: "Role label" }),
 });
 
-async function assign(role: EventStaffRole, eventId: string, formData: FormData) {
-  const { ctx, organizationId } = await requireEventAdmin(eventId);
-  const { userId, roleLabel } =
-    role === "commentator"
-      ? parseForm(CommentatorForm, formData)
-      : { ...parseForm(StaffForm, formData), roleLabel: null };
+/** Invites `email` as this event's `role`: a new account, or access for an existing one. */
+export async function inviteEventStaff(
+  role: string,
+  eventId: string,
+  _previous: FormResult,
+  formData: FormData,
+): Promise<FormResult> {
+  try {
+    const kind = parseArg(field.oneOf(STAFF_ROLES, "staff role"), role);
+    const id = parseArg(field.id("Event"), eventId);
+    const { email, roleLabel } =
+      kind === "commentator"
+        ? parseForm(CommentatorForm, formData)
+        : { ...parseForm(StaffForm, formData), roleLabel: null };
+    const { ctx } = await requireEventAdmin(id);
 
-  // Only someone the Staff page offers: a staff profile or an athlete account
-  // in this event's organization.
-  const candidates = await getEventStaffCandidates(organizationId);
-  if (!candidates.some((c) => c.userId === userId))
-    throw new NotAuthorizedError("That account can't be assigned to this event.");
+    const supabase = await createClient();
+    const { data: event } = await supabase.from("events").select("name").eq("id", id).single();
+    const outcome = await inviteToEvent({
+      email,
+      kind,
+      eventId: id,
+      eventName: event?.name ?? "an event",
+      invitedBy: ctx.userId,
+      roleLabel,
+      db: supabase,
+    });
+    revalidatePath(`/admin/events/${id}/staff`);
+    return inviteMessage(outcome);
+  } catch (error) {
+    return failure(error);
+  }
+}
 
-  const supabase = await createClient();
+/** A fresh invitation link for someone on this event's staff who has never signed in. */
+export async function resendEventInvite(
+  eventId: string,
+  userId: string,
+  _previous: FormResult,
+): Promise<FormResult> {
+  try {
+    const id = parseArg(field.id("Event"), eventId);
+    const person = parseArg(field.id("Person"), userId);
+    await requireEventAdmin(id);
 
-  const common = {
-    event_id: eventId,
-    assigned_by_admin_id: ctx.userId,
-    status: "active" as const,
-    assigned_at: new Date().toISOString(),
-    removed_at: null,
-  };
-
-  // Re-assigning someone previously removed just flips status back to
-  // active on their existing row (unique(event_id, <role>_user_id)) rather
-  // than erroring on a duplicate or leaving two rows behind.
-  const { error } =
-    role === "scorekeeper"
-      ? await supabase
-          .from("event_scorekeeper_assignments")
-          .upsert(
-            { ...common, scorekeeper_user_id: userId },
-            { onConflict: "event_id,scorekeeper_user_id" },
-          )
-      : role === "producer"
-        ? await supabase
-            .from("event_producer_assignments")
-            .upsert(
-              { ...common, producer_user_id: userId },
-              { onConflict: "event_id,producer_user_id" },
-            )
-        : await supabase
-            .from("event_commentator_assignments")
-            .upsert(
-              { ...common, commentator_user_id: userId, role_label: roleLabel },
-              { onConflict: "event_id,commentator_user_id" },
-            );
-  if (error) throw new Error(error.message);
-
-  revalidatePath(`/admin/events/${eventId}/staff`);
+    // Only someone actually on this event's staff.
+    const supabase = await createClient();
+    const found = await Promise.all(
+      STAFF_ROLES.map((r) =>
+        supabase
+          .from(TABLE[r])
+          .select("id")
+          .eq("event_id", id)
+          .eq(USER_COLUMN[r] as never, person)
+          .eq("status", "active")
+          .limit(1),
+      ),
+    );
+    if (!found.some((res) => res.data?.length))
+      throw new InviteError("That person isn't on this event's staff.");
+    const email = await pendingEmail(person);
+    if (!email) throw new InviteError("They have already signed in; there's nothing to resend.");
+    return await resendMessage(person, email);
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 async function remove(role: EventStaffRole, eventId: string, assignmentId: string) {
@@ -106,24 +128,12 @@ async function remove(role: EventStaffRole, eventId: string, assignmentId: strin
   revalidatePath(`/admin/events/${eventId}/staff`);
 }
 
-export async function assignEventScorekeeper(eventId: string, formData: FormData) {
-  await assign("scorekeeper", eventId, formData);
-}
-
 export async function removeEventScorekeeper(eventId: string, assignmentId: string) {
   await remove("scorekeeper", eventId, assignmentId);
 }
 
-export async function assignEventProducer(eventId: string, formData: FormData) {
-  await assign("producer", eventId, formData);
-}
-
 export async function removeEventProducer(eventId: string, assignmentId: string) {
   await remove("producer", eventId, assignmentId);
-}
-
-export async function assignEventCommentator(eventId: string, formData: FormData) {
-  await assign("commentator", eventId, formData);
 }
 
 export async function removeEventCommentator(eventId: string, assignmentId: string) {

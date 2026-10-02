@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSessionContext } from "@/lib/auth/session";
+import { getSessionContext, orgCan } from "@/lib/auth/session";
 import { requireModule } from "@/lib/auth/userModules";
 import { AccountMenu } from "@/components/AccountMenu";
 import { getUnreadCount } from "@/lib/db/messages";
@@ -19,6 +19,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const ctx = await getSessionContext();
   if (!ctx) return null; // unreachable: requireModule redirects when signed out
   const unreadCount = await getUnreadCount(ctx.userId);
+  // The Team page is for those who may add org members (owner, admin).
+  const nav = orgCan(ctx, { member: ["create"] })
+    ? [...NAV, { href: "/admin/team", label: "Team" }]
+    : NAV;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -38,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/admin" className="hover:text-white">
               🏠 Home
             </Link>
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link key={item.href} href={item.href} className="hover:text-white">
                 {item.label}
               </Link>

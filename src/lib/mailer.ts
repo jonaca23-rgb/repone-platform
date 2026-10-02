@@ -11,11 +11,16 @@ import nodemailer, { type Transporter } from "nodemailer";
  * app entry is guarded, and nodemailer cannot run in a browser regardless.
  */
 let transport: Transporter | undefined;
+/** The SMTP_URL `transport` was built from; a change rebuilds it (db:invite-check points it at a closed port). */
+let cachedUrl: string | undefined;
 
 function getTransport(): Transporter {
   const url = process.env.SMTP_URL;
   if (!url) throw new Error("SMTP_URL is not set.");
-  transport ??= nodemailer.createTransport(url);
+  if (!transport || url !== cachedUrl) {
+    transport = nodemailer.createTransport(url);
+    cachedUrl = url;
+  }
   return transport;
 }
 

@@ -28,7 +28,8 @@
     "db:timer-check": "tsx scripts/timer-check.ts",
     "db:authz-check": "tsx scripts/authz-check.ts",
     "db:token-check": "tsx scripts/token-check.ts",
-    "db:auth-check": "tsx scripts/auth-check.ts"
+    "db:auth-check": "tsx scripts/auth-check.ts",
+    "db:invite-check": "tsx scripts/invite-check.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

@@ -8,6 +8,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { APIError } from "better-auth/api";
 import { admin as adminPlugin, organization } from "better-auth/plugins";
 import { and, asc, eq } from "drizzle-orm";
 
@@ -105,6 +106,11 @@ export const auth = betterAuth({
   // someone pre-register a victim's email with a password and share the
   // account once the victim signs in with Google.
   account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
+  user: {
+    // Null until the first sign-in: the Team and event staff pages show the
+    // invitation as pending (0030_invitations.sql). Never set by a client.
+    additionalFields: { lastSignInAt: { type: "date", required: false, input: false } },
+  },
   databaseHooks: {
     session: {
       create: {
@@ -120,6 +126,14 @@ export const auth = betterAuth({
             .limit(1);
           return { data: { ...session, activeOrganizationId: first?.organizationId ?? null } };
         },
+        // Sessions are deleted at sign-out, so the sign-in is recorded on the
+        // user: "pending" means it never happened.
+        after: async (session) => {
+          await db
+            .update(schema.user)
+            .set({ lastSignInAt: session.createdAt })
+            .where(eq(schema.user.id, session.userId));
+        },
       },
     },
   },
@@ -132,6 +146,14 @@ export const auth = betterAuth({
       allowUserToCreateOrganization: false,
       // The single org cascades to every event, athlete and result; nothing needs this route.
       disableOrganizationDeletion: true,
+      organizationHooks: {
+        // Invitations create the person instead (lib/auth/invite.ts, the Team
+        // page). The plugin's flow would make them sign up and then accept,
+        // and its route would grant roles outside the Team page's checks.
+        beforeCreateInvitation: async () => {
+          throw new APIError("FORBIDDEN", { message: "Invite people from the Team page." });
+        },
+      },
     }),
     // createUser for invitations (called server-side with no headers).
     adminPlugin(),

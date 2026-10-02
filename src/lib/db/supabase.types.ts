@@ -1824,6 +1824,7 @@ export type Database = {
           email_verified: boolean
           id: string
           image: string | null
+          last_sign_in_at: string | null
           name: string
           role: string | null
           updated_at: string
@@ -1837,6 +1838,7 @@ export type Database = {
           email_verified?: boolean
           id?: string
           image?: string | null
+          last_sign_in_at?: string | null
           name: string
           role?: string | null
           updated_at?: string
@@ -1850,6 +1852,7 @@ export type Database = {
           email_verified?: boolean
           id?: string
           image?: string | null
+          last_sign_in_at?: string | null
           name?: string
           role?: string | null
           updated_at?: string
@@ -2022,6 +2025,14 @@ export type Database = {
       is_org_event_staff: {
         Args: { p_organization_id: string }
         Returns: boolean
+      }
+      org_member_emails: {
+        Args: { p_organization_id: string }
+        Returns: {
+          email: string
+          last_sign_in_at: string
+          user_id: string
+        }[]
       }
       replace_standings: {
         Args: { p_division_id: string; p_rows: Json; p_wod_id: string }

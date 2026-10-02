@@ -43,6 +43,8 @@ export const user = pgTable("user", {
   banned: boolean().default(false),
   banReason: text(),
   banExpires: timestamp({ withTimezone: true }),
+  /** First set by the first sign-in; null means an invitation still pending (0030). */
+  lastSignInAt: timestamp({ withTimezone: true }),
   ...timestamps,
 });
 
