@@ -114,7 +114,7 @@ These are hand-written in a new migration, matching the installed plugin schema.
 - **`invitation`:** the plugin's columns. The plugin requires the table, even though RepOne invites through `createUser` (see §4).
 - **`public."user"`:** add `role`, `banned`, `ban_reason` and `ban_expires` for the `admin` plugin.
 - **`session`:** add `active_organization_id` and `impersonated_by`.
-- **RLS:** like the other auth tables, closed to the API. Reads that RLS needs go through `security definer` functions.
+- **RLS:** `invitation` is closed to the API like the other auth tables. `member` is **readable** with the same policies `user_roles` had (your own rows; org members; athletes of the org, for messaging), and never writable through the API: writes go through BetterAuth.
 
 ### Roles move from `user_roles` to `member`
 
@@ -149,12 +149,12 @@ A route group `(auth)` gets its own layout: a centered card with the RepOne logo
 
 | Route | Behaviour |
 |---|---|
-| `/login` | Email and password, "Continuar con Google", and "¿Olvidaste tu contraseña?". With a session it redirects to `/`. It reads `?reset=1`, `?invited=1` and `?verified=1` to show a notice. |
+| `/login` | Email and password, "Continue with Google", and "Forgot your password?". With a session it redirects to `/`. It reads `?reset=1`, `?invited=1` and `?verified=1` to show a notice. |
 | `/signup` | Name, email and password, plus Google. Goes to `/verify-email?email=…`. With a session it redirects to `/`. |
-| `/verify-email` | "Te enviamos un correo a …", with a resend button. The link verifies, signs in, and lands on `/`. |
+| `/verify-email` | "We sent an email to …", with a resend button. The link verifies, signs in, and lands on `/`. |
 | `/forgot-password` | Takes an email. Always shows the same confirmation. |
-| `/reset-password/[token]` | New password. Goes to `/login?reset=1`. An expired token shows "Este link ya no sirve" with a link to `/forgot-password`. The path shape is the one BetterAuth's reset URL uses. |
-| `/invite/[token]` | The same set-password form for invited people, plus "Continuar con Google". Goes to `/login?invited=1`. An expired token shows "pídele al organizador que te reenvíe la invitación". |
+| `/reset-password?token=` | New password. Goes to `/login?reset=1`. An expired token shows "This link no longer works" with a link to `/forgot-password`. BetterAuth's emailed URL (`/api/auth/reset-password/<token>?callbackURL=/reset-password`) redirects here with `?token=`. |
+| `/invite?token=` | The same set-password form for invited people, plus "Continue with Google". Goes to `/login?invited=1`. An expired token says to ask the organizer to resend the invitation. |
 
 **Changes to existing routes:**
 - `/athlete/login` → permanent redirect to `/login`, and `/athlete/signup` → permanent redirect to `/signup`, both keeping the query string.
@@ -186,10 +186,10 @@ Each module declares the permission that opens it:
 | Modules | `/` with a session |
 |---|---|
 | exactly `[athlete]` | redirect `/athlete` |
-| none | empty start page: one action, **"Crear mi perfil de atleta"**, and below it "¿Te invitaron como staff? Usa el link de tu correo." |
-| anything with a staff module | start page "Hola, <nombre>" with a card per module, plus "Crear mi perfil de atleta" when there is no athlete profile |
+| none | empty start page: one action, **"Create my athlete profile"**, and below it "Invited as staff? Use the link in your email." |
+| anything with a staff module | start page "Hi, <name>" with a card per module, plus "Create my athlete profile" when there is no athlete profile |
 
-"Crear mi perfil de atleta" appears only on the start page.
+"Create my athlete profile" appears only on the start page.
 
 ### Guards
 
@@ -206,8 +206,8 @@ The (app) header gets an account menu with the person's name. It contains "Inici
 ### Mailer
 
 `src/lib/mailer.ts` is ported from the sibling:
-- `server-only`, nodemailer over SMTP, configured by `SMTP_URL` and `MAIL_FROM`.
-- Messages are in Spanish, as HTML with a text alternative.
+- `server-only`, nodemailer over SMTP, configured by `SMTP_URL` and `EMAIL_FROM` (the sibling's names).
+- Messages are in English, like the rest of the app's copy, as HTML with a text alternative.
 - **Local:** `SMTP_URL=smtp://127.0.0.1:54525`, the Mailpit started by `pnpm dev` (UI at :54524). `pnpm env:local` writes it.
 - **Production:** the provider's SMTP relay. Add it to `.env.example` and the README.
 - **Delivery check:** the sibling's `lib/auth/delivery.ts` (`expectEmailSent`) is ported too, because `requestPasswordReset` swallows send errors on purpose.
@@ -222,7 +222,7 @@ The (app) header gets an account menu with the person's name. It contains "Inici
   - `expiresIn: 24 h`
   - callback `/`
 - `emailAndPassword.sendResetPassword`:
-  - The URL goes to `/invite/[token]` when the account has no credential yet, and to `/reset-password/[token]` otherwise, as in the sibling's `sendPasswordLink`.
+  - The link's `redirectTo` is `/invite` when the account has no credential yet and `/reset-password` otherwise, as in the sibling's `sendPasswordLink`.
   - `resetPasswordTokenExpiresIn: 3 days`. It is a single setting that covers both reset and invite links, and invites need days.
   - `revokeSessionsOnPasswordReset: true`.
 - Google is unchanged; its accounts arrive verified, and `accountLinking` links Google only to verified accounts.
@@ -236,7 +236,7 @@ The plugin's `inviteMember` / `acceptInvitation` require the invitee to already 
    - `auth.api.createUser({ body: { email, name, data: { emailVerified: true } } })`, called from the server with **no headers** and no password.
    - Then grant the role.
    - Then `auth.api.requestPasswordReset({ body: { email, redirectTo: "/invite" } })`, checked with `expectEmailSent`.
-   - The person can either set a password or use "Continuar con Google". Google works because the account is already verified.
+   - The person can either set a password or use "Continue with Google". Google works because the account is already verified.
 3. **The account exists:** grant the role. Email a notice with a link to `/login`.
 4. **Granting the role:**
    - **Org role:** `auth.api.addMember({ body: { userId, role, organizationId } })` if the person isn't a member yet. This call is server-only and has no permission check of its own, so the action authorizes first.
