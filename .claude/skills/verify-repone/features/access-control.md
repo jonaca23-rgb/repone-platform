@@ -12,7 +12,7 @@ Each role lands on its own screen and can't open another role's; athlete email, 
 
 ## How to get to it (user POV)
 
-- `/login` (staff) and `/athlete/login` (athletes; click `Sign in with Email & Password` to reveal the form).
+- `/login` for everyone (`/athlete/login` redirects to it). `/` is the start page with a card per module the account may open.
 - Deep links: `/admin/athletes/<id>`, `/scorekeeper`, `/producer`, `/commentator`.
 - Public: `/live`, `/overlay/<floorId>/*`, `/athlete/directory/<id>` as another athlete.
 
@@ -34,8 +34,17 @@ Preconditions:
 ## Gotchas
 
 - The database side of these rules is covered exhaustively by `pnpm db:rls-check` (30+ checks as each account); run it when changing policies. This recipe proves the UI paths.
-- The athlete login form is hidden behind `Sign in with Email & Password`.
+- Staff landing is now `/` (start page) when an account has more than one module; the module layouts send outsiders to `/`, not to their own screen.
 - An age category needs both a date of birth and a gender, and only shows for ages 35+ (`35-44`, `45+`).
 - Seeded athletes have no date of birth or phone; set one on the admin athlete page first if the recipe needs it, and clear it afterwards.
 - Use a separate `isolatedContext` per role, or the last login wins for every page in that context.
 - Sign-in and sign-up are rate limited by BetterAuth: 3 requests per 10 s from one IP (all local contexts share it). Signing in four roles back to back can show `Too many attempts. Wait a few seconds and try again.`; wait 10 s and submit again.
+
+## Invite recipe (email in Mailpit)
+
+Preconditions: admin context signed in; a unique address like `verify+<ts>@example.test`.
+
+- **Send.** `/admin/team` -> invite the address as `Scorekeeper` (org-wide), or on `/admin/events/<eventId>/staff` invite per role. The event page shows `Pending` with `Resend`.
+- **Read the mail.** `curl -s http://127.0.0.1:54524/api/v1/messages` lists messages; `curl -s http://127.0.0.1:54524/api/v1/message/<ID>` has the `/invite?token=` link in `Text`/`HTML` (or open http://127.0.0.1:54524 in the browser).
+- **Accept.** In a fresh `isolatedContext`, open the link, set a password (10+ chars) -> `/login?invited=1`, sign in -> start page with the `Scorekeeper` card.
+- **Cleanup.** Delete the address's `"user"` row (and any invitation rows) with `psql "$DATABASE_URL"`.

@@ -8,7 +8,7 @@ source "$(dirname "$0")/lib.sh"
 case "${1:-show}" in
   show)
     cat <<EOF
-Logins (password for all: $PASSWORD) — staff sign in at $APP_URL/login, athletes at $APP_URL/athlete/login
+Logins (password for all: $PASSWORD) — everyone signs in at $APP_URL/login (then / is the start page)
   admin@repone.test          admin, org-wide            -> /admin
   scorekeeper@repone.test    assigned to every event    -> /scorekeeper
   producer@repone.test       assigned to every event    -> /producer

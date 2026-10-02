@@ -27,6 +27,34 @@ Sports data, scoring, and broadcast-graphics platform for RepOneLive competition
   standalone `timer`, `heat`, `lanes`, `wod`, `lower-third`, `leaderboard`,
   `sponsor` layers. All transparent-background, all Realtime-synced.
 
+## Signing in
+
+There is one door: `/login` (and `/signup`). `/athlete/login` and
+`/athlete/signup` redirect to them. Email/password accounts must verify their
+email before signing in (`/verify-email`); `/forgot-password` and
+`/reset-password` handle a lost password.
+
+After signing in, `/` is the start page: one card per module the person's
+permissions open (Admin, Scorekeeper, Producer, Commentator, Athlete portal).
+An account that only opens the athlete portal goes straight to `/athlete`; a
+brand-new account sees an empty start page with "Create my athlete profile".
+Each module redirects outsiders back to `/`, and every header has an account
+menu to switch modules or sign out.
+
+Owners and admins invite staff by email: organization roles from `/admin/team`,
+event roles from an event's Staff page (pending invitations can be resent). The
+link (`/invite?token=`) lets the invitee set a password, then sign in.
+
+Email goes out over SMTP, configured by two variables:
+
+| Variable | Local | Production |
+|---|---|---|
+| `SMTP_URL` | `smtp://127.0.0.1:54525` (Mailpit; read mail at http://127.0.0.1:54524) | the provider's SMTP relay, e.g. `smtps://user:pass@smtp.example.com:465` |
+| `EMAIL_FROM` | `RepOne <no-reply@repone.test>` | a sender on a domain verified with the provider |
+
+`pnpm env:local` writes both locally. **Run `pnpm dev:setup` after pulling
+auth changes.**
+
 ## Running it locally
 
 Requirements: Node 24, pnpm 10 (`corepack enable`), the Supabase CLI, and a
@@ -78,6 +106,7 @@ values, which you add by hand) holds:
 | `DATABASE_URL` | app (BetterAuth's tables), scripts |
 | `SUPABASE_JWT_SIGNING_KEY` | app (mints each session's Supabase token), scripts |
 | `SUPABASE_SECRET_KEY` | scripts only (service role, bypasses RLS) |
+| `SMTP_URL`, `EMAIL_FROM` | app (server): verification, reset and invitation email; see Signing in |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, added by hand (`env:local` doesn't write them); enables "Continue with Google" for athletes |
 
 ### Scripts
@@ -99,6 +128,7 @@ values, which you add by hand) holds:
 | `pnpm db:timer-check` | Prove the broadcast timer's commands (double resume, concurrent operators, adjust) (local only) |
 | `pnpm db:authz-check` | Prove who may manage the org, act on an event, drive a floor or score a heat (local only) |
 | `pnpm db:auth-check` | Prove BetterAuth sign-up, sign-in and sign-out, and that a session reaches Supabase with the minted token (local only) |
+| `pnpm db:invite-check` | Prove invitations: sending, accepting, resending and the mailer failing (local only) |
 | `pnpm db:token-check` | Prove local PostgREST accepts tokens the app mints and rejects forged, expired or role-less ones (local only) |
 | `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
 | `pnpm format` | Biome formatter |
