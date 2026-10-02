@@ -57,7 +57,7 @@ export default async function LiveEventsPage() {
             <li key={e.id}>
               <Link
                 href={`/live/${e.id}`}
-                className="group block h-full rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+                className="group block h-full rounded-xl focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-hidden"
               >
                 <Card className="h-full gap-0 py-0 transition-colors group-hover:ring-brand-text/60">
                   <div className="relative aspect-video w-full bg-muted">

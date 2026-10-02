@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function AppRootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`h-full antialiased ${fontVariables}`}>
-      <body className="min-h-full flex flex-col bg-repone-white text-repone-black">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster />
       </body>

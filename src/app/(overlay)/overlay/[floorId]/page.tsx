@@ -24,16 +24,16 @@ export default async function OverlayIndexPage({
   if (!context) notFound();
 
   return (
-    <div className="flex min-h-screen flex-col gap-3 bg-repone-black p-10 text-repone-white">
-      <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">
+    <div className="flex min-h-screen flex-col gap-3 bg-broadcast-bg p-10 text-broadcast-fg">
+      <h1 className="font-display text-2xl font-bold uppercase tracking-wide">
         Overlay URLs — {context.eventName}
       </h1>
-      <p className="text-sm text-white/50">
+      <p className="text-sm text-broadcast-fg/50">
         Add each URL as a Browser Source in OBS/vMix/YoloBox. Background is transparent.
       </p>
       <ul className="mt-4 flex flex-col gap-2 font-mono text-sm">
         {ROUTES.map((r) => (
-          <li key={r} className="rounded bg-white/5 px-4 py-2">
+          <li key={r} className="rounded bg-broadcast-fg/5 px-4 py-2">
             /overlay/{floorId}/{r}
           </li>
         ))}

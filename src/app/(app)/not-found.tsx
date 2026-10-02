@@ -3,8 +3,7 @@ import { SearchX } from "lucide-react";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/button";
 
-// The (app) body is still light until each area migrates, so this page brings
-// its own dark surface.
+// Also rendered by src/app/global-not-found.tsx for URLs that match no route.
 export default function NotFound() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">

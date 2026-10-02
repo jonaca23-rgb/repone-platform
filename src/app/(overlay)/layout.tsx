@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 // is genuinely transparent — required for these routes to work as OBS/vMix/
 // YoloBox browser sources. The (app) group's root layout paints an opaque
 // background for the admin/dashboard UI; this one deliberately does not.
-// No next/font/google here either — see the matching comment in (app)/layout.tsx.
+// Fonts are bundled locally (src/app/fonts.ts); colours come from --broadcast-*.
 export default function OverlayRootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`h-full ${fontVariables}`}>

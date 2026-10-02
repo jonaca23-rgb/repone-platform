@@ -46,15 +46,11 @@ export function ModuleMenuView({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className={compact ? "h-11 gap-2" : "gap-2"}
-          aria-label={compact ? `Account and modules: ${name}` : undefined}
-        >
-          <Avatar size="sm">
+        <Button variant="ghost" className={compact ? "h-11 gap-2" : "gap-2"}>
+          <Avatar size="sm" aria-hidden>
             <AvatarFallback>{initials(name)}</AvatarFallback>
           </Avatar>
-          <span className={compact ? "max-w-40 truncate max-sm:hidden" : "max-w-40 truncate"}>
+          <span className={compact ? "max-w-40 truncate max-sm:sr-only" : "max-w-40 truncate"}>
             {name}
           </span>
           <ChevronDown aria-hidden />

@@ -8,6 +8,7 @@ export function OperatorPageSkeleton({ withBar = false }: { withBar?: boolean })
   const page = (
     <div
       className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6"
+      role="status"
       aria-busy="true"
       aria-label="Loading"
     >

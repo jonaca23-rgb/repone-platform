@@ -14,8 +14,8 @@ A scorekeeper records each lane's result for the current heat, finishes the heat
 
 ## How to get to it (user POV)
 
-- Sign in at `/login` as `scorekeeper@repone.test` → lands on `/scorekeeper` → choose the event and floor → `/scorekeeper/<floorId>`.
-- Admin: the `SCORE KEEPER →` link in the admin header, same screen.
+- Sign in at `/login` as `scorekeeper@repone.test` → lands on `/` (start page) → `Scorekeeper` card → `/scorekeeper` → choose the event and floor → `/scorekeeper/<floorId>`.
+- Admin: the account menu (avatar and name, sidebar footer) → `Scorekeeper`, same screen.
 - Backup path: admin → event → Heats & Lanes → a heat's detail page has its own per-lane entry and "Save All" (does not finish the heat).
 - Viewers: `/live` → the event → Leaderboard (no login).
 
@@ -27,13 +27,13 @@ Preconditions:
 - `fixtures.sh reset-scoring` has run (seed heat has no results and is not finished).
 - Evidence folder: `dir=$(scripts/evidence.sh scoring)`.
 
-- **Sign in.** `new_page url=http://localhost:3200/login isolatedContext=verify-scorekeeper`, `fill_form` Email `scorekeeper@repone.test` / Password `Repone1234!`, `click` `SIGN IN`. The page lands on `/scorekeeper`.
+- **Sign in.** `new_page url=http://localhost:3200/login isolatedContext=verify-scorekeeper`, `fill_form` Email `scorekeeper@repone.test` / Password `Repone1234!`, `click` `Sign In`. The page lands on `/` (start page).
 - **Open the floor.** `navigate_page url=http://localhost:3200/scorekeeper/00000000-0000-0000-0000-000000000030`. Snapshot shows `APRIETA ENTRY LEVEL`, `WOD 2 · HEAT 6 / 9`, `INTERMEDIATE FEMALE`, and six lane forms: `MARIA RIVERA`, `SOFIA DELGADO`, `CAMILA ORTIZ`, `VALENTINA CRUZ`, `ISABELLA VEGA`, `GABRIELA TORRES`.
 - **Save two finishers.** In lane 1 `fill` textbox `TIME (MM:SS)` = `5:00`, `click` that lane's `SAVE SCORE`; lane 2 `5:10`, `SAVE SCORE`. DB: `scripts/q.sh "select athlete_id, time_seconds, status from results where heat_id='00000000-0000-0000-0000-000000000070'"` shows 300 and 310, `completed`.
 - **Save a DNF.** Lane 6 `fill` combobox `STATUS` = `DNF`, `click` its `SAVE SCORE`. DB: a `dnf` row with no time.
 - **Mid-WOD board (score-midwod, score-nonfinish).** `scripts/q.sh "select a.first_name, s.placement, s.points from standings s join athletes a on a.id=s.athlete_id where s.division_id='00000000-0000-0000-0000-000000000040' and s.wod_id is null order by s.points"` → Maria 1/1, Sofia 2/2, Gabriela 3/3. Lanes 3-5 are absent (not yet competed).
 - **Save the rest.** Lanes 3-5: `5:20`, `5:30`, `5:40`, each with its own `SAVE SCORE`.
-- **Finish the heat.** First `take_snapshot` and check every lane shows `✓ RECORDED` (saves run one at a time; a Finish clicked while saves are queued waits behind them). Then take a fresh `take_snapshot` and `click` `FINISH HEAT` → dialog `Finish Heat 6 — WOD 2 (Intermediate Female)?` (plus `N lanes have no result…` when some are missing) → `handle_dialog accept`. DB: `scripts/q.sh "select ended_at is not null from heats where id='00000000-0000-0000-0000-000000000070'"` → `t`; overall standings 1-5 by time, Gabriela 6th with 6 points.
+- **Finish the heat.** First `take_snapshot` and check every lane shows `Recorded` (saves run one at a time; a Finish clicked while saves are queued waits behind them). Then take a fresh `take_snapshot` and `click` `Finish heat` → dialog `Finish Heat 6?` (`WOD 2 (Intermediate Female) is marked completed.`, plus `N lanes have no result…` when some are missing) → `click` the dialog's `Finish heat`. DB: `scripts/q.sh "select ended_at is not null from heats where id='00000000-0000-0000-0000-000000000070'"` → `t`; overall standings 1-5 by time, Gabriela 6th with 6 points.
 - **Public leaderboard.** `new_page url=http://localhost:3200/live/00000000-0000-0000-0000-000000000010 isolatedContext=verify-anon`. Under `LEADERBOARD` → `INTERMEDIATE FEMALE`: places 1-6 Maria, Sofia, Camila, Valentina, Isabella, Gabriela with points 1-6.
 - **Proof.** Before/after: `take_screenshot filePath=$dir/scorekeeper-saved.png` after the lane saves, `$dir/live-leaderboard.png` + `take_snapshot filePath=$dir/live-leaderboard.aria.txt` at the end, and the two standings queries into `$dir/standings-midwod.db.txt` / `$dir/standings-final.db.txt`.
 - **Reset.** `scripts/fixtures.sh reset-scoring`.

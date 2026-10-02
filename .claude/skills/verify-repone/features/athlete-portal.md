@@ -15,7 +15,7 @@ Athletes sign up or sign in, complete a profile, log lifts and benchmarks, brows
 ## How to get to it (user POV)
 
 - `/` → `Athlete Portal`, or `/login` / `/signup` (the old `/athlete/login` and `/athlete/signup` redirect).
-- Nav after onboarding: `Home` (`/athlete`), `Athletes` (`/athlete/directory`), `Messages`.
+- Nav after onboarding: `Home` (`/athlete`), `Athletes` (`/athlete/directory`), `Messages`: links in the top bar on desktop, a bottom tab bar on phones.
 
 ## Driving it with Chrome DevTools MCP
 
@@ -25,7 +25,7 @@ Preconditions:
 - Evidence folder: `dir=$(scripts/evidence.sh athlete-portal)`.
 
 - **Sign in.** `new_page url=http://localhost:3200/login isolatedContext=verify-athlete`, `fill_form` `Email` / `Password`, `click` `Sign In` → `/athlete` with heading `Welcome, Maria`.
-- **Onboarding.** In a new context sign in as `new-athlete@repone.test` → lands on `/athlete/onboarding` (`Tell us about yourself`). `fill_form` `First name` `Nina`, `Last name` `Nueva`; set `Date of birth` with `evaluate_script`; `click` `Continue` → `/athlete`, `Welcome, Nina`. DB: `scripts/q.sh "select first_name from athletes where email='new-athlete@repone.test'"` → `Nina`.
+- **Onboarding.** In a new context sign in as `new-athlete@repone.test` → lands on `/`, the empty start page (`Hi, Nina Nueva`, `Nothing to open yet`); `click` `Create my athlete profile` → `/athlete/onboarding` (`Tell us about yourself`). `fill_form` `First name` `Nina`, `Last name` `Nueva`; set `Date of birth` with `evaluate_script`; `click` `Continue` → `/athlete`, `Welcome, Nina`. DB: `scripts/q.sh "select first_name from athletes where email='new-athlete@repone.test'"` → `Nina`.
 - **Lifts.** On `/athlete` `fill` `Deadlift (lbs)` = `315`, `click` `Save Lifts`; reload — the value persists. DB: `scripts/q.sh "select weight_lbs from athlete_lifts where lift='deadlift' and athlete_id='00000000-0000-0000-0000-000000000061'"` → `315`.
 - **Directory.** `click` `Athletes`, `fill` the search box (placeholder `Search athletes by name or affiliate…`) with `Delgado`, open `Sofia Delgado` → `/athlete/directory/00000000-0000-0000-0000-000000000062`, which shows `Sofia hasn't created a RepOne account yet — no way to message them.`
 - **Message staff.** `Messages` → under `Message Staff` open `Ada Admin` → fill the textarea (placeholder `Write a message…`) with `Hello from verify`, `click` `Send`. The thread shows it. In the admin context (left open on `/admin`, no reload) the `MESSAGES` nav link gains an unread count badge live through Realtime; a reload also shows it (server count), so check the badge before reloading. `/admin/messages` lists the conversation. DB: `scripts/q.sh "select body from messages order by created_at desc limit 1"`.

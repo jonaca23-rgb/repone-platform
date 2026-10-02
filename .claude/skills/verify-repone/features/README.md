@@ -14,7 +14,8 @@ This directory is the maintained source for verifying RepOne's user-facing behav
 
 - One `isolatedContext` per role (`verify-admin`, `verify-scorekeeper`, `verify-producer`, `verify-athlete`, `verify-anon`).
 - Act on uids from a fresh `take_snapshot`; match by accessible name, label or heading text — many render uppercase in the snapshot.
-- Answer `window.confirm` / `alert` with `handle_dialog`.
+- Destructive and finishing actions confirm in an in-page dialog: click the trigger, then the dialog's confirm button by its label (see `../SKILL.md`, Confirm dialogs). Use `handle_dialog` only for a native `alert`/`confirm`, which the UI no longer uses.
+- Staff land on `/` (start page); admin has a sidebar; producer, scorekeeper and commentator have an operator shell with event tabs; athletes have a bottom tab bar on phones. Org members are **Members** in the UI (`/admin/team`).
 - Check side effects with `scripts/q.sh "<select>"` — read-only, except the resets a recipe names.
 - Start every recipe from the baseline; restore what it changed.
 

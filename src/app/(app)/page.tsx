@@ -69,7 +69,7 @@ export default async function HomePage() {
                   <li key={m.kind}>
                     <Link
                       href={m.href}
-                      className="group block h-full rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+                      className="group block h-full rounded-xl focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-hidden"
                     >
                       <Card className="h-full transition-colors group-hover:bg-muted">
                         <CardHeader className="grid-cols-[auto_1fr] items-start gap-x-4 gap-y-1">
