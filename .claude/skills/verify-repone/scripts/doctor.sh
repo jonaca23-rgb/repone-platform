@@ -13,7 +13,7 @@ else
   fail "Supabase is not running — fix: pnpm db:start (or ./.claude/skills/verify-repone/scripts/app.sh start)"
 fi
 
-if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/rest/v1/" -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}")" = "200" ]; then
+if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/rest/v1/" -H "apikey: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}")" = "200" ]; then
   ok "Supabase API answers at $API_URL"
 else
   fail "Supabase API not answering at $API_URL — fix: pnpm db:start; if .env.local is stale: pnpm env:local --force"
@@ -23,6 +23,11 @@ case "${NEXT_PUBLIC_SUPABASE_URL:-}" in
   "$API_URL") ok ".env.local targets the local stack" ;;
   *) fail ".env.local targets '${NEXT_PUBLIC_SUPABASE_URL:-<missing>}', not $API_URL — fix: pnpm env:local --force" ;;
 esac
+
+for var in SUPABASE_JWT_SIGNING_KEY BETTER_AUTH_SECRET; do
+  if [ -n "${!var:-}" ]; then ok "$var is set"
+  else fail "$var is not set — fix: pnpm env:local --force"; fi
+done
 
 # Podman VM memory: every local Supabase stack is ~10 containers. When the VM
 # runs out, auth and PostgREST calls stall for 10-60s and pages time out.
@@ -49,7 +54,7 @@ if [ "$FAILURES" -eq 0 ]; then
   qa=$(q "select count(*) from circuits where name like 'QA Test Circuit%'" 2>/dev/null || echo 0)
   [ "$qa" != "0" ] && ok "QA circuit present" || warn "QA circuit not seeded (only circuit recipes need it) — fix: pnpm db:seed:qa"
 
-  accounts=$(q "select count(*) from auth.users where email like '%@repone.test'" 2>/dev/null || echo 0)
+  accounts=$(q "select count(*) from public.\"user\" where email like '%@repone.test'" 2>/dev/null || echo 0)
   [ "$accounts" -ge 6 ] && ok "$accounts dev accounts (*@repone.test / $PASSWORD)" || fail "Dev accounts missing ($accounts/6) — fix: pnpm dev:accounts"
 fi
 

@@ -1,8 +1,21 @@
+import { headers } from "next/headers";
 import { cache } from "react";
+import { auth } from "@/lib/auth/server";
 import { createClient } from "@/lib/db/server";
 import { loadSessionContext, type SessionContext } from "@/lib/auth/authorize";
 
 export { hasAnyRole, type SessionContext } from "@/lib/auth/authorize";
+
+/**
+ * Who the BetterAuth session cookie says is signed in, or null. Cached for the
+ * request: createClient() mints its token from it, and every guard asks it.
+ */
+export const getAuthSession = cache(
+  async (): Promise<{ userId: string; email: string; name: string } | null> => {
+    const s = await auth.api.getSession({ headers: await headers() });
+    return s ? { userId: s.user.id, email: s.user.email, name: s.user.name } : null;
+  },
+);
 
 /**
  * The signed-in user plus their organization/roles, or null. Cached for the
@@ -11,7 +24,8 @@ export { hasAnyRole, type SessionContext } from "@/lib/auth/authorize";
  * guards.ts / authorize.ts; RLS remains the last line of defense.
  */
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
-  return loadSessionContext(await createClient());
+  const identity = await getAuthSession();
+  return loadSessionContext(await createClient(), identity);
 });
 
 export interface AthleteSessionContext {
@@ -25,7 +39,7 @@ export interface AthleteSessionContext {
 
 /**
  * Athlete accounts are a separate identity space from staff accounts (see
- * 0010_athlete_open_log.sql) — same Supabase auth.users table, but an
+ * 0010_athlete_open_log.sql) — same BetterAuth user table, but an
  * athlete never gets a profiles.organization_id or a user_roles row, so
  * getSessionContext() above naturally treats them as signed-in-but-no-role,
  * which already keeps them out of /admin/*. This is the athlete-side
@@ -33,21 +47,19 @@ export interface AthleteSessionContext {
  * staff profile.
  */
 export async function getAthleteSessionContext(): Promise<AthleteSessionContext | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthSession();
   if (!user) return null;
+  const supabase = await createClient();
 
   const { data: athlete } = await supabase
     .from("athletes")
     .select("id, first_name, last_name, organization_id")
-    .eq("auth_user_id", user.id)
+    .eq("auth_user_id", user.userId)
     .maybeSingle();
 
   return {
-    userId: user.id,
-    email: user.email ?? null,
+    userId: user.userId,
+    email: user.email,
     athleteId: athlete?.id ?? null,
     organizationId: athlete?.organization_id ?? null,
     firstName: athlete?.first_name ?? null,

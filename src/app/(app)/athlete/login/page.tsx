@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
+import { googleEnabled } from "@/lib/auth/server";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { AthleteLoginForm } from "./AthleteLoginForm";
 
 /**
- * A returning, already-recognized athlete (valid session cookie — see
- * src/proxy.ts, which refreshes it on every /athlete/* request) never sees
+ * A returning, already-recognized athlete (valid session cookie) never sees
  * this form: landing here directly (a bookmark, browser back button, etc.)
  * sends them straight to their dashboard, same as clicking "Athlete Portal"
  * from the home page. Only a genuinely signed-out visitor sees the form
@@ -13,11 +13,18 @@ import { AthleteLoginForm } from "./AthleteLoginForm";
 export default async function AthleteLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string | string[] }>;
 }) {
   const ctx = await getAthleteSessionContext();
   if (ctx) redirect(ctx.athleteId ? "/athlete" : "/athlete/onboarding");
 
-  const { error } = await searchParams;
-  return <AthleteLoginForm oauthError={error === "oauth"} />;
+  // A failed Google sign-in returns to errorCallbackURL (see GoogleButton)
+  // with BetterAuth's code appended: ?error=oauth&error=<code>.
+  const errors = [(await searchParams).error ?? []].flat();
+  const oauthFailure = errors.includes("account_not_linked")
+    ? "account_not_linked"
+    : errors.includes("oauth")
+      ? "other"
+      : undefined;
+  return <AthleteLoginForm oauthFailure={oauthFailure} googleEnabled={googleEnabled} />;
 }

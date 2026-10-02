@@ -1,28 +1,35 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { supabaseAnonKey, supabaseUrl } from "./env";
+import "server-only";
+
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
+import { getAuthSession } from "@/lib/auth/session";
+import { mintSupabaseToken } from "@/lib/supabase/token";
+import { supabasePublishableKey, supabaseUrl } from "./env";
 import type { Database } from "./database.types";
 
 /**
  * Server-side Supabase client for Server Components, Server Actions, and Route
- * Handlers. Reads/writes the auth cookie so RLS policies see the signed-in user.
+ * Handlers.
+ *
+ * Every request carries a short-lived token minted from the BetterAuth
+ * session, so RLS sees auth.uid() as the signed-in user. With no session it
+ * carries no token and runs as anon, which is what the public leaderboard,
+ * /live and the overlays read with.
+ *
+ * The `auth` namespace of this client is unavailable by design: supabase-js
+ * disables it when accessToken is set. Identity comes from
+ * src/lib/auth/session.ts.
  */
 export async function createClient() {
-  const cookieStore = await cookies();
+  const token = await requestToken();
 
-  return createServerClient<Database>(supabaseUrl(), supabaseAnonKey(), {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-        } catch {
-          // Called from a Server Component render (not an action/route handler) —
-          // safe to ignore because middleware refreshes the session cookie anyway.
-        }
-      },
-    },
+  return createSupabaseClient<Database>(supabaseUrl(), supabasePublishableKey(), {
+    accessToken: async () => token,
   });
 }
+
+/** One token per request: pages and actions build several clients. */
+const requestToken = cache(async (): Promise<string | null> => {
+  const session = await getAuthSession();
+  return session ? mintSupabaseToken({ userId: session.userId, email: session.email }) : null;
+});

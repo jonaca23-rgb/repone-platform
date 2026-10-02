@@ -34,6 +34,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      account: {
+        Row: {
+          access_token: string | null
+          access_token_expires_at: string | null
+          account_id: string
+          created_at: string
+          id: string
+          id_token: string | null
+          password: string | null
+          provider_id: string
+          refresh_token: string | null
+          refresh_token_expires_at: string | null
+          scope: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          account_id: string
+          created_at?: string
+          id?: string
+          id_token?: string | null
+          password?: string | null
+          provider_id: string
+          refresh_token?: string | null
+          refresh_token_expires_at?: string | null
+          scope?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          account_id?: string
+          created_at?: string
+          id?: string
+          id_token?: string | null
+          password?: string | null
+          provider_id?: string
+          refresh_token?: string | null
+          refresh_token_expires_at?: string | null
+          scope?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athlete_benchmarks: {
         Row: {
           athlete_id: string
@@ -140,6 +196,13 @@ export type Database = {
             referencedRelation: "athletes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "athlete_likes_liker_user_id_fkey"
+            columns: ["liker_user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
         ]
       }
       athletes: {
@@ -186,6 +249,13 @@ export type Database = {
           photo_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "athletes_auth_user_id_fkey"
+            columns: ["auth_user_id"]
+            isOneToOne: true
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "athletes_organization_id_fkey"
             columns: ["organization_id"]
@@ -268,6 +338,13 @@ export type Database = {
             columns: ["lower_third_athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_state_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -416,6 +493,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "event_commentator_assignments_assigned_by_admin_id_fkey"
+            columns: ["assigned_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_commentator_assignments_commentator_user_id_fkey"
+            columns: ["commentator_user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "event_commentator_assignments_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
@@ -460,10 +551,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "event_producer_assignments_assigned_by_admin_id_fkey"
+            columns: ["assigned_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "event_producer_assignments_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_producer_assignments_producer_user_id_fkey"
+            columns: ["producer_user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -504,10 +609,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "event_scorekeeper_assignments_assigned_by_admin_id_fkey"
+            columns: ["assigned_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "event_scorekeeper_assignments_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_scorekeeper_assignments_scorekeeper_user_id_fkey"
+            columns: ["scorekeeper_user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -622,6 +741,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -876,7 +1002,22 @@ export type Database = {
           recipient_id?: string
           sender_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "messages_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operator_actions: {
         Row: {
@@ -919,6 +1060,13 @@ export type Database = {
             columns: ["floor_id"]
             isOneToOne: false
             referencedRelation: "floors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_actions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -1073,6 +1221,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payments_registration_id_fkey"
             columns: ["registration_id"]
             isOneToOne: true
@@ -1102,6 +1257,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "profiles_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1109,6 +1271,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rate_limit: {
+        Row: {
+          count: number
+          id: string
+          key: string
+          last_request: number
+        }
+        Insert: {
+          count: number
+          id?: string
+          key: string
+          last_request: number
+        }
+        Update: {
+          count?: number
+          id?: string
+          key?: string
+          last_request?: number
+        }
+        Relationships: []
       }
       registrations: {
         Row: {
@@ -1235,10 +1418,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "results_adjusted_by_fkey"
+            columns: ["adjusted_by"]
+            isOneToOne: false
+            referencedRelation: "user"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "results_athlete_id_fkey"
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
           {
@@ -1260,6 +1457,47 @@ export type Database = {
             columns: ["wod_id"]
             isOneToOne: false
             referencedRelation: "wods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          token: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          token: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          token?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -1470,6 +1708,36 @@ export type Database = {
           },
         ]
       }
+      user: {
+        Row: {
+          created_at: string
+          email: string
+          email_verified: boolean
+          id: string
+          image: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          email_verified?: boolean
+          id?: string
+          image?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          email_verified?: boolean
+          id?: string
+          image?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1501,6 +1769,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user"
             referencedColumns: ["id"]
           },
         ]
@@ -1536,6 +1811,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      verification: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          identifier: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          identifier: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          identifier?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
       }
       wods: {
         Row: {

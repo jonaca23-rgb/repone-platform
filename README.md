@@ -5,7 +5,7 @@ Sports data, scoring, and broadcast-graphics platform for RepOneLive competition
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript, Tailwind v4)
-- **Supabase** (Postgres, Auth, Realtime, Storage)
+- **Supabase** (Postgres, Realtime, Storage) and **BetterAuth** for sign-in
 - **Vitest** for the scoring engine and timer math unit tests
 - **pnpm**, local Supabase via the Supabase CLI on Podman, Biome (format), ESLint (lint)
 
@@ -62,6 +62,24 @@ Ports are offset so this runs beside other local Supabase projects:
 | Studio | http://127.0.0.1:54523 |
 | Mailpit (auth emails) | http://127.0.0.1:54524 |
 
+Sign-in is BetterAuth's (accounts live in Postgres `public."user"`; each
+request reaches Supabase with a token the app mints from the session). Supabase
+Auth is no longer used. **After pulling this change, run `pnpm dev:setup`**: it
+generates the JWT signing key (`supabase/signing_keys.json`, gitignored),
+migrates the auth tables and recreates the dev accounts.
+
+`.env.local` (written by `pnpm env:local --force`, except the optional Google
+values, which you add by hand) holds:
+
+| Variable | Used by |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | app (browser + server), scripts |
+| `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` | app (server); generate the secret with `openssl rand -base64 32` |
+| `DATABASE_URL` | app (BetterAuth's tables), scripts |
+| `SUPABASE_JWT_SIGNING_KEY` | app (mints each session's Supabase token), scripts |
+| `SUPABASE_SECRET_KEY` | scripts only (service role, bypasses RLS) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, added by hand (`env:local` doesn't write them); enables "Continue with Google" for athletes |
+
 ### Scripts
 
 | Command | What it does |
@@ -74,13 +92,54 @@ Ports are offset so this runs beside other local Supabase projects:
 | `pnpm db:seed:qa` | Load the QA circuit if it isn't there |
 | `pnpm db:types` | Regenerate `src/lib/db/supabase.types.ts` from the local schema |
 | `pnpm dev:accounts` | Create/reset the dev logins (local only) |
+| `pnpm keys:ensure` | Generate `supabase/signing_keys.json` if missing (`--print` prints the private key); run before `supabase start` |
 | `pnpm env:local` | Write `.env.local` from `supabase status` (`--force` to overwrite) |
 | `pnpm db:rls-check` | Prove the database access rules as each dev account (local only) |
 | `pnpm db:standings-check` | Prove concurrent standings rewrites never duplicate or empty a leaderboard (local only) |
 | `pnpm db:timer-check` | Prove the broadcast timer's commands (double resume, concurrent operators, adjust) (local only) |
 | `pnpm db:authz-check` | Prove who may manage the org, act on an event, drive a floor or score a heat (local only) |
+| `pnpm db:auth-check` | Prove BetterAuth sign-up, sign-in and sign-out, and that a session reaches Supabase with the minted token (local only) |
+| `pnpm db:token-check` | Prove local PostgREST accepts tokens the app mints and rejects forged, expired or role-less ones (local only) |
 | `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
 | `pnpm format` | Biome formatter |
+
+### Production
+
+Deploying to Vercel against a hosted Supabase project needs these, per
+environment (Production, Preview):
+
+1. **JWT signing key.** The app signs each session's Supabase token with the
+   ES256 private key in `SUPABASE_JWT_SIGNING_KEY` (a JWK with a `kid`). In the
+   hosted project, open *Project Settings → JWT Keys → JWT Signing Keys*,
+   import that private key, and make it the **current** key. Otherwise
+   PostgREST, Realtime and Storage reject every minted token and every
+   signed-in request fails with 401. Generate a key for production with
+   `pnpm keys:ensure --print` on a machine with no `supabase/signing_keys.json`
+   (or any ES256 JWK generator); never reuse the local one.
+2. **`DATABASE_URL`** must be the project's **Supavisor pooler** connection
+   string (*Connect → Transaction pooler*, port 6543), not the direct
+   `db.<ref>.supabase.co` host: that host is IPv6-only and Vercel functions
+   can't reach it. `src/db/index.ts` opens at most 4 connections per
+   function instance.
+3. **`BETTER_AUTH_URL`** is the deployment's own origin, e.g.
+   `https://app.example.com`. Preview deployments get a different URL each
+   time: set it per environment and add the preview origins to BetterAuth's
+   `trustedOrigins` in `src/lib/auth/auth.ts`, or sign-in from a preview is
+   refused as cross-origin.
+4. **`BETTER_AUTH_SECRET`**: `openssl rand -base64 32`, different per
+   environment. Changing it signs everyone out.
+5. **`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`** from
+   the hosted project's API settings. `SUPABASE_SECRET_KEY` is for scripts
+   only and is not needed by the deployed app.
+6. **Google (optional).** In Google Cloud, create an OAuth client (Web) with
+   the authorized redirect URI `https://<host>/api/auth/callback/google` for
+   each host, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. BetterAuth
+   handles the callback; Supabase's own Google provider is not used and stays
+   off.
+
+Apply the migrations to the hosted database (`supabase db push`) before the
+first deploy. BetterAuth's sign-in/sign-up rate limit is on in every
+environment (3 requests per 10 s per IP, stored in `public.rate_limit`).
 
 ### Schema changes
 

@@ -1,12 +1,25 @@
 "use client";
 
-import { useActionState } from "react";
+import { authClient } from "@/lib/auth/client";
+import { signUpErrorMessage } from "@/lib/auth/formErrors";
+import { useAuthForm } from "@/lib/auth/identityChange";
+import { useState } from "react";
 import Link from "next/link";
-import { athleteSignUp, athleteSignInWithGoogle } from "../actions";
-import { GoogleIcon } from "../GoogleIcon";
+import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
 
-export function AthleteSignUpForm() {
-  const [state, formAction, pending] = useActionState(athleteSignUp, { error: "" });
+export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  // Athlete accounts share the BetterAuth user table with staff, but signing up
+  // only creates the user (and its bare profiles row); staff roles come only
+  // from user_roles or event assignments. autoSignIn is on, so the new session
+  // cookie is set by this response, and onboarding links the athletes row.
+  // BetterAuth requires a name but accepts ""; the profile trigger stores it as
+  // null. Sending the email instead would show it as this person's name to
+  // athletes in Messages if the account were ever made staff.
+  const { error, pending, leaving, onSubmit } = useAuthForm(async (email, password) => {
+    const { error } = await authClient.signUp.email({ email, password, name: "" });
+    return error ? { error: signUpErrorMessage(error) } : { to: "/athlete/onboarding" };
+  });
+  const [googleFailed, setGoogleFailed] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-sm rounded-xl border border-white/10 bg-repone-gray p-8 shadow-xl">
@@ -15,63 +28,47 @@ export function AthleteSignUpForm() {
         Track your own Open-style workout history inside RepOne Platform.
       </p>
 
-      {state.message ? (
-        <p className="rounded-md border border-white/20 bg-black/40 p-3 text-sm text-white/80">
-          {state.message}
-        </p>
-      ) : (
-        <>
-          <form action={athleteSignInWithGoogle}>
-            <button
-              type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-white/20 bg-white px-4 py-3 font-semibold text-black transition hover:bg-white/90"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-          </form>
+      {googleFailed ? <OAuthErrorNotice /> : null}
 
-          <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-white/40">
-            <span className="h-px flex-1 bg-white/10" />
-            or register with email
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
+      {googleEnabled ? (
+        <div className="mb-4">
+          <GoogleButton onFailure={() => setGoogleFailed(true)} />
+        </div>
+      ) : null}
 
-          <form action={formAction} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 text-sm text-white/80">
-              Email
-              <input
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm text-white/80">
-              Password
-              <input
-                name="password"
-                type="password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-              />
-            </label>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1 text-sm text-white/80">
+          Email
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-white/80">
+          Password
+          <input
+            name="password"
+            type="password"
+            required
+            minLength={10}
+            autoComplete="new-password"
+            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
+          />
+        </label>
 
-            {state.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
+        {error ? <p className="text-sm text-repone-red">{error}</p> : null}
 
-            <button
-              type="submit"
-              disabled={pending}
-              className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
-            >
-              {pending ? "Creating account…" : "Create Account"}
-            </button>
-          </form>
-        </>
-      )}
+        <button
+          type="submit"
+          disabled={pending || leaving}
+          className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
+        >
+          {pending ? "Creating account…" : "Create Account"}
+        </button>
+      </form>
 
       <p className="mt-6 text-sm text-white/50">
         Already have an account?{" "}

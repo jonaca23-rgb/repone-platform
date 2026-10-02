@@ -13,6 +13,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 `pnpm dev` brings up the whole stack (Podman → local Supabase → `.env.local` →
 seeds → dev accounts → `next dev` on :3200). `pnpm dev:setup` is the clean
 slate. Dev logins are all `*@repone.test` / `Repone1234!` (see README).
+BetterAuth owns identity (`public."user"`, sessions in Postgres); Supabase Auth
+is unused. The app mints a short-lived Supabase token from each session so RLS
+still applies; scripts sign in the same way through `scripts/auth-helpers.ts`
+(`signInAs`). `pnpm dev:setup` is required after pulling auth changes.
 The project is not in production: there is no remote database to preserve, so
 schema changes go in `supabase/migrations/` and are verified with
 `pnpm db:reset && pnpm db:types`.

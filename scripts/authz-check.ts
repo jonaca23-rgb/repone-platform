@@ -5,7 +5,8 @@
 // same functions through src/lib/auth/guards.ts.
 //
 //   pnpm db:authz-check     (needs pnpm dev:accounts to have run)
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { cookieOf, signInAs } from "./auth-helpers";
+import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/db/database.types";
 import {
   eventAccess,
@@ -15,6 +16,8 @@ import {
   orgManagerOf,
 } from "../src/lib/auth/authorize";
 import { requireLocal } from "./env";
+import { auth } from "../src/lib/auth/auth";
+import { mintSupabaseToken } from "../src/lib/supabase/sign-token";
 
 const EVENT_ID = "00000000-0000-0000-0000-000000000010";
 const FLOOR_ID = "00000000-0000-0000-0000-000000000030";
@@ -22,7 +25,7 @@ const HEAT_ID = "00000000-0000-0000-0000-000000000070";
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
 
 const target = requireLocal();
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient<Database>(target.apiUrl, target.secretKey, options);
 
@@ -34,16 +37,19 @@ function expect(label: string, pass: boolean, detail?: unknown) {
   );
 }
 
+// Signs in through BetterAuth and asks with the token the app would mint, so
+// the identity handed to loadSessionContext is the session's, as in the app.
 async function as(email: string | null) {
-  const db = createClient<Database>(target.apiUrl, anonKey, options);
-  if (email) {
-    const { error } = await db.auth.signInWithPassword({ email, password: "Repone1234!" });
-    if (error) {
-      console.error(`Cannot sign in as ${email}. Run \`pnpm dev:accounts\`.`);
-      process.exit(1);
-    }
+  if (!email) {
+    const db = createClient<Database>(target.apiUrl, publishableKey, options);
+    return { db, ctx: await loadSessionContext(db, null) };
   }
-  return { db, ctx: await loadSessionContext(db) };
+  const signedIn = await signInAs(email).catch((e: unknown) => {
+    console.error(`Cannot sign in as ${email}. Run \`pnpm dev:accounts\`.`, e);
+    process.exit(1);
+  });
+  const identity = { userId: signedIn.userId, email: signedIn.email };
+  return { db: signedIn.db, ctx: await loadSessionContext(signedIn.db, identity) };
 }
 
 async function main() {
@@ -141,6 +147,60 @@ async function main() {
         heat.floor_id === FLOOR_ID,
       heat,
     );
+
+    console.log("\nA brand-new sign-up holds no staff power");
+    const newEmail = `authz-new+${Date.now()}@example.test`;
+    let newUserId: string | null = null;
+    try {
+      const created = await auth.api.signUpEmail({
+        body: { email: newEmail, password: "Repone1234!", name: newEmail },
+        returnHeaders: true,
+      });
+      newUserId = created.response.user.id;
+      const session = await auth.api.getSession({
+        headers: new Headers({ cookie: cookieOf(created.headers) }),
+      });
+      const token = await mintSupabaseToken({ userId: newUserId, email: newEmail });
+      const db = createClient<Database>(target.apiUrl, publishableKey, {
+        ...options,
+        accessToken: async () => token,
+      });
+      const ctx = await loadSessionContext(db, { userId: newUserId, email: newEmail });
+      expect("new sign-up has a session", session?.user.id === newUserId);
+      expect("new sign-up does not manage any org", orgManagerOf(ctx) === null, ctx);
+      expect(
+        "new sign-up may not act on the seed event as any staff role",
+        (await eventAccess(db, ctx, EVENT_ID, ["scorekeeper", "producer", "commentator"])) === null,
+      );
+    } finally {
+      if (newUserId) {
+        const removed = await service.from("user").delete().eq("id", newUserId);
+        expect("new sign-up's user was cleaned up", !removed.error, removed.error);
+      }
+    }
+
+    console.log("\nSigning out ends the identity");
+    const beforeOut = await signInAs("admin@repone.test");
+    const ownRoles = await beforeOut.db
+      .from("user_roles")
+      .select("user_id")
+      .eq("user_id", beforeOut.userId);
+    expect(
+      "signed in, admin reads their own user_roles row",
+      (ownRoles.data?.length ?? 0) > 0,
+      ownRoles,
+    );
+    await auth.api.signOut({ headers: beforeOut.headers });
+    const afterOut = await auth.api.getSession({ headers: beforeOut.headers });
+    expect("after sign-out the session is gone", afterOut === null, afterOut);
+    // With no session the app mints no token: the client is plain anon.
+    const anonAfter = createClient<Database>(target.apiUrl, publishableKey, options);
+    const rolesAfter = await anonAfter.from("user_roles").select("user_id");
+    expect(
+      "after sign-out the client cannot read user_roles",
+      !!rolesAfter.error || (rolesAfter.data?.length ?? 0) === 0,
+      rolesAfter,
+    );
   } finally {
     await service.from("events").delete().eq("id", otherEvent!.id);
     await service.from("organizations").delete().eq("id", otherOrg!.id);
@@ -154,5 +214,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-
-export type { SupabaseClient };

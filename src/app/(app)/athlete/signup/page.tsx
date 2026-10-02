@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { googleEnabled } from "@/lib/auth/server";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { AthleteSignUpForm } from "./AthleteSignUpForm";
 
@@ -12,5 +13,5 @@ export default async function AthleteSignUpPage() {
   const ctx = await getAthleteSessionContext();
   if (ctx) redirect(ctx.athleteId ? "/athlete" : "/athlete/onboarding");
 
-  return <AthleteSignUpForm />;
+  return <AthleteSignUpForm googleEnabled={googleEnabled} />;
 }

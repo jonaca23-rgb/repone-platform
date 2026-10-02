@@ -1,9 +1,12 @@
 // Creates (or resets) one login per role on the LOCAL stack and prints them.
 // Idempotent: re-running resets passwords and re-applies roles/assignments.
-import { createClient } from "@supabase/supabase-js";
+// Logins go through BetterAuth (createOrResetUser); everything the app keeps
+// about them — profile, roles, assignments, athlete link — through the service client.
 import { requireLocal } from "./env";
 
-const PASSWORD = "Repone1234!";
+import { createClient } from "@supabase/supabase-js";
+import { DEV_PASSWORD as PASSWORD, createOrResetUser } from "./auth-helpers";
+
 const ORG_ID = "00000000-0000-0000-0000-000000000001"; // from supabase/seed.sql
 const LINKED_ATHLETE_ID = "00000000-0000-0000-0000-000000000061"; // Maria Rivera, seed.sql
 
@@ -77,7 +80,6 @@ async function main() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { users } = check("list users", await db.auth.admin.listUsers({ perPage: 1000 }));
   const events = check(
     "list events",
     await db.from("events").select("id").eq("organization_id", ORG_ID),
@@ -85,16 +87,7 @@ async function main() {
   let adminId: string | null = null;
 
   for (const account of ACCOUNTS) {
-    const existing = users.find((u) => u.email === account.email);
-    const attrs = {
-      password: PASSWORD,
-      email_confirm: true,
-      user_metadata: { full_name: account.name },
-    };
-    const user = existing
-      ? check(account.email, await db.auth.admin.updateUserById(existing.id, attrs)).user
-      : check(account.email, await db.auth.admin.createUser({ email: account.email, ...attrs }))
-          .user;
+    const user = { id: await createOrResetUser(account.email, account.name, PASSWORD) };
 
     if (account.kind === "athlete" || account.kind === "new-athlete") {
       if (account.kind === "athlete") {
@@ -106,7 +99,7 @@ async function main() {
       continue;
     }
 
-    // Staff: belongs to the seeded org (profiles row is made by the auth trigger).
+    // Staff: belongs to the seeded org (the profiles row is made by the trigger on public."user").
     check(
       "profile",
       await db
@@ -157,6 +150,8 @@ async function main() {
   console.log(`\nLocal dev accounts (password for all: ${PASSWORD})\n`);
   for (const a of ACCOUNTS) console.log(`  ${a.email.padEnd(26)} ${a.note}`);
   console.log("");
+  // BetterAuth's database pool would otherwise keep the process alive.
+  process.exit(0);
 }
 
 main().catch((e) => {
