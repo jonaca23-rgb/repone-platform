@@ -19,6 +19,7 @@ import {
   adjustTimer,
 } from "@/lib/actions/broadcast";
 import type { ActiveGraphic, Database } from "@/lib/db/database.types";
+import { heatOnAir } from "@/lib/broadcast/heatOnAir";
 
 export interface DashboardHeat {
   id: string;
@@ -71,16 +72,12 @@ export function DashboardClient({
   const [failure, setFailure] = useState<string | null>(null);
   const [countDirection, setCountDirection] = useState<"count_up" | "count_down">("count_down");
 
-  const currentIndex = useMemo(
-    () => heats.findIndex((h) => h.id === state?.current_heat_id),
+  // With nothing on air yet, the first heat is shown with a "put on air"
+  // control; see lib/broadcast/heatOnAir.ts.
+  const { index: effectiveIndex, onAir } = useMemo(
+    () => heatOnAir(heats, state?.current_heat_id ?? null),
     [heats, state?.current_heat_id],
   );
-  // A fresh floor's broadcast_state.current_heat_id starts out null — nothing
-  // has explicitly selected a heat yet. Treat heat #1 as implicitly current
-  // in that case (matches what's actually displayed below) so Previous/Next
-  // navigation has a starting point instead of staying disabled forever with
-  // no way to select any heat at all.
-  const effectiveIndex = currentIndex >= 0 ? currentIndex : 0;
   const currentHeat = heats[effectiveIndex] ?? null;
 
   const [lowerThirdAthlete, setLowerThirdAthlete] = useState<string>("");
@@ -157,6 +154,20 @@ export function DashboardClient({
           <span>{failure}</span>
           <button className="text-xs font-bold uppercase" onClick={() => setFailure(null)}>
             Dismiss
+          </button>
+        </div>
+      )}
+
+      {!onAir && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-repone-red bg-repone-red/15 px-5 py-4">
+          <span className="font-semibold">
+            No heat is on air. Overlays show nothing until one is.
+          </span>
+          <button
+            className="control-btn control-btn-red"
+            onClick={() => selectHeat(effectiveIndex)}
+          >
+            Put Heat {currentHeat.heatNumber} on air
           </button>
         </div>
       )}

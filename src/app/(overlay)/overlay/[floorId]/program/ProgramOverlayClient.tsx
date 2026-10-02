@@ -4,6 +4,10 @@ import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
 import { useStandings } from "@/lib/realtime/useStandings";
 import { useAthleteLookup } from "@/lib/realtime/useAthleteLookup";
+import { useHeatResults } from "@/lib/realtime/useHeatResults";
+import { HeatResults } from "@/components/graphics/HeatResults";
+import { formatResult } from "@/lib/scoring/formatResult";
+import type { ScoringType } from "@/lib/scoring/types";
 import { HeatIdentification } from "@/components/graphics/HeatIdentification";
 import { LanesBoard } from "@/components/graphics/LanesBoard";
 import { WodCard } from "@/components/graphics/WodCard";
@@ -42,6 +46,11 @@ export function ProgramOverlayClient({
   const standings = useStandings(
     state?.active_graphic === "leaderboard" ? (currentHeat?.division.id ?? null) : null,
   );
+  const heatResults = useHeatResults(
+    state?.active_graphic === "score" && currentHeat
+      ? { id: currentHeat.id, wodId: currentHeat.wod.id, divisionId: currentHeat.division.id }
+      : null,
+  );
   const lowerThirdAthlete = useAthleteLookup(state?.lower_third_athlete_id ?? null, eventId);
   const activeSponsor = sponsors.find((s) => s.id === state?.active_sponsor_id) ?? null;
 
@@ -78,6 +87,20 @@ export function ProgramOverlayClient({
       )}
       {graphic === "timer" && (
         <TimerDisplay fullScreen seconds={timer.displaySeconds} atLimit={timer.atLimit} />
+      )}
+      {graphic === "score" && currentHeat && (
+        <HeatResults
+          title={`${currentHeat.wod.name} · Heat ${currentHeat.heatNumber} — Results`}
+          rows={currentHeat.lanes.map((l) => {
+            const r = l.athleteId ? heatResults.get(l.athleteId) : undefined;
+            return {
+              laneNumber: l.laneNumber,
+              name: l.name ?? "—",
+              value: formatResult(r?.result ?? null, currentHeat.wod.scoring_type as ScoringType),
+              placement: r?.placement ?? null,
+            };
+          })}
+        />
       )}
       {graphic === "leaderboard" && currentHeat && (
         <div className="flex h-screen w-screen items-center justify-center bg-repone-black">
