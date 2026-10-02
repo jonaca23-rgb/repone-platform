@@ -9,10 +9,12 @@ export async function ModuleMenu({
   current,
   align = "end",
   side = "bottom",
+  compact = false,
 }: {
   current: ModuleKind | null;
   align?: "start" | "end";
   side?: "top" | "bottom";
+  compact?: boolean;
 }) {
   const [session, modules] = await Promise.all([getAuthSession(), userModules()]);
   if (!session) return null;
@@ -23,6 +25,7 @@ export async function ModuleMenu({
       items={moduleMenuItems(modules, current)}
       align={align}
       side={side}
+      compact={compact}
     />
   );
 }

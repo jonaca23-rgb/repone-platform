@@ -49,22 +49,31 @@ export function ModuleMenuView({
   items,
   align = "end",
   side = "bottom",
+  compact = false,
 }: {
   name: string;
   email: string;
   items: MenuItem[];
   align?: "start" | "end";
   side?: "top" | "bottom";
+  /** Touch-sized trigger (44px) that shows only the avatar on phones: for the operator top bar. */
+  compact?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2">
+        <Button
+          variant="ghost"
+          className={compact ? "h-11 gap-2" : "gap-2"}
+          aria-label={compact ? `Account and modules: ${name}` : undefined}
+        >
           <Avatar size="sm">
             <AvatarFallback>{initials(name)}</AvatarFallback>
           </Avatar>
-          <span className="max-w-40 truncate">{name}</span>
+          <span className={compact ? "max-w-40 truncate max-sm:hidden" : "max-w-40 truncate"}>
+            {name}
+          </span>
           <ChevronDown aria-hidden />
         </Button>
       </DropdownMenuTrigger>

@@ -30,6 +30,7 @@ export function ConfirmAction({
   variant = "destructive",
   triggerVariant = "ghost",
   triggerSize = "sm",
+  triggerClassName,
 }: {
   trigger: React.ReactNode;
   title: string;
@@ -37,8 +38,10 @@ export function ConfirmAction({
   confirmLabel: string;
   onConfirm: () => Promise<unknown>;
   variant?: "destructive" | "default";
-  triggerVariant?: "destructive" | "ghost" | "outline" | "link";
+  triggerVariant?: "destructive" | "ghost" | "outline" | "secondary" | "link";
   triggerSize?: "sm" | "default" | "touch";
+  /** Layout or size on the trigger, e.g. min-h-16 on a live control. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -65,7 +68,12 @@ export function ConfirmAction({
   return (
     <AlertDialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
       <AlertDialogTrigger asChild>
-        <Button type="button" variant={triggerVariant} size={triggerSize}>
+        <Button
+          type="button"
+          variant={triggerVariant}
+          size={triggerSize}
+          className={triggerClassName}
+        >
           {trigger}
         </Button>
       </AlertDialogTrigger>
