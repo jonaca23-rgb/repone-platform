@@ -13,8 +13,8 @@ import { AthleteDirectoryList } from "@/components/AthleteDirectoryList";
  */
 export default async function AthleteDirectoryPage() {
   const ctx = await getAthleteSessionContext();
-  if (!ctx) redirect("/athlete/login");
-  if (!ctx.athleteId) redirect("/athlete/onboarding");
+  if (!ctx) redirect("/login");
+  if (!ctx.athleteId) redirect("/");
 
   const athletes = await getAthleteDirectory(ctx.organizationId ?? "", ctx.athleteId);
 

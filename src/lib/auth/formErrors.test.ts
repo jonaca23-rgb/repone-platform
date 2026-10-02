@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { signInErrorMessage, signUpErrorMessage } from "./formErrors";
+import { isUnverified, resetErrorMessage, signInErrorMessage, signUpErrorMessage } from "./formErrors";
 
 describe("signInErrorMessage", () => {
   it("gives one message for every refusal, whatever the code", () => {
@@ -38,7 +38,25 @@ describe("signUpErrorMessage", () => {
     expect(signUpErrorMessage(undefined)).toBe("Couldn't create the account. Please try again.");
   });
 
+  it("says the email couldn't be sent when the server fails without a code", () => {
+    expect(signUpErrorMessage({ status: 500 })).toBe(
+      "Couldn't send the confirmation email. Please try again in a minute.",
+    );
+  });
+
   it("says to wait when rate limited", () => {
     expect(signUpErrorMessage({ status: 429 })).toMatch(/Too many attempts/);
+  });
+});
+
+describe("unverified and reset errors", () => {
+  it("an unverified sign-in asks to verify, never 'incorrect password'", () => {
+    const e = { status: 403, code: "EMAIL_NOT_VERIFIED" };
+    expect(isUnverified(e)).toBe(true);
+    expect(signInErrorMessage(e)).toBe("Confirm your email first — we just sent you a new link.");
+  });
+  it("an expired or used link says so", () => {
+    expect(resetErrorMessage({ code: "INVALID_TOKEN" })).toBe("This link has expired or was already used.");
+    expect(resetErrorMessage({ status: 500 })).toBe("Couldn't save the password. Please try again.");
   });
 });

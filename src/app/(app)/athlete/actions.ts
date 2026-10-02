@@ -2,15 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth/server";
 import { createClient } from "@/lib/db/server";
 import { z } from "zod";
 import { requireSignedIn } from "@/lib/auth/guards";
 import { friendlyAthleteWriteError } from "@/lib/db/athleteErrors";
 import { sqlNull } from "@/lib/db/sqlNull";
 import { Constants } from "@/lib/db/supabase.types";
-import { field, parseForm } from "@/lib/validation/form";
+import { field, parseForm, ValidationError } from "@/lib/validation/form";
 
 const OnboardingForm = z.object({
   first_name: field.text("First name", { max: 100 }),
@@ -27,11 +25,6 @@ const OnboardingForm = z.object({
   phone: field.phone(),
 });
 
-/** Ends the session; SignOutButton then leaves for /athlete/login with a full load. */
-export async function athleteSignOut() {
-  await auth.api.signOut({ headers: await headers() });
-}
-
 /**
  * One-time step after first sign-in: links this auth account to a new
  * `athletes` row via the bootstrap_athlete() SECURITY DEFINER function
@@ -39,9 +32,18 @@ export async function athleteSignOut() {
  * `athletes` writes are otherwise restricted to org staff. Runs once the
  * athlete has a session, so `auth.uid()` resolves to them.
  */
-export async function completeAthleteOnboarding(formData: FormData) {
+export async function completeAthleteOnboarding(
+  _previous: { error: string } | undefined,
+  formData: FormData,
+): Promise<{ error: string } | undefined> {
   await requireSignedIn();
-  const f = parseForm(OnboardingForm, formData);
+  let f: z.output<typeof OnboardingForm>;
+  try {
+    f = parseForm(OnboardingForm, formData);
+  } catch (e) {
+    if (e instanceof ValidationError) return { error: e.message };
+    throw e;
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("bootstrap_athlete", {
@@ -53,7 +55,7 @@ export async function completeAthleteOnboarding(formData: FormData) {
     p_email: f.email,
     p_phone: f.phone ?? undefined,
   });
-  if (error) throw new Error(friendlyAthleteWriteError(error));
+  if (error) return { error: friendlyAthleteWriteError(error) };
 
   revalidatePath("/athlete");
   redirect("/athlete");

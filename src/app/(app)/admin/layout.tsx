@@ -24,7 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="flex min-h-screen flex-col">
       <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-black/10 bg-repone-black px-4 py-4 text-repone-white sm:px-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <Link href="/admin" className="shrink-0 hover:opacity-80">
+          <Link href="/" className="shrink-0 hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
             <img
               src="/repone-logo.png"

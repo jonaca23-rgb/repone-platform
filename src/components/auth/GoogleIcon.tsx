@@ -1,4 +1,4 @@
-// Standard 4-color Google "G" mark, shared by the athlete login and signup
+// Standard 4-color Google "G" mark, shared by the sign-in and sign-up
 // forms' "Continue with Google" buttons.
 export function GoogleIcon() {
   return (

@@ -12,8 +12,8 @@ import { createAthleteFromPortal } from "@/lib/actions/social";
  */
 export default async function AddAthletePage() {
   const ctx = await getAthleteSessionContext();
-  if (!ctx) redirect("/athlete/login");
-  if (!ctx.athleteId) redirect("/athlete/onboarding");
+  if (!ctx) redirect("/login");
+  if (!ctx.athleteId) redirect("/");
 
   return (
     <div className="mx-auto max-w-md">

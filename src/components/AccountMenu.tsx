@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getAuthSession } from "@/lib/auth/session";
 import { userModules } from "@/lib/auth/userModules";
 import { SignOutButton } from "@/components/SignOutButton";
-import { signOut } from "@/app/(app)/login/actions";
+import { signOut } from "@/lib/auth/actions";
 
 /** Header menu on every signed-in screen: Home, the person's modules, Sign out. */
 export async function AccountMenu() {
