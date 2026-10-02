@@ -92,9 +92,10 @@ export function roleCan(
   rolesField: string | readonly string[] | null | undefined,
   permissions: Permissions,
 ): boolean {
-  const list = typeof rolesField === "string" || rolesField == null
-    ? splitRoles(rolesField)
-    : rolesField.flatMap((r) => splitRoles(r));
+  const list =
+    typeof rolesField === "string" || rolesField == null
+      ? splitRoles(rolesField)
+      : rolesField.flatMap((r) => splitRoles(r));
   return list.some((r) => roles[r].authorize(permissions).success);
 }
 

@@ -64,7 +64,12 @@ describe("roles", () => {
 
   it("lists the six roles", () => {
     expect(ORG_ROLES).toEqual([
-      "owner", "admin", "event_director", "production_director", "scoring_operator", "commentator",
+      "owner",
+      "admin",
+      "event_director",
+      "production_director",
+      "scoring_operator",
+      "commentator",
     ]);
   });
 });
