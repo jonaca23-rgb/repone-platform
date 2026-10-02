@@ -188,7 +188,8 @@ function LaneScoreForm({
                     name="time_seconds"
                     type="text"
                     inputMode="text"
-                    pattern="[0-9]{1,2}:[0-9]{2}"
+                    pattern="[0-9]{1,3}:[0-5][0-9]"
+                    title="Minutes:seconds, e.g. 3:45"
                     placeholder="3:45"
                     autoComplete="off"
                     defaultValue={

@@ -26,7 +26,7 @@ const getEventWithFloors = cache(async (eventId: string) => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await getEventWithFloors((await params).eventId);
-  return { title: event ? `Score Keeper · ${event.name}` : "Score Keeper" };
+  return { title: event ? `Scorekeeper · ${event.name}` : "Scorekeeper" };
 }
 
 /**

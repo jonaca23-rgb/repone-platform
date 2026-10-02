@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { PickLink } from "@/components/app/PickLink";
 import { OperatorShell } from "@/components/shells/OperatorShell";
 
-export const metadata: Metadata = { title: "Score Keeper" };
+export const metadata: Metadata = { title: "Scorekeeper" };
 
 // Entry point into the event-scoped Scorekeeper tree
 // (/scorekeeper/events/[eventId]). An admin sees every scheduled/live event

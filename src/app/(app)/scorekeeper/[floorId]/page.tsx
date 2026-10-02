@@ -19,7 +19,7 @@ const floorContext = cache(getFloorContext);
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const context = await floorContext((await params).floorId);
-  return { title: context ? `Score Keeper · ${context.eventName}` : "Score Keeper" };
+  return { title: context ? `Scorekeeper · ${context.eventName}` : "Scorekeeper" };
 }
 
 export default async function ScoreKeeperPage({ params }: Props) {
