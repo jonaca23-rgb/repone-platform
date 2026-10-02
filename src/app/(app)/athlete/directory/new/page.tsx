@@ -1,7 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { createAthleteFromPortal } from "@/lib/actions/social";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export const metadata: Metadata = { title: "Add New Athlete" };
 
 /**
  * Self-service "Add New Athlete" — adds a bare roster row (name + affiliate)
@@ -16,68 +25,72 @@ export default async function AddAthletePage() {
   if (!ctx.athleteId) redirect("/");
 
   return (
-    <div className="mx-auto max-w-md">
-      <p className="mb-4 text-sm">
-        <Link href="/athlete/directory" className="text-repone-red underline">
-          ← Athletes
-        </Link>
-      </p>
+    <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+      <PageHeader
+        breadcrumb={
+          <Button
+            asChild
+            variant="ghost"
+            className="-ml-3 min-h-11 gap-2 self-start text-muted-foreground"
+          >
+            <Link href="/athlete/directory">
+              <ChevronLeft aria-hidden />
+              Athletes
+            </Link>
+          </Button>
+        }
+        title="Add New Athlete"
+        description="Add someone to the roster. They can create their own RepOne account later — using this same email — to log in and manage their own profile. An email is required for every athlete, and the same email or phone can't be added twice."
+      />
 
-      <h1 className="mb-1 text-2xl font-bold text-white">Add New Athlete</h1>
-      <p className="mb-6 text-sm text-white/60">
-        Add someone to the roster. They can create their own RepOne account later — using this same
-        email — to log in and manage their own profile. An email is required for every athlete, and
-        the same email or phone can&apos;t be added twice.
-      </p>
-
-      <form
-        action={createAthleteFromPortal}
-        className="flex flex-col gap-4 rounded-lg border border-white/10 bg-repone-gray p-5"
-      >
-        <label className="flex flex-col gap-1 text-sm text-white/70">
-          First name
-          <input
-            name="first_name"
-            required
-            className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-repone-red/50 focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/70">
-          Last name
-          <input
-            name="last_name"
-            required
-            className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-repone-red/50 focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/70">
-          Affiliate / gym (optional)
-          <input
-            name="affiliate"
-            className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-repone-red/50 focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/70">
-          Email
-          <input
-            type="email"
-            name="email"
-            required
-            className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-repone-red/50 focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/70">
-          Phone (optional)
-          <input
-            type="tel"
-            name="phone"
-            className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-repone-red/50 focus:outline-none"
-          />
-        </label>
-        <button type="submit" className="control-btn control-btn-red mt-2 py-2.5 text-sm">
-          Add Athlete
-        </button>
-      </form>
+      <Card>
+        <CardContent>
+          <form action={createAthleteFromPortal} className="flex flex-col gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-first-name">First name</Label>
+              <Input
+                id="new-first-name"
+                name="first_name"
+                required
+                autoComplete="off"
+                className="h-11"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-last-name">Last name</Label>
+              <Input
+                id="new-last-name"
+                name="last_name"
+                required
+                autoComplete="off"
+                className="h-11"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-affiliate">Affiliate / gym (optional)</Label>
+              <Input id="new-affiliate" name="affiliate" autoComplete="off" className="h-11" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-email">Email</Label>
+              <Input
+                id="new-email"
+                type="email"
+                name="email"
+                required
+                autoComplete="off"
+                className="h-11"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-phone">Phone (optional)</Label>
+              <Input id="new-phone" type="tel" name="phone" autoComplete="off" className="h-11" />
+            </div>
+            <Button type="submit" size="touch" className="mt-2 w-full">
+              Add Athlete
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

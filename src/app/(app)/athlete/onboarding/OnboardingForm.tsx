@@ -1,10 +1,23 @@
 "use client";
 
-import { type FormEvent, startTransition, useActionState } from "react";
+import { type FormEvent, startTransition, useActionState, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NONE } from "@/lib/validation/none";
 import { completeAthleteOnboarding } from "../actions";
 
 export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
   const [state, formAction, pending] = useActionState(completeAthleteOnboarding, undefined);
+  const [gender, setGender] = useState(NONE);
 
   // Submitted through the action by hand rather than as <form action>: React
   // resets a form's uncontrolled fields after its action runs, which would
@@ -16,87 +29,107 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-sm rounded-xl border border-white/10 bg-repone-gray p-8 shadow-xl">
-      <h1 className="mb-1 text-xl font-bold text-white">Tell us about yourself</h1>
-      <p className="mb-6 text-sm text-white/60">
-        This creates your athlete profile in RepOne Platform, separate from your login.
-      </p>
+    <Card className="mx-auto w-full max-w-sm">
+      <CardHeader>
+        <h1 className="font-display text-2xl font-bold tracking-wide uppercase">
+          Tell us about yourself
+        </h1>
+        <CardDescription>
+          This creates your athlete profile in RepOne Platform, separate from your login.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="onb-first-name">First name</Label>
+            <Input
+              id="onb-first-name"
+              name="first_name"
+              required
+              autoComplete="given-name"
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="onb-last-name">Last name</Label>
+            <Input
+              id="onb-last-name"
+              name="last_name"
+              required
+              autoComplete="family-name"
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="onb-affiliate">Box / affiliate</Label>
+            <Input
+              id="onb-affiliate"
+              name="affiliate"
+              placeholder="Optional"
+              autoComplete="organization"
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="onb-email">Email</Label>
+            <Input
+              id="onb-email"
+              type="email"
+              name="email"
+              required
+              defaultValue={defaultEmail}
+              autoComplete="email"
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="onb-phone">Phone</Label>
+            <Input
+              id="onb-phone"
+              type="tel"
+              name="phone"
+              placeholder="Optional"
+              autoComplete="tel"
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="onb-dob">Date of birth</Label>
+            <Input
+              id="onb-dob"
+              type="date"
+              name="date_of_birth"
+              autoComplete="bday"
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="onb-gender">Gender</Label>
+            <Select value={gender} onValueChange={setGender}>
+              <SelectTrigger id="onb-gender" className="w-full data-[size=default]:h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>—</SelectItem>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* The action reads "" (not the Select's NONE) as not given, as the old native select posted. */}
+            <input type="hidden" name="gender" value={gender === NONE ? "" : gender} />
+          </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          First name
-          <input
-            name="first_name"
-            required
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Last name
-          <input
-            name="last_name"
-            required
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Box / affiliate
-          <input
-            name="affiliate"
-            placeholder="Optional"
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Email
-          <input
-            type="email"
-            name="email"
-            required
-            defaultValue={defaultEmail}
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Phone
-          <input
-            type="tel"
-            name="phone"
-            placeholder="Optional"
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Date of birth
-          <input
-            type="date"
-            name="date_of_birth"
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Gender
-          <select
-            name="gender"
-            defaultValue=""
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-          >
-            <option value="">—</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </label>
+          {state?.error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {state.error}
+            </p>
+          ) : null}
 
-        {state?.error ? <p className="text-sm text-repone-red">{state.error}</p> : null}
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Continue"}
-        </button>
-      </form>
-    </div>
+          <Button type="submit" size="touch" disabled={pending} className="mt-2 w-full">
+            {pending ? "Saving…" : "Continue"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
