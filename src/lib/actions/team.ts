@@ -32,7 +32,10 @@ async function requireTeamManager() {
   return { ctx, organizationId };
 }
 
-export async function inviteTeamMember(_previous: FormResult, formData: FormData): Promise<FormResult> {
+export async function inviteTeamMember(
+  _previous: FormResult,
+  formData: FormData,
+): Promise<FormResult> {
   try {
     const { email, role } = parseForm(InviteForm, formData);
     const { organizationId } = await requireTeamManager();

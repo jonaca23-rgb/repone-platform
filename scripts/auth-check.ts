@@ -164,11 +164,23 @@ async function main() {
       await auth.api.signUpEmail({ body: { email: fresh, password: "Verify12345!", name: "" } });
       const verifyMail = await latestEmailTo(fresh);
       expect("sign-up sends a verification email", !!verifyMail?.links.length, verifyMail);
-      const blocked = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
-      expect("unverified sign-in is refused with EMAIL_NOT_VERIFIED", blocked?.body?.code === "EMAIL_NOT_VERIFIED", blocked?.body);
+      const blocked = await auth.api
+        .signInEmail({ body: { email: fresh, password: "Verify12345!" } })
+        .catch((e) => e);
+      expect(
+        "unverified sign-in is refused with EMAIL_NOT_VERIFIED",
+        blocked?.body?.code === "EMAIL_NOT_VERIFIED",
+        blocked?.body,
+      );
       const verifyRes = await fetch(verifyMail!.links[0], { redirect: "manual" });
-      expect("the verification link redirects (verified)", verifyRes.status === 302 || verifyRes.status === 307, verifyRes.status);
-      const ok = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
+      expect(
+        "the verification link redirects (verified)",
+        verifyRes.status === 302 || verifyRes.status === 307,
+        verifyRes.status,
+      );
+      const ok = await auth.api
+        .signInEmail({ body: { email: fresh, password: "Verify12345!" } })
+        .catch((e) => e);
       expect("verified account signs in", !!ok?.user, ok?.body);
 
       // Signing up again with an address that already has an account: the
@@ -192,12 +204,21 @@ async function main() {
         });
         const body = (await res.json()) as { token: unknown; user: Record<string, unknown> };
         const varies = ["id", "email", "createdAt", "updatedAt"];
-        const fields = Object.entries(body.user ?? {}).filter(([k]) => !varies.includes(k)).sort();
+        const fields = Object.entries(body.user ?? {})
+          .filter(([k]) => !varies.includes(k))
+          .sort();
         return JSON.stringify({ status: res.status, token: body.token, user: fields });
       };
       const newcomer = `newcomer+${Date.now()}@example.test`;
-      const [existingAnswer, newAnswer] = [await signUpOverHttp(fresh), await signUpOverHttp(newcomer)];
-      expect("over HTTP, sign-up answers an existing email exactly as a new one", existingAnswer === newAnswer, { existingAnswer, newAnswer });
+      const [existingAnswer, newAnswer] = [
+        await signUpOverHttp(fresh),
+        await signUpOverHttp(newcomer),
+      ];
+      expect(
+        "over HTTP, sign-up answers an existing email exactly as a new one",
+        existingAnswer === newAnswer,
+        { existingAnswer, newAnswer },
+      );
       await service.from("user").delete().eq("email", newcomer);
       const already = await latestEmailTo(fresh);
       expect(
@@ -207,14 +228,20 @@ async function main() {
           already.links.some((l) => l.endsWith("/forgot-password")),
         already,
       );
-      const stillOld = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
+      const stillOld = await auth.api
+        .signInEmail({ body: { email: fresh, password: "Verify12345!" } })
+        .catch((e) => e);
       expect("…and the existing password is unchanged", !!stillOld?.user, stillOld?.body);
 
       // An invited account (no password yet) signing up gets its invitation link.
       const invitedEmail = `invited-signup+${Date.now()}@example.test`;
-      await auth.api.createUser({ body: { email: invitedEmail, name: "", data: { emailVerified: true } } });
+      await auth.api.createUser({
+        body: { email: invitedEmail, name: "", data: { emailVerified: true } },
+      });
       await clearMailbox();
-      await auth.api.signUpEmail({ body: { email: invitedEmail, password: "Another12345!", name: "" } });
+      await auth.api.signUpEmail({
+        body: { email: invitedEmail, password: "Another12345!", name: "" },
+      });
       const invitedMail = await latestEmailTo(invitedEmail);
       expect(
         "sign-up with an invited, passwordless email sends the /invite link",
@@ -223,20 +250,44 @@ async function main() {
       );
       // Forgot-password (redirectTo /reset-password) for a passwordless
       // account reads as a reset, not an invitation.
-      await auth.api.createUser({ body: { email: invitedEmail.replace("invited-signup", "invited-forgot"), name: "", data: { emailVerified: true } } });
+      await auth.api.createUser({
+        body: {
+          email: invitedEmail.replace("invited-signup", "invited-forgot"),
+          name: "",
+          data: { emailVerified: true },
+        },
+      });
       await clearMailbox();
-      await auth.api.requestPasswordReset({ body: { email: invitedEmail.replace("invited-signup", "invited-forgot"), redirectTo: "/reset-password" } });
-      const forgotMail = await latestEmailTo(invitedEmail.replace("invited-signup", "invited-forgot"));
-      expect("forgot-password for a passwordless account uses the reset copy", !!forgotMail?.subject.includes("Reset your RepOne password"), forgotMail?.subject);
-      await service.from("user").delete().in("email", [invitedEmail, invitedEmail.replace("invited-signup", "invited-forgot")]);
+      await auth.api.requestPasswordReset({
+        body: {
+          email: invitedEmail.replace("invited-signup", "invited-forgot"),
+          redirectTo: "/reset-password",
+        },
+      });
+      const forgotMail = await latestEmailTo(
+        invitedEmail.replace("invited-signup", "invited-forgot"),
+      );
+      expect(
+        "forgot-password for a passwordless account uses the reset copy",
+        !!forgotMail?.subject.includes("Reset your RepOne password"),
+        forgotMail?.subject,
+      );
+      await service
+        .from("user")
+        .delete()
+        .in("email", [invitedEmail, invitedEmail.replace("invited-signup", "invited-forgot")]);
 
       await clearMailbox();
-      await auth.api.requestPasswordReset({ body: { email: fresh, redirectTo: "/reset-password" } });
+      await auth.api.requestPasswordReset({
+        body: { email: fresh, redirectTo: "/reset-password" },
+      });
       const resetMail = await latestEmailTo(fresh);
       const token = resetMail?.links[0]?.match(/reset-password\/([^?]+)/)?.[1];
       expect("reset email carries a token", !!token, resetMail);
       await auth.api.resetPassword({ body: { token: token!, newPassword: "Changed12345!" } });
-      const reuse = await auth.api.resetPassword({ body: { token: token!, newPassword: "Again12345!!" } }).catch((e) => e);
+      const reuse = await auth.api
+        .resetPassword({ body: { token: token!, newPassword: "Again12345!!" } })
+        .catch((e) => e);
       expect("a reset link works once", !!reuse?.body || reuse instanceof Error, reuse);
       await service.from("user").delete().eq("email", fresh);
     } else {

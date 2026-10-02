@@ -28,7 +28,11 @@ export default async function HomePage() {
         {modules.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {modules.map((m) => (
-              <Link key={m.kind} href={m.href} className="rounded-xl border border-white/10 bg-repone-gray p-6 hover:border-repone-red">
+              <Link
+                key={m.kind}
+                href={m.href}
+                className="rounded-xl border border-white/10 bg-repone-gray p-6 hover:border-repone-red"
+              >
                 <p className="text-lg font-bold uppercase tracking-wide">{m.label}</p>
                 <p className="mt-1 text-sm text-white/60">{m.detail}</p>
               </Link>
@@ -36,8 +40,16 @@ export default async function HomePage() {
           </div>
         ) : null}
         {offerAthleteProfile ? (
-          <div className={modules.length ? "rounded-xl border border-dashed border-white/20 p-6" : "flex flex-col items-center gap-4 py-16 text-center"}>
-            <Link href="/athlete/onboarding" className="control-btn control-btn-red px-8">Create my athlete profile</Link>
+          <div
+            className={
+              modules.length
+                ? "rounded-xl border border-dashed border-white/20 p-6"
+                : "flex flex-col items-center gap-4 py-16 text-center"
+            }
+          >
+            <Link href="/athlete/onboarding" className="control-btn control-btn-red px-8">
+              Create my athlete profile
+            </Link>
             {modules.length === 0 ? (
               <p className="text-sm text-white/50">Invited as staff? Use the link in your email.</p>
             ) : null}

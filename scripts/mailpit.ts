@@ -6,7 +6,10 @@ export async function latestEmailTo(address: string) {
   if (!res.ok) throw new Error(`Mailpit search failed: ${res.status}`);
   const { messages } = (await res.json()) as { messages: Array<{ ID: string; Subject: string }> };
   if (!messages.length) return null;
-  const msg = (await (await fetch(`${API}/message/${messages[0].ID}`)).json()) as { Subject: string; Text: string };
+  const msg = (await (await fetch(`${API}/message/${messages[0].ID}`)).json()) as {
+    Subject: string;
+    Text: string;
+  };
   const links = [...msg.Text.matchAll(/https?:\/\/\S+/g)].map((m) => m[0]);
   return { subject: msg.Subject, text: msg.Text, links };
 }

@@ -273,11 +273,17 @@ async function main() {
     {
       // Producers enter and correct scores (scorekeeper/[floorId]) and view
       // the commentator screens; their layouts must let them in (over HTTP).
-      const probe = await fetch("http://localhost:3200/api/supabase-token", { cache: "no-store" }).catch(() => null);
+      const probe = await fetch("http://localhost:3200/api/supabase-token", {
+        cache: "no-store",
+      }).catch(() => null);
       if (probe) {
         const p = await signInAs("producer@repone.test");
         const listed = await assignedEvents(p.db, await loadSessionContext(p.db, p), "scorekeeper");
-        expect("producer's scorekeeper picker lists the seed event", listed.some((e) => e.id === EVENT_ID), listed);
+        expect(
+          "producer's scorekeeper picker lists the seed event",
+          listed.some((e) => e.id === EVENT_ID),
+          listed,
+        );
         for (const path of [
           "/scorekeeper",
           `/scorekeeper/events/${EVENT_ID}`,
@@ -289,7 +295,11 @@ async function main() {
             headers: { cookie: p.headers.get("cookie") ?? "" },
             redirect: "manual",
           });
-          expect(`producer GET ${path} answers 200`, res.status === 200, `${res.status} ${res.headers.get("location") ?? ""}`);
+          expect(
+            `producer GET ${path} answers 200`,
+            res.status === 200,
+            `${res.status} ${res.headers.get("location") ?? ""}`,
+          );
         }
       } else {
         console.log("skip  producer HTTP checks (dev server not running)");

@@ -32,7 +32,8 @@ const MUST_KEEP_OWNER = new Set([
 export function failure(error: unknown): FormResult {
   if (error instanceof APIError) {
     const code = String(error.body?.code ?? "");
-    if (MUST_KEEP_OWNER.has(code)) return { ok: false, message: "The organization must keep an owner." };
+    if (MUST_KEEP_OWNER.has(code))
+      return { ok: false, message: "The organization must keep an owner." };
     return { ok: false, message: error.body?.message ?? error.message };
   }
   if (

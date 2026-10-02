@@ -17,7 +17,10 @@ export function ForgotPasswordForm() {
     setPending(true);
     setError("");
     try {
-      const { error } = await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
+      const { error } = await authClient.requestPasswordReset({
+        email,
+        redirectTo: "/reset-password",
+      });
       // The answer never depends on whether the address has an account.
       if (error?.status === 429) setError(TOO_MANY);
       else setMessage("If that email has an account, we sent a link to reset the password.");
@@ -28,7 +31,12 @@ export function ForgotPasswordForm() {
     }
   }
 
-  if (message) return <p role="status" className="text-sm text-white/80">{message}</p>;
+  if (message)
+    return (
+      <p role="status" className="text-sm text-white/80">
+        {message}
+      </p>
+    );
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">

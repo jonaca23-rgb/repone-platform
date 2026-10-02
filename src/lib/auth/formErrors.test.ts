@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isUnverified, resetErrorMessage, signInErrorMessage, signUpErrorMessage } from "./formErrors";
+import {
+  isUnverified,
+  resetErrorMessage,
+  signInErrorMessage,
+  signUpErrorMessage,
+} from "./formErrors";
 
 describe("signInErrorMessage", () => {
   it("gives one message for every refusal, whatever the code", () => {
@@ -56,7 +61,11 @@ describe("unverified and reset errors", () => {
     expect(signInErrorMessage(e)).toBe("Confirm your email first — we just sent you a new link.");
   });
   it("an expired or used link says so", () => {
-    expect(resetErrorMessage({ code: "INVALID_TOKEN" })).toBe("This link has expired or was already used.");
-    expect(resetErrorMessage({ status: 500 })).toBe("Couldn't save the password. Please try again.");
+    expect(resetErrorMessage({ code: "INVALID_TOKEN" })).toBe(
+      "This link has expired or was already used.",
+    );
+    expect(resetErrorMessage({ status: 500 })).toBe(
+      "Couldn't save the password. Please try again.",
+    );
   });
 });

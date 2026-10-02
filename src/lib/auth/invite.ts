@@ -56,7 +56,9 @@ export async function ensureUser(email: string): Promise<{ userId: string; creat
   if (found) {
     if (!found.emailVerified && found.lastSignInAt === null) {
       await db.transaction(async (tx) => {
-        await tx.delete(account).where(and(eq(account.userId, found.id), eq(account.providerId, "credential")));
+        await tx
+          .delete(account)
+          .where(and(eq(account.userId, found.id), eq(account.providerId, "credential")));
         await tx.delete(session).where(eq(session.userId, found.id));
         await tx.update(user).set({ emailVerified: true }).where(eq(user.id, found.id));
       });
@@ -79,7 +81,12 @@ export async function ensureUser(email: string): Promise<{ userId: string; creat
  * someone whose team invitation is still pending, or an account left behind
  * when granting the role failed all have no way in without it.
  */
-async function deliver(created: boolean, userId: string, email: string, what: string): Promise<boolean> {
+async function deliver(
+  created: boolean,
+  userId: string,
+  email: string,
+  what: string,
+): Promise<boolean> {
   const address = normalizeEmail(email);
   try {
     if (created || (await pendingEmail(userId)) !== null) await sendPasswordLink(userId, address);
@@ -178,7 +185,12 @@ export async function inviteToEvent(input: {
     { onConflict: `event_id,${column}` },
   );
   if (error) throw new Error(error.message);
-  const emailSent = await deliver(created, userId, input.email, `${input.kind} for ${input.eventName}`);
+  const emailSent = await deliver(
+    created,
+    userId,
+    input.email,
+    `${input.kind} for ${input.eventName}`,
+  );
   return { userId, created, emailSent };
 }
 
@@ -213,6 +225,9 @@ export async function pendingEmail(userId: string): Promise<string | null> {
  */
 export async function emailsByUserId(userIds: string[]): Promise<Map<string, string>> {
   if (!userIds.length) return new Map();
-  const rows = await db.select({ id: user.id, email: user.email }).from(user).where(inArray(user.id, userIds));
+  const rows = await db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(inArray(user.id, userIds));
   return new Map(rows.map((r) => [r.id, r.email]));
 }

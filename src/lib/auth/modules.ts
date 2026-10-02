@@ -8,7 +8,12 @@ import {
 } from "./permissions";
 
 export type ModuleKind = "admin" | "producer" | "scorekeeper" | "commentator" | "athlete";
-export interface Module { kind: ModuleKind; href: string; label: string; detail: string }
+export interface Module {
+  kind: ModuleKind;
+  href: string;
+  label: string;
+  detail: string;
+}
 export interface ModuleFacts {
   orgName: string | null;
   orgRoles: OrgRole[];
@@ -22,11 +27,35 @@ export interface ModuleFacts {
  * holds that permission (a producer assignment opens Scorekeeper and
  * Commentator as well as Production).
  */
-const STAFF: Array<{ kind: Exclude<ModuleKind, "athlete">; href: string; label: string; opens: Permissions; staff?: EventStaffKind }> = [
+const STAFF: Array<{
+  kind: Exclude<ModuleKind, "athlete">;
+  href: string;
+  label: string;
+  opens: Permissions;
+  staff?: EventStaffKind;
+}> = [
   { kind: "admin", href: "/admin", label: "Admin", opens: { event: ["update"] } },
-  { kind: "producer", href: "/producer", label: "Production", opens: STAFF_PERMISSION.producer, staff: "producer" },
-  { kind: "scorekeeper", href: "/scorekeeper", label: "Scorekeeper", opens: STAFF_PERMISSION.scorekeeper, staff: "scorekeeper" },
-  { kind: "commentator", href: "/commentator", label: "Commentator", opens: STAFF_PERMISSION.commentator, staff: "commentator" },
+  {
+    kind: "producer",
+    href: "/producer",
+    label: "Production",
+    opens: STAFF_PERMISSION.producer,
+    staff: "producer",
+  },
+  {
+    kind: "scorekeeper",
+    href: "/scorekeeper",
+    label: "Scorekeeper",
+    opens: STAFF_PERMISSION.scorekeeper,
+    staff: "scorekeeper",
+  },
+  {
+    kind: "commentator",
+    href: "/commentator",
+    label: "Commentator",
+    opens: STAFF_PERMISSION.commentator,
+    staff: "commentator",
+  },
 ];
 
 /** The modules a person can open, from plain facts (userModules gathers them). */
@@ -42,11 +71,14 @@ export function modulesFor(f: ModuleFacts): Module[] {
       out.push({ kind: m.kind, href: m.href, label: m.label, detail: events.join(", ") });
     }
   }
-  if (f.athleteName) out.push({ kind: "athlete", href: "/athlete", label: "Athlete", detail: f.athleteName });
+  if (f.athleteName)
+    out.push({ kind: "athlete", href: "/athlete", label: "Athlete", detail: f.athleteName });
   return out;
 }
 
-export type Home = { redirect: string } | { start: { modules: Module[]; offerAthleteProfile: boolean } };
+export type Home =
+  | { redirect: string }
+  | { start: { modules: Module[]; offerAthleteProfile: boolean } };
 
 /** Where `/` sends a signed-in person (spec §4, resolveHome table). */
 export function resolveHome(modules: Module[]): Home {

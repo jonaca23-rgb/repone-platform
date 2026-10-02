@@ -128,7 +128,9 @@ export const auth = betterAuth({
         const [credential] = await db
           .select({ id: schema.account.id })
           .from(schema.account)
-          .where(and(eq(schema.account.userId, user.id), eq(schema.account.providerId, "credential")))
+          .where(
+            and(eq(schema.account.userId, user.id), eq(schema.account.providerId, "credential")),
+          )
           .limit(1);
         if (!credential || !user.emailVerified) {
           // Imported here: passwordLink.ts imports this module.
@@ -137,7 +139,11 @@ export const auth = betterAuth({
         } else {
           const base = process.env.BETTER_AUTH_URL;
           await sendEmail(
-            existingAccountEmail({ to: user.email, loginUrl: `${base}/login`, forgotUrl: `${base}/forgot-password` }),
+            existingAccountEmail({
+              to: user.email,
+              loginUrl: `${base}/login`,
+              forgotUrl: `${base}/forgot-password`,
+            }),
           );
         }
       } catch (error) {

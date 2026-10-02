@@ -106,7 +106,11 @@ export function roleCan(
 }
 
 export type EventStaffKind = "scorekeeper" | "producer" | "commentator";
-export const EVENT_STAFF_KINDS: readonly EventStaffKind[] = ["scorekeeper", "producer", "commentator"];
+export const EVENT_STAFF_KINDS: readonly EventStaffKind[] = [
+  "scorekeeper",
+  "producer",
+  "commentator",
+];
 
 /** The role an event assignment grants for that one event. */
 export const EVENT_STAFF_ROLE = {
