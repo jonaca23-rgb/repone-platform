@@ -76,7 +76,7 @@ export const statement = {
 | `owner` | everything (`ownerAc` + all of the above) | the first `admin` |
 | `admin` | everything except `organization:delete` (`adminAc` + all of the above) | `admin` |
 | `event_director` | `event`, `athlete`, `heat`, `score`, `broadcast`, `commentary`, `sponsor`, `finance`, `staff:invite`. No `member` or `invitation`, so it cannot grant org roles | `event_director` |
-| `production_director` | `heat`, `broadcast`, `commentary` | `production_director` |
+| `production_director` | `heat`, `score`, `broadcast`, `commentary` (producers enter and correct scores) | `production_director` |
 | `scoring_operator` | `heat`, `score` | `scoring_operator` |
 | `commentator` | `commentary` | `commentator` |
 
@@ -174,12 +174,13 @@ Each module declares the permission that opens it:
 | Admin | `/admin` | `event:update` (org role) |
 | Equipo | `/admin/team` | `member:create` (shown inside Admin) |
 | Producción | `/producer` (+ `/dashboard`) | `broadcast:control`, org role or any active producer assignment |
-| Scorekeeper | `/scorekeeper` | `score:enter`, org role or any active scorekeeper assignment |
-| Comentarista | `/commentator` | `commentary:read`, org role or any active commentator assignment |
+| Scorekeeper | `/scorekeeper` | `score:enter`, org role or any active scorekeeper or producer assignment |
+| Comentarista | `/commentator` | `commentary:read`, org role or any active commentator or producer assignment |
 | Atleta | `/athlete` | an `athletes` row linked to the account (a profile, not a permission) |
 
 - **`userModules(ctx)`:** server-only, `cache()`d per request, with its queries in parallel. Returns `{ kind, href, label, detail }[]`, where `detail` is the org name, the event names or the athlete's name.
 - **Owners and admins hold every permission, so they get Admin, Producción, Scorekeeper and Comentarista.** They also get Atleta if they have a profile.
+- **An assignment opens every module whose permission its event role holds** (`assignmentsOpening`): a producer assignment (`production_director`) opens Producción, Scorekeeper and Comentarista, each with the producer's event names as detail. An org role holding a module's permission reaches every event in the org on that module's screens (`eventAccess`, the pickers).
 
 ### `resolveHome(modules)` (pure)
 

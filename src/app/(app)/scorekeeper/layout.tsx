@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { requireModule } from "@/lib/auth/userModules";
+import { requireModule, userModules } from "@/lib/auth/userModules";
 import { AccountMenu } from "@/components/AccountMenu";
 
 export default async function ScoreKeeperLayout({ children }: { children: React.ReactNode }) {
   await requireModule("scorekeeper");
+  // Link only to the modules this person has (a scorekeeper may not produce).
+  const mine = new Set((await userModules()).map((m) => m.kind));
 
   return (
     <div className="min-h-screen bg-repone-black text-repone-white">
@@ -32,18 +34,22 @@ export default async function ScoreKeeperLayout({ children }: { children: React.
           >
             Score Keeper
           </Link>
-          <Link
-            href="/producer"
-            className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-          >
-            Producer
-          </Link>
-          <Link
-            href="/commentator"
-            className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-          >
-            Commentator
-          </Link>
+          {mine.has("producer") && (
+            <Link
+              href="/producer"
+              className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+            >
+              Producer
+            </Link>
+          )}
+          {mine.has("commentator") && (
+            <Link
+              href="/commentator"
+              className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+            >
+              Commentator
+            </Link>
+          )}
         </div>
         <AccountMenu />
       </div>

@@ -8,8 +8,16 @@
 // action refuses up front with a clear error instead of relying on RLS, whose
 // denials look like success (an update that matches 0 rows).
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/db/database.types";
-import { type OrgRole, type Permissions, roleCan, splitRoles } from "@/lib/auth/permissions";
+import type { Database, EventStatus } from "@/lib/db/database.types";
+import {
+  assignmentsOpening,
+  type EventStaffKind,
+  type OrgRole,
+  type Permissions,
+  roleCan,
+  splitRoles,
+  STAFF_PERMISSION,
+} from "@/lib/auth/permissions";
 
 type Db = SupabaseClient<Database>;
 
@@ -24,7 +32,7 @@ export interface SessionContext {
   roles: OrgRole[];
 }
 
-export type EventStaffRole = "scorekeeper" | "producer" | "commentator";
+export type EventStaffRole = EventStaffKind;
 
 /** Who is signed in, as the BetterAuth session says (or a script's sign-in). */
 export interface SessionIdentity {
@@ -77,10 +85,12 @@ const STAFF_CHECK = {
 
 /**
  * May this user act on `eventId`? Yes for a manager of the event's own
- * organization, or for anyone holding an active assignment on the event in
- * one of `staff` (checked with the same SQL functions RLS uses). Pass `[]`
- * for manager-only actions. Returns the event's ids, or null when denied or
- * the event doesn't exist.
+ * organization; for each staff kind in `staff`, also for an org role in the
+ * event's organization holding that kind's permission (STAFF_PERMISSION), or
+ * an active assignment on the event whose role holds it (assignmentsOpening;
+ * checked with the same SQL functions RLS uses). This is the spec's
+ * can(ctx, permissions, eventId). Pass `[]` for manager-only actions.
+ * Returns the event's ids, or null when denied or the event doesn't exist.
  */
 export async function eventAccess(
   db: Db,
@@ -99,11 +109,72 @@ export async function eventAccess(
 
   if (orgManagerOf(ctx) === event.organization_id) return granted;
 
-  for (const role of staff) {
-    const { data } = await db.rpc(STAFF_CHECK[role], { p_event_id: event.id });
+  if (
+    ctx.organizationId === event.organization_id &&
+    staff.some((kind) => roleCan(ctx.roles, STAFF_PERMISSION[kind]))
+  )
+    return granted;
+
+  const kinds = new Set(staff.flatMap(assignmentsOpening));
+  for (const kind of kinds) {
+    const { data } = await db.rpc(STAFF_CHECK[kind], { p_event_id: event.id });
     if (data === true) return granted;
   }
   return null;
+}
+
+const ASSIGNMENT = {
+  scorekeeper: { table: "event_scorekeeper_assignments", column: "scorekeeper_user_id" },
+  producer: { table: "event_producer_assignments", column: "producer_user_id" },
+  commentator: { table: "event_commentator_assignments", column: "commentator_user_id" },
+} as const;
+
+export interface AssignedEvent {
+  id: string;
+  name: string;
+  status: EventStatus;
+  starts_on: string | null;
+  ends_on: string | null;
+}
+
+/**
+ * Events to offer on a staff module's picker: every scheduled/live event in
+ * the org for an org manager or an org role holding the kind's permission;
+ * otherwise the events this user holds an active assignment for that opens
+ * the kind (a producer's events show on the Scorekeeper picker too).
+ */
+export async function assignedEvents(
+  db: Db,
+  ctx: SessionContext | null,
+  role: EventStaffRole,
+): Promise<AssignedEvent[]> {
+  if (!ctx) return [];
+
+  if (orgCan(ctx, { event: ["update"] }) || orgCan(ctx, STAFF_PERMISSION[role])) {
+    const { data } = await db
+      .from("events")
+      .select("id, name, status, starts_on, ends_on")
+      .eq("organization_id", ctx.organizationId ?? "")
+      .in("status", ["scheduled", "live"])
+      .order("starts_on", { ascending: true, nullsFirst: false });
+    return data ?? [];
+  }
+
+  const lists = await Promise.all(
+    assignmentsOpening(role).map(async (kind) => {
+      // The three assignment tables share every column except the user id
+      // one, so the scorekeeper table's types stand in for all three.
+      const { table, column } = ASSIGNMENT[kind];
+      const { data: rows } = await db
+        .from(table as "event_scorekeeper_assignments")
+        .select(`event_id, events(id, name, status, starts_on, ends_on)`)
+        .eq(column as "scorekeeper_user_id", ctx.userId)
+        .eq("status", "active");
+      return (rows ?? []).map((r) => r.events).filter((e): e is AssignedEvent => !!e);
+    }),
+  );
+  const byId = new Map(lists.flat().map((e) => [e.id, e]));
+  return [...byId.values()];
 }
 
 /** The event a floor belongs to (floor → venue → event), or null. */

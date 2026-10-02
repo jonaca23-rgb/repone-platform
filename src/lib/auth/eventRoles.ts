@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/db/server";
-import { orgCan, type SessionContext } from "@/lib/auth/session";
-import { eventAccess, type EventStaffRole } from "@/lib/auth/authorize";
-import type { EventStatus } from "@/lib/db/database.types";
+import type { SessionContext } from "@/lib/auth/session";
+import {
+  assignedEvents,
+  eventAccess,
+  type AssignedEvent,
+  type EventStaffRole,
+} from "@/lib/auth/authorize";
 
 // Event-scoped staff assignment checks (0024_event_role_assignments.sql) —
 // Scorekeeper/Producer/Commentator are per-event, unlike org roles, which
@@ -17,78 +21,27 @@ import type { EventStatus } from "@/lib/db/database.types";
 
 export type { EventStaffRole } from "@/lib/auth/authorize";
 
-const ASSIGNMENT_TABLE = {
-  scorekeeper: "event_scorekeeper_assignments",
-  producer: "event_producer_assignments",
-  commentator: "event_commentator_assignments",
-} as const;
-
-const ASSIGNMENT_USER_COLUMN = {
-  scorekeeper: "scorekeeper_user_id",
-  producer: "producer_user_id",
-  commentator: "commentator_user_id",
-} as const;
-
 /**
  * Is this signed-in staff member allowed onto `eventId`'s screens for
- * `role`? True for an admin unconditionally, or for anyone with an
- * `active` assignment row for that event/role.
+ * `role`? True for an org manager, an org role holding the role's
+ * permission, or an active assignment that opens it (a producer
+ * assignment opens the scorekeeper and commentator screens too).
  */
 export async function isAssignedToEvent(
   ctx: SessionContext | null,
   eventId: string,
   role: EventStaffRole,
 ): Promise<boolean> {
-  // Same decision the server actions make (authorize.ts): a manager of the
-  // event's org, or active staff assigned in this role.
+  // Same decision the server actions make (authorize.ts, eventAccess).
   return (await eventAccess(await createClient(), ctx, eventId, [role])) !== null;
 }
 
-// The three assignment tables share every column except the user id one, so
-// the scorekeeper table's types stand in for all three in the query builder.
-// This is the one place that bridges the dynamic table name.
-function assignments(supabase: Awaited<ReturnType<typeof createClient>>, role: EventStaffRole) {
-  return {
-    table: supabase.from(ASSIGNMENT_TABLE[role] as "event_scorekeeper_assignments"),
-    userColumn: ASSIGNMENT_USER_COLUMN[role] as "scorekeeper_user_id",
-  };
-}
+export type { AssignedEvent } from "@/lib/auth/authorize";
 
-export interface AssignedEvent {
-  id: string;
-  name: string;
-  status: EventStatus;
-  starts_on: string | null;
-  ends_on: string | null;
-}
-
-/**
- * Events to offer on a staff role's landing page: every scheduled/live
- * event in the org for an admin (same as today's floor pickers), or just
- * the events this specific user holds an active assignment for otherwise.
- */
+/** Events to offer on a staff module's picker (authorize.ts, assignedEvents). */
 export async function getAssignedEvents(
   ctx: SessionContext | null,
   role: EventStaffRole,
 ): Promise<AssignedEvent[]> {
-  if (!ctx) return [];
-  const supabase = await createClient();
-
-  if (orgCan(ctx, { event: ["update"] })) {
-    const { data } = await supabase
-      .from("events")
-      .select("id, name, status, starts_on, ends_on")
-      .eq("organization_id", ctx.organizationId ?? "")
-      .in("status", ["scheduled", "live"])
-      .order("starts_on", { ascending: true, nullsFirst: false });
-    return data ?? [];
-  }
-
-  const { table, userColumn } = assignments(supabase, role);
-  const { data: rows } = await table
-    .select(`event_id, events(id, name, status, starts_on, ends_on)`)
-    .eq(userColumn, ctx.userId)
-    .eq("status", "active");
-
-  return (rows ?? []).map((r) => r.events).filter((e): e is AssignedEvent => !!e);
+  return assignedEvents(await createClient(), ctx, role);
 }

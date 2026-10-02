@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ORG_ROLES, roleCan, splitRoles } from "./permissions";
+import { assignmentsOpening, ORG_ROLES, roleCan, splitRoles } from "./permissions";
 
 const APP = {
   event: ["create", "update", "delete"],
@@ -41,7 +41,9 @@ describe("roles", () => {
     expect(roleCan("scoring_operator", { score: ["enter"] })).toBe(true);
     expect(roleCan("scoring_operator", { broadcast: ["control"] })).toBe(false);
     expect(roleCan("production_director", { broadcast: ["control"] })).toBe(true);
-    expect(roleCan("production_director", { score: ["enter"] })).toBe(false);
+    // Producers correct scores (their screens link into the Scorekeeper).
+    expect(roleCan("production_director", { score: ["enter"] })).toBe(true);
+    expect(roleCan("production_director", { event: ["create"] })).toBe(false);
     expect(roleCan("commentator", { commentary: ["read"] })).toBe(true);
     expect(roleCan("commentator", { heat: ["manage"] })).toBe(false);
     for (const role of ["production_director", "scoring_operator", "commentator"]) {
@@ -60,6 +62,12 @@ describe("roles", () => {
     expect(roleCan("", { commentary: ["read"] })).toBe(false);
     expect(roleCan(null, { commentary: ["read"] })).toBe(false);
     expect(splitRoles("owner,nope, admin")).toEqual(["owner", "admin"]);
+  });
+
+  it("a producer assignment opens the Scorekeeper and Commentator screens; the others only their own", () => {
+    expect(assignmentsOpening("scorekeeper")).toEqual(["scorekeeper", "producer"]);
+    expect(assignmentsOpening("producer")).toEqual(["producer"]);
+    expect(assignmentsOpening("commentator")).toEqual(["producer", "commentator"]);
   });
 
   it("lists the six roles", () => {

@@ -24,6 +24,21 @@ describe("modulesFor", () => {
     const m = modulesFor({ ...none, assignments: { scorekeeper: ["Sector 2026", "GBO"], producer: [], commentator: [] } });
     expect(m).toEqual([{ kind: "scorekeeper", href: "/scorekeeper", label: "Scorekeeper", detail: "Sector 2026, GBO" }]);
   });
+  it("an org-wide production director opens Production, Scorekeeper and Commentator", () => {
+    expect(kinds({ ...none, orgRoles: ["production_director"] })).toEqual(["producer", "scorekeeper", "commentator"]);
+  });
+  it("a producer assignment also opens Scorekeeper and Commentator, naming the producer's events", () => {
+    const m = modulesFor({ ...none, assignments: { scorekeeper: [], producer: ["Sector 2026"], commentator: [] } });
+    expect(m).toEqual([
+      { kind: "producer", href: "/producer", label: "Production", detail: "Sector 2026" },
+      { kind: "scorekeeper", href: "/scorekeeper", label: "Scorekeeper", detail: "Sector 2026" },
+      { kind: "commentator", href: "/commentator", label: "Commentator", detail: "Sector 2026" },
+    ]);
+  });
+  it("a producer who also scores another event lists each event once", () => {
+    const m = modulesFor({ ...none, assignments: { scorekeeper: ["GBO", "Sector 2026"], producer: ["Sector 2026"], commentator: [] } });
+    expect(m.find((x) => x.kind === "scorekeeper")?.detail).toBe("GBO, Sector 2026");
+  });
   it("an athlete profile adds the Athlete module last", () => {
     expect(kinds({ ...none, orgRoles: ["commentator"], athleteName: "Maria Rivera" })).toEqual(["commentator", "athlete"]);
   });

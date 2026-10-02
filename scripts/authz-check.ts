@@ -9,6 +9,7 @@ import { cookieOf, markVerified, signInAs } from "./auth-helpers";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/db/database.types";
 import {
+  assignedEvents,
   eventAccess,
   heatScope,
   floorEventId,
@@ -225,6 +226,73 @@ async function main() {
         );
       } finally {
         await service.from("member").delete().eq("user_id", userId);
+      }
+    }
+
+    console.log("\nAn org-wide staff role reaches every event in its org");
+    {
+      // A fresh account holding scoring_operator on member, with no assignment.
+      const orgEmail = `authz-orgwide+${Date.now()}@example.test`;
+      const signedUp = await auth.api.signUpEmail({
+        body: { email: orgEmail, password: "Repone1234!", name: "Org-wide scorer" },
+      });
+      const orgUserId = signedUp.user.id;
+      try {
+        await markVerified(orgUserId);
+        await service
+          .from("member")
+          .insert({ organization_id: ORG_ID, user_id: orgUserId, role: "scoring_operator" });
+        const op = await as(orgEmail);
+        expect(
+          "org-wide scoring_operator passes eventAccess as scorekeeper",
+          (await eventAccess(op.db, op.ctx, EVENT_ID, ["scorekeeper"])) !== null,
+          op.ctx,
+        );
+        expect(
+          "org-wide scoring_operator does NOT pass as producer",
+          (await eventAccess(op.db, op.ctx, EVENT_ID, ["producer"])) === null,
+        );
+        expect(
+          "org-wide scoring_operator may NOT act on another org's event",
+          (await eventAccess(op.db, op.ctx, otherEvent!.id, ["scorekeeper"])) === null,
+        );
+        const listed = await assignedEvents(op.db, op.ctx, "scorekeeper");
+        expect(
+          "org-wide scoring_operator's scorekeeper picker lists the seed event",
+          listed.some((e) => e.id === EVENT_ID),
+          listed,
+        );
+        const notProducer = await assignedEvents(op.db, op.ctx, "producer");
+        expect("…and its producer picker lists nothing", notProducer.length === 0, notProducer);
+      } finally {
+        await service.from("user").delete().eq("id", orgUserId);
+      }
+    }
+
+    console.log("\nA producer reaches the screens that accept producers");
+    {
+      // Producers enter and correct scores (scorekeeper/[floorId]) and view
+      // the commentator screens; their layouts must let them in (over HTTP).
+      const probe = await fetch("http://localhost:3200/api/supabase-token", { cache: "no-store" }).catch(() => null);
+      if (probe) {
+        const p = await signInAs("producer@repone.test");
+        const listed = await assignedEvents(p.db, await loadSessionContext(p.db, p), "scorekeeper");
+        expect("producer's scorekeeper picker lists the seed event", listed.some((e) => e.id === EVENT_ID), listed);
+        for (const path of [
+          "/scorekeeper",
+          `/scorekeeper/events/${EVENT_ID}`,
+          `/scorekeeper/${FLOOR_ID}`,
+          "/commentator",
+          `/commentator/events/${EVENT_ID}/dashboard`,
+        ]) {
+          const res = await fetch(`http://localhost:3200${path}`, {
+            headers: { cookie: p.headers.get("cookie") ?? "" },
+            redirect: "manual",
+          });
+          expect(`producer GET ${path} answers 200`, res.status === 200, `${res.status} ${res.headers.get("location") ?? ""}`);
+        }
+      } else {
+        console.log("skip  producer HTTP checks (dev server not running)");
       }
     }
 
