@@ -6,7 +6,7 @@
 //   pnpm db:rls-check     (needs pnpm dev:accounts to have run)
 //   RLS_ONLY=auth-tables pnpm db:rls-check   (just the auth-table section, as anon; needs no sign-in)
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { signInAs } from "./auth-helpers";
+import { createOrResetUser, DEV_PASSWORD, signInAs } from "./auth-helpers";
 import { requireLocal } from "./env";
 
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
@@ -62,6 +62,203 @@ async function authTablesArePrivate(
         s.data,
       );
     }
+  }
+}
+
+// An org-wide working role (member.role, granted from the Members page) must
+// reach every event in its organization exactly as far as the matching event
+// assignment reaches one event (0031_org_roles_match_assignments.sql), and no
+// further: not other roles' tables, not another organization's events.
+const SEED_HEAT_ID = "00000000-0000-0000-0000-000000000070";
+const SEED_WOD_ID = "00000000-0000-0000-0000-000000000050";
+const SEED_DIVISION_ID = "00000000-0000-0000-0000-000000000040";
+const SPARE_ATHLETE_ID = "00000000-0000-0000-0000-000000000066"; // seeded, no result in the seed heat
+const FLOOR_ID = "00000000-0000-0000-0000-000000000030";
+
+async function orgWideStaffMatchTheirPermissions(cleanup: Array<() => PromiseLike<unknown>>) {
+  console.log("\nOrg-wide staff roles reach what their event assignment reaches");
+  const roles = ["production_director", "scoring_operator", "commentator"] as const;
+  const people = {} as Record<(typeof roles)[number], { client: SupabaseClient; userId: string }>;
+  for (const role of roles) {
+    const email = `rls-org-${role.replaceAll("_", "-")}@repone.test`;
+    const userId = await createOrResetUser(email, `RLS ${role}`, DEV_PASSWORD);
+    await service.from("member").delete().eq("user_id", userId);
+    const { error } = await service
+      .from("member")
+      .insert({ organization_id: ORG_ID, user_id: userId, role });
+    expect(`service grants org-wide ${role}`, !error, error);
+    cleanup.push(() => service.from("user").delete().eq("id", userId));
+    people[role] = await signIn(email);
+  }
+
+  const canInsertLane = async (c: SupabaseClient) => {
+    const r = await c.from("lanes").insert({ heat_id: SEED_HEAT_ID, lane_number: 97 }).select("id");
+    await service.from("lanes").delete().eq("heat_id", SEED_HEAT_ID).eq("lane_number", 97);
+    return !r.error && (r.data?.length ?? 0) === 1;
+  };
+  const canInsertResult = async (c: SupabaseClient) => {
+    const r = await c
+      .from("results")
+      .insert({ heat_id: SEED_HEAT_ID, wod_id: SEED_WOD_ID, athlete_id: SPARE_ATHLETE_ID, reps: 1 })
+      .select("id");
+    await service
+      .from("results")
+      .delete()
+      .eq("heat_id", SEED_HEAT_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID);
+    return !r.error && (r.data?.length ?? 0) === 1;
+  };
+  const canInsertStanding = async (c: SupabaseClient) => {
+    const r = await c
+      .from("standings")
+      .insert({
+        event_id: EVENT_ID,
+        division_id: SEED_DIVISION_ID,
+        wod_id: SEED_WOD_ID,
+        athlete_id: SPARE_ATHLETE_ID,
+        placement: 1,
+      })
+      .select("id");
+    await service
+      .from("standings")
+      .delete()
+      .eq("wod_id", SEED_WOD_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID);
+    return !r.error && (r.data?.length ?? 0) === 1;
+  };
+  const canUpdateHeat = async (c: SupabaseClient) => {
+    const { data: heat, error } = await service
+      .from("heats")
+      .select("heat_count")
+      .eq("id", SEED_HEAT_ID)
+      .single();
+    if (error || !heat) throw new Error(`seed heat unreadable: ${error?.message}`);
+    const r = await c
+      .from("heats")
+      .update({ heat_count: heat.heat_count })
+      .eq("id", SEED_HEAT_ID)
+      .select("id");
+    return !r.error && (r.data?.length ?? 0) === 1;
+  };
+  const canUpdateBroadcast = async (c: SupabaseClient) => {
+    const r = await c
+      .from("broadcast_state")
+      .update({ active_graphic: "none" })
+      .eq("floor_id", FLOOR_ID)
+      .select("id");
+    return !r.error && (r.data?.length ?? 0) === 1;
+  };
+  const canReadRegistrations = async (c: SupabaseClient, eventId = EVENT_ID) => {
+    const r = await c.from("registrations").select("id").eq("event_id", eventId);
+    return !r.error && (r.data?.length ?? 0) > 0;
+  };
+
+  const pd = people.production_director.client;
+  const so = people.scoring_operator.client;
+  const cm = people.commentator.client;
+
+  // production_director ≈ event producer: heats, lanes, results, standings, broadcast, read field.
+  expect("org production director manages heats", await canUpdateHeat(pd));
+  expect("org production director manages lanes", await canInsertLane(pd));
+  expect("org production director enters results", await canInsertResult(pd));
+  expect("org production director writes standings", await canInsertStanding(pd));
+  expect("org production director drives broadcast_state", await canUpdateBroadcast(pd));
+  expect("org production director reads the event's registrations", await canReadRegistrations(pd));
+
+  // scoring_operator ≈ event scorekeeper: heats, lanes, results, standings, read field; no broadcast.
+  expect("org scoring operator manages heats", await canUpdateHeat(so));
+  expect("org scoring operator manages lanes", await canInsertLane(so));
+  expect("org scoring operator enters results", await canInsertResult(so));
+  expect("org scoring operator writes standings", await canInsertStanding(so));
+  expect("org scoring operator cannot drive broadcast_state", !(await canUpdateBroadcast(so)));
+  expect("org scoring operator reads the event's registrations", await canReadRegistrations(so));
+
+  // commentator ≈ event commentator: reads the field, writes nothing.
+  expect("org commentator reads the event's registrations", await canReadRegistrations(cm));
+  expect("org commentator cannot manage heats", !(await canUpdateHeat(cm)));
+  expect("org commentator cannot manage lanes", !(await canInsertLane(cm)));
+  expect("org commentator cannot enter results", !(await canInsertResult(cm)));
+  expect("org commentator cannot write standings", !(await canInsertStanding(cm)));
+  expect("org commentator cannot drive broadcast_state", !(await canUpdateBroadcast(cm)));
+
+  // None of the working roles manage the event itself or its registrations.
+  // The athlete is new, so only RLS (42501) can refuse the registration.
+  const { data: unregistered, error: unregisteredError } = await service
+    .from("athletes")
+    .insert({
+      organization_id: ORG_ID,
+      first_name: "Unregistered",
+      last_name: "Athlete",
+      email: `rls-unregistered-${Date.now()}@example.test`,
+    })
+    .select("id")
+    .single();
+  expect("service creates an unregistered athlete", !unregisteredError, unregisteredError);
+  if (unregistered) cleanup.push(() => service.from("athletes").delete().eq("id", unregistered.id));
+  for (const role of roles) {
+    const c = people[role].client;
+    const reg = await c
+      .from("registrations")
+      .insert({ event_id: EVENT_ID, division_id: SEED_DIVISION_ID, athlete_id: unregistered?.id })
+      .select("id");
+    if (reg.data?.length) await service.from("registrations").delete().eq("id", reg.data[0].id);
+    expect(
+      `org ${role} cannot add registrations`,
+      reg.error?.code === "42501",
+      reg.error ?? reg.data,
+    );
+    const wod = await c.from("wods").update({ name: "WOD 2" }).eq("id", SEED_WOD_ID).select("id");
+    expect(`org ${role} cannot edit WODs`, !!wod.error || (wod.data?.length ?? 0) === 0, wod.data);
+  }
+
+  // Another organization's event stays out of reach.
+  const { data: otherOrg, error: orgError } = await service
+    .from("organizations")
+    .insert({ name: "RLS other org", slug: `rls-other-${Date.now()}` })
+    .select("id")
+    .single();
+  expect("service creates another organization", !orgError, orgError);
+  if (!otherOrg) return;
+  cleanup.push(() => service.from("organizations").delete().eq("id", otherOrg.id));
+  const { data: otherEvent, error: eventError } = await service
+    .from("events")
+    .insert({ organization_id: otherOrg.id, name: "RLS other event" })
+    .select("id")
+    .single();
+  expect("service creates the other organization's event", !eventError, eventError);
+  if (!otherEvent) return;
+  const { data: otherDivision, error: divisionError } = await service
+    .from("divisions")
+    .insert({ event_id: otherEvent.id, name: "Other division" })
+    .select("id")
+    .single();
+  expect("service creates the other event's division", !divisionError, divisionError);
+  const { data: otherAthlete, error: athleteError } = await service
+    .from("athletes")
+    .insert({
+      organization_id: otherOrg.id,
+      first_name: "Other",
+      last_name: "Org",
+      email: `rls-other-${Date.now()}@example.test`,
+    })
+    .select("id")
+    .single();
+  expect("service creates the other organization's athlete", !athleteError, athleteError);
+  const { error: otherRegError } = await service.from("registrations").insert({
+    event_id: otherEvent.id,
+    division_id: otherDivision?.id,
+    athlete_id: otherAthlete?.id,
+  });
+  expect("service registers the other athlete", !otherRegError, otherRegError);
+  expect(
+    "service sees the other organization's registration",
+    await canReadRegistrations(service, otherEvent.id),
+  );
+  for (const role of roles) {
+    expect(
+      `org ${role} cannot read another organization's registrations`,
+      !(await canReadRegistrations(people[role].client, otherEvent.id)),
+    );
   }
 }
 
@@ -321,6 +518,8 @@ async function main() {
         other.data,
       );
     }
+
+    await orgWideStaffMatchTheirPermissions(cleanup);
 
     await authTablesArePrivate(anon, { label: "signed-in admin", client: admin.client });
   } finally {
