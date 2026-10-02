@@ -9,11 +9,14 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { admin as adminPlugin, organization } from "better-auth/plugins";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { reportDelivery } from "@/lib/auth/delivery";
+import { passwordLinkEmail, verifyEmail } from "@/lib/auth/emails";
 import { ac, roles } from "@/lib/auth/permissions";
+import { sendEmail } from "@/lib/mailer";
 
 /** Google sign-in is offered only where its credentials are configured. */
 export const googleEnabled = Boolean(
@@ -46,7 +49,47 @@ export const auth = betterAuth({
   // so a local lockout lasts at most 10 s. The rows live in the database,
   // shared across serverless instances rather than per-instance memory.
   rateLimit: { enabled: true, storage: "database" },
-  emailAndPassword: { enabled: true, minPasswordLength: 10, autoSignIn: true },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 10,
+    // Sign-up waits for the verification link (autoSignInAfterVerification).
+    autoSignIn: false,
+    requireEmailVerification: true,
+    // Invitations are password resets for people with no password yet:
+    // resetPassword creates their credential. BetterAuth swallows errors thrown
+    // here; reportDelivery hands the outcome to the inviting action
+    // (lib/auth/delivery.ts).
+    sendResetPassword: async ({ user, url }) => {
+      const [credential] = await db
+        .select({ id: schema.account.id })
+        .from(schema.account)
+        .where(and(eq(schema.account.userId, user.id), eq(schema.account.providerId, "credential")))
+        .limit(1);
+      const [org] = await db
+        .select({ name: schema.organizations.name })
+        .from(schema.member)
+        .innerJoin(schema.organizations, eq(schema.organizations.id, schema.member.organizationId))
+        .where(eq(schema.member.userId, user.id))
+        .limit(1);
+      await reportDelivery(() =>
+        sendEmail(passwordLinkEmail({ to: user.email, url, firstTime: !credential, organization: org?.name ?? null })),
+      );
+    },
+    resetPasswordTokenExpiresIn: 60 * 60 * 24 * 3, // invitations need days
+    revokeSessionsOnPasswordReset: true,
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    // A sign-in attempt while unverified sends a fresh link.
+    sendOnSignIn: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60 * 24,
+    // The link's callbackURL defaults to "/" (email-verification.mjs), which is
+    // where the verified person should land.
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail(verifyEmail({ to: user.email, url }));
+    },
+  },
   socialProviders: googleEnabled
     ? {
         google: {
@@ -56,13 +99,11 @@ export const auth = betterAuth({
       }
     : {},
   // Google links to an existing user only when that user's own email is
-  // verified (BetterAuth's default requireLocalEmailVerified: true). Emails are
-  // never verified here, so Google for an address that already has a password
-  // account is refused with ?error=account_not_linked, which the athlete login
-  // explains. Keep the default: linking to an unverified local account would let
+  // verified (BetterAuth's default requireLocalEmailVerified: true). Password
+  // accounts now verify their email, so Google links to a verified password
+  // account. Keep the default: linking to an unverified local account would let
   // someone pre-register a victim's email with a password and share the
-  // account once the victim signs in with Google. Real linking needs email
-  // verification first.
+  // account once the victim signs in with Google.
   account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
   databaseHooks: {
     session: {

@@ -5,7 +5,7 @@
 // same functions through src/lib/auth/guards.ts.
 //
 //   pnpm db:authz-check     (needs pnpm dev:accounts to have run)
-import { cookieOf, signInAs } from "./auth-helpers";
+import { cookieOf, markVerified, signInAs } from "./auth-helpers";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/db/database.types";
 import {
@@ -152,11 +152,16 @@ async function main() {
     const newEmail = `authz-new+${Date.now()}@example.test`;
     let newUserId: string | null = null;
     try {
-      const created = await auth.api.signUpEmail({
+      const signedUp = await auth.api.signUpEmail({
         body: { email: newEmail, password: "Repone1234!", name: newEmail },
+      });
+      newUserId = signedUp.user.id;
+      // Sign-up waits for the verification link; verify, then sign in.
+      await markVerified(newUserId);
+      const created = await auth.api.signInEmail({
+        body: { email: newEmail, password: "Repone1234!" },
         returnHeaders: true,
       });
-      newUserId = created.response.user.id;
       const session = await auth.api.getSession({
         headers: new Headers({ cookie: cookieOf(created.headers) }),
       });

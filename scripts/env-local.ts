@@ -55,6 +55,11 @@ SUPABASE_JWT_SIGNING_KEY='${signingKey}'
 # Used by scripts/ only (service role: bypasses RLS). Never import into src/.
 SUPABASE_SECRET_KEY=${status.SECRET_KEY}
 
+# Outgoing email (verification, password reset, invitations): the Mailpit that
+# supabase start runs. Inbox: http://127.0.0.1:54524
+SMTP_URL=smtp://127.0.0.1:54525
+EMAIL_FROM="RepOne <no-reply@repone.test>"
+
 # Optional, add by hand: enables "Continue with Google" for athletes.
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=

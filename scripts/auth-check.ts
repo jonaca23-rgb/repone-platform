@@ -11,7 +11,8 @@ import { db } from "@/db";
 import { user } from "@/db/schema";
 import { auth } from "@/lib/auth/auth";
 import { splitRoles } from "@/lib/auth/permissions";
-import { cookieOf, signInAs } from "./auth-helpers";
+import { cookieOf, markVerified, signInAs } from "./auth-helpers";
+import { clearMailbox, latestEmailTo } from "./mailpit";
 
 const target = requireLocal();
 const service = createClient(target.apiUrl, target.secretKey, {
@@ -46,6 +47,8 @@ async function main() {
       body: { email, password, name: "Auth Check" },
     });
     const userId = signedUp.user.id;
+    // Sign-up waits for the verification link; this check signs in right away.
+    await markVerified(userId);
     const [row] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId));
     expect('sign-up creates a public."user" row', row?.id === userId, row);
 
@@ -154,6 +157,34 @@ async function main() {
       );
     } else {
       console.warn("skip  sign-in rate limit check: the app is not running on :3200");
+    }
+
+    // The verification link points at the dev server (BETTER_AUTH_URL).
+    if (tokenRoute) {
+      console.log("\nEmail verification and reset (Mailpit)");
+      await clearMailbox();
+      const fresh = `verify+${Date.now()}@example.test`;
+      await auth.api.signUpEmail({ body: { email: fresh, password: "Verify12345!", name: "" } });
+      const verifyMail = await latestEmailTo(fresh);
+      expect("sign-up sends a verification email", !!verifyMail?.links.length, verifyMail);
+      const blocked = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
+      expect("unverified sign-in is refused with EMAIL_NOT_VERIFIED", blocked?.body?.code === "EMAIL_NOT_VERIFIED", blocked?.body);
+      const verifyRes = await fetch(verifyMail!.links[0], { redirect: "manual" });
+      expect("the verification link redirects (verified)", verifyRes.status === 302 || verifyRes.status === 307, verifyRes.status);
+      const ok = await auth.api.signInEmail({ body: { email: fresh, password: "Verify12345!" } }).catch((e) => e);
+      expect("verified account signs in", !!ok?.user, ok?.body);
+
+      await clearMailbox();
+      await auth.api.requestPasswordReset({ body: { email: fresh, redirectTo: "/reset-password" } });
+      const resetMail = await latestEmailTo(fresh);
+      const token = resetMail?.links[0]?.match(/reset-password\/([^?]+)/)?.[1];
+      expect("reset email carries a token", !!token, resetMail);
+      await auth.api.resetPassword({ body: { token: token!, newPassword: "Changed12345!" } });
+      const reuse = await auth.api.resetPassword({ body: { token: token!, newPassword: "Again12345!!" } }).catch((e) => e);
+      expect("a reset link works once", !!reuse?.body || reuse instanceof Error, reuse);
+      await service.from("user").delete().eq("email", fresh);
+    } else {
+      console.warn("skip  email verification checks: the app is not running on :3200");
     }
   } finally {
     // Cascades to session, account and profiles.
