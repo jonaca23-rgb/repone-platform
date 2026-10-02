@@ -47,7 +47,7 @@ export async function AdminShell({
                 />
                 <Link
                   href="/admin"
-                  className="rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden md:hidden"
+                  className="inline-flex min-h-11 items-center rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden md:hidden"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
                   <img
