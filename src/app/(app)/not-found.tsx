@@ -9,6 +9,7 @@ export default function NotFound() {
     <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
       <EmptyState
         icon={SearchX}
+        titleAs="h1"
         title="Page not found"
         description="It may have moved or you may not have access."
         action={

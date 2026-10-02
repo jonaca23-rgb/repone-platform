@@ -11,12 +11,15 @@ import { SkipLink } from "@/components/app/SkipLink";
 export function OperatorShell({
   module,
   moduleLabel,
+  moduleHref,
   eventName,
   tabs,
   children,
 }: {
   module: "producer" | "scorekeeper" | "commentator";
   moduleLabel: string;
+  /** Where the module label goes; defaults to the module's event picker, `/<module>`. */
+  moduleHref?: string;
   eventName?: string;
   tabs?: React.ReactNode;
   children: React.ReactNode;
@@ -42,7 +45,7 @@ export function OperatorShell({
           {/* The module label goes back to that module's event picker. */}
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <Link
-              href={`/${module}`}
+              href={moduleHref ?? `/${module}`}
               className="inline-flex min-h-11 shrink-0 items-center rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
             >
               {moduleLabel}

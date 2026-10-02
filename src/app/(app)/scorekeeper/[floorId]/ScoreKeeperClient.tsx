@@ -198,7 +198,10 @@ function LaneScoreForm({
                     className="h-12 w-32 text-base"
                   />
                 </div>
-                <div className="flex min-h-12 items-center gap-3">
+                <Label
+                  htmlFor={`${id}-capped`}
+                  className={`${FIELD_LABEL} min-h-12 cursor-pointer gap-3`}
+                >
                   {/* Keyed to the saved value: a form reset after Save puts the
                       switch back to its first value, which must be the saved one. */}
                   <Switch
@@ -208,10 +211,8 @@ function LaneScoreForm({
                     defaultChecked={capped}
                     onCheckedChange={onEdit}
                   />
-                  <Label htmlFor={`${id}-capped`} className={FIELD_LABEL}>
-                    Time-capped
-                  </Label>
-                </div>
+                  Time-capped
+                </Label>
                 <div className="grid gap-2">
                   <Label htmlFor={`${id}-reps`} className={FIELD_LABEL}>
                     Reps (if capped)
@@ -305,8 +306,9 @@ function LaneScoreForm({
                 </SelectContent>
               </Select>
             </div>
-            <div
-              className="flex min-h-12 items-center gap-3"
+            <Label
+              htmlFor={`${id}-adjust`}
+              className="min-h-12 cursor-pointer gap-3 text-xs tracking-wide text-warning-text uppercase"
               title="Turn this on when correcting a result after the fact (e.g. a claim/protest resolved after the heat) — the record will be marked as manually adjusted."
             >
               <Switch
@@ -316,13 +318,8 @@ function LaneScoreForm({
                 defaultChecked={adjusted}
                 onCheckedChange={onEdit}
               />
-              <Label
-                htmlFor={`${id}-adjust`}
-                className="text-xs tracking-wide text-warning-text uppercase"
-              >
-                Manual adjustment
-              </Label>
-            </div>
+              Manual adjustment
+            </Label>
             <SaveButton />
           </div>
           {error && (

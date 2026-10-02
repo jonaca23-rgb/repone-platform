@@ -2,12 +2,16 @@ import { cache } from "react";
 import { createClient } from "@/lib/db/server";
 
 /**
- * The event an /admin/events/[eventId] page is under (id and name), read once
+ * The event an /admin/events/[eventId] page is under (id, name and start date), read once
  * per request and shared by the layout, the page and its metadata.
  */
 export const getAdminEvent = cache(async (eventId: string) => {
   const supabase = await createClient();
-  const { data } = await supabase.from("events").select("id, name").eq("id", eventId).maybeSingle();
+  const { data } = await supabase
+    .from("events")
+    .select("id, name, starts_on")
+    .eq("id", eventId)
+    .maybeSingle();
   return data;
 });
 

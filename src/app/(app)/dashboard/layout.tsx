@@ -5,7 +5,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   await requireModule("producer");
 
   return (
-    <OperatorShell module="producer" moduleLabel="Production">
+    <OperatorShell module="producer" moduleLabel="Production" moduleHref="/dashboard">
       {children}
     </OperatorShell>
   );

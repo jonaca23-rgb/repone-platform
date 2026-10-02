@@ -31,14 +31,12 @@ export default async function EventAthletesPage({ params }: Props) {
 
   const [
     adminEvent,
-    { data: event },
     { data: divisions },
     { data: athletes },
     { data: teams },
     { data: registrations },
   ] = await Promise.all([
     requireAdminEvent(eventId),
-    supabase.from("events").select("starts_on").eq("id", eventId).maybeSingle(),
     supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
     supabase
       .from("athletes")
@@ -60,7 +58,7 @@ export default async function EventAthletesPage({ params }: Props) {
 
   // Category is computed as of the event's date, per RepOne's masters rules —
   // falls back to today only if the event has no start date set yet.
-  const categoryAsOf = event?.starts_on ?? new Date();
+  const categoryAsOf = adminEvent.starts_on ?? new Date();
 
   // See lib/db/queries.ts header comment: our untyped Supabase client can't
   // infer that a many-to-one embed comes back as one object, not an array.
