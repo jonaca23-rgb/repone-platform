@@ -30,4 +30,17 @@ describe("ModuleMenuView", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  it("names the compact trigger by the account name, not the avatar initials", () => {
+    render(
+      <ModuleMenuView
+        compact
+        name="Sam Scorekeeper"
+        email="scorekeeper@repone.test"
+        items={[{ href: "/", label: "Home", icon: "home", current: false }]}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: "Sam Scorekeeper" });
+    expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+  });
 });

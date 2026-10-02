@@ -42,7 +42,7 @@ Give the whole app one dark RepOne theme built on shadcn/ui, with semantic token
 - **Approach:** shadcn/ui is the only component system. It is installed with the shadcn CLI (Tailwind 4, React 19, Next 16) and its components are copied into `src/components/ui/`. Its CSS variables become the semantic layer.
 - **One dark theme:**
   - The dark values live in `:root`. There is no `.dark` class and no switcher, which shadcn's theming supports.
-  - `globals.css` keeps the `--repone-*` brand palette as the source and maps the semantic tokens onto it.
+  - The brand colours live directly in the semantic tokens (`--primary` #e0122f RepOne red, `--background` #0a0a0a, `--primary-foreground` #ffffff) and in `--broadcast-*`, as literal values. There is no separate palette layer (amended in Task 9: the old `--repone-*` palette was removed once nothing used it).
 - **Semantic tokens** (starting values; the contrast test in §4 is the arbiter):
 
 | Token | Value | Use |
@@ -68,7 +68,7 @@ Give the whole app one dark RepOne theme built on shadcn/ui, with semantic token
 - **Sizes:** Button sizes are `sm`, `default`, `lg` and `touch`. `touch` is min-height 48px, and 64px for the live controls. Operator and athlete screens use `touch` for primary actions.
 - **Icons:** `lucide-react` replaces the emojis in navigation.
 - **Overlays:**
-  - A separate `--broadcast-*` block holds the overlays' colors. It shares the brand palette and nothing else.
+  - A separate `--broadcast-*` block holds the overlays' colors. It carries the same brand values as the semantic tokens (#0a0a0a, #ffffff, #e0122f) and nothing else.
   - The overlays keep their components and do not use shadcn.
 
 ## 2. Components and global states

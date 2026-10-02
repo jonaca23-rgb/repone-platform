@@ -204,9 +204,9 @@ A near-black stage with white type and a single red, plus green and amber reserv
 
 ## Layout
 
-Content is centered in a capped column: `max-w-5xl` on operator, public and athlete shells (athlete pages tighten to `max-w-3xl`), full width beside a 256px sidebar in admin. Page gutters are 16px on phones (`px-4`) and 24px from `sm` (`px-6`); vertical rhythm uses Tailwind's 4px scale, mostly 16 and 24px between blocks (`gap-4`, `gap-6`).
+Content is centered in a capped column: `max-w-5xl` on operator, public and athlete shells (athlete pages tighten to `max-w-3xl`), full width beside a 256px sidebar in admin. Gutters are 16px (`px-4`) on operator and public pages at every width; athlete pages go from 16px to 24px at `sm` (`px-4 sm:px-6`); the admin content area is 16px, 24px from `md` (`p-4 md:p-6`). Vertical rhythm uses Tailwind's 4px scale, mostly 16 and 24px between blocks (`gap-4`, `gap-6`).
 
-- **Top bars** are 56px (`h-14`) for operator, athlete and public shells and 48px (`h-12`) in admin, sticky, Console Gray with a Hairline bottom border, padded with `env(safe-area-inset-*)`.
+- **Top bars** have a Hairline bottom border but differ per shell. Operator and athlete: 56px (`h-14`), sticky, Console Gray, padded with `env(safe-area-inset-*)` (top, left, right). Public: 56px, Console Gray, safe-area top padding, but not sticky (it scrolls away). Admin: 48px (`h-12`), sticky inside the sidebar inset, Arena Black (`bg-background`), no safe-area padding.
 - **Event tabs** sit under the operator top bar: a horizontally scrollable row, each tab at least 44px tall.
 - **Phones:** the admin sidebar becomes a sheet opened from the top bar; athletes get a fixed bottom tab bar (`Home`, `Athletes`, `Messages`, each 56px tall) and the page pads for it; the account menu shows only the avatar.
 - **Touch:** every control on operator and athlete screens is at least 44px; live controls (`size="touch"`) are at least 48px, 64px for the big production buttons.
@@ -246,7 +246,7 @@ Confident and literal: a verb on a solid shape.
 - **Shadow Strategy:** none to speak of; see Elevation.
 
 ### Inputs / Fields
-- **Style:** Hairline border, Arena Black (`bg-input/30` over the page), 8px radius, 16px text, 36px tall by default and 44px (`h-11`) on operator and phone forms. Selects (Radix) match and their items are at least 44px.
+- **Style:** Hairline border, transparent background (the page or card shows through), 8px radius, 16px text, 36px tall by default and 44px (`h-11`) on operator and phone forms. Selects (Radix) match and their items are at least 44px. The shadcn `dark:` variants in these components (e.g. `dark:bg-input/30`) never apply: there is no `.dark` class, so don't rely on them.
 - **Focus:** border turns Signal Red with a 3px Signal Red ring.
 - **Error / Disabled:** `aria-invalid` turns the border Alarm Red with a faint red ring; the message sits under the field in Alarm Red. Disabled is 50% opacity.
 - **Labels:** always a visible `<Label>` above the control (`grid gap-2`), never placeholder-only.
@@ -256,7 +256,7 @@ Confident and literal: a verb on a solid shape.
 - **Event tabs (operator):** Inter 500 14px, Booth Gray; the current tab turns Floodlight White with a 2px RepOne Red underline and `aria-current="page"`.
 - **Athlete bottom bar (phones):** three 56px tabs, icon over a 12px label, current in Floodlight White.
 - **Account menu (every shell):** a ghost button with the avatar and the account name; it opens a Console Gray menu with `Home`, one item per module the account may open (lucide icon, label, detail line) and `Sign out`. Closes on Escape and outside click. Org members are called "Members" in the UI.
-- **Skip link:** the first Tab stop on every shell, jumping to `main#main`.
+- **Skip link:** the first Tab stop on every shell, jumping to `#main`. In the operator shell that is the `<main>`; in the athlete and public shells it is the content element; in admin it is a `div#main` inside the shadcn sidebar's own `<main>` (SidebarInset), so there is still one main landmark.
 
 ### ConfirmAction (signature)
 The one door to anything destructive or on-air-changing: delete, remove, refund, reset, finish heat, clear graphics. A trigger button opens an AlertDialog with a question title ("Finish Heat 6?"), one sentence saying what happens, `Cancel`, and a confirm button named for the action ("Finish heat", "Delete event"), in Alarm Red Fill when destructive. Cancel never acts; confirm acts exactly once. Never use `window.confirm`, and never wrap the action in a bare `<form action>` that Enter could submit.
@@ -266,6 +266,9 @@ The one door to anything destructive or on-air-changing: delete, remove, refund,
 
 ### Broadcast graphics (overlays)
 Square slabs of Broadcast Black (95% opacity in corner graphics, solid when full-screen) with Broadcast White Barlow Condensed type, a Broadcast Red accent bar or lane tile, and a heavy drop shadow. They render on a transparent body at 1920×1080 for OBS/vMix/YoloBox and must stay transparent: no page background, no shadcn, no focus rings, no portals.
+
+### Unmatched URLs
+The app has three root layouts (`(app)`, `(auth)`, `(overlay)`), so no layout can host Next's 404 for a URL that matches no route. `src/app/global-not-found.tsx` renders the `(app)` not-found screen on the dark tokens, and `next.config.ts` enables it with the experimental `globalNotFound` flag. Re-check that flag (still needed, renamed, or stable) on every Next upgrade.
 
 ## Do's and Don'ts
 

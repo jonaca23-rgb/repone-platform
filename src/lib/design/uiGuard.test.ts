@@ -10,7 +10,8 @@ describe("ui guard", () => {
   });
   it("flags light-theme and hard-coded status colours", () => {
     expect(rules(`<p className="text-black/50">`)).toContain("light-colour");
-    expect(rules(`<div className="bg-repone-white">`)).toContain("light-colour");
+    expect(rules(`<div className="bg-white">`)).toContain("light-colour");
+    expect(rules(`<p className="text-black">`)).toContain("light-colour");
     expect(rules(`<span className="text-green-700">`)).toContain("status-colour");
   });
   it("flags dimmed text that fails AA", () => {

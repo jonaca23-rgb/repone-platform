@@ -19,8 +19,7 @@ export const GUARD_RULES = [
   { id: "confirm", pattern: /\b(?:window\.)?confirm\(/, message: "Use <ConfirmAction>." },
   {
     id: "light-colour",
-    pattern:
-      /\b(?:text|bg|border)-(?:black|white)(?:\/\d+)?\b(?![\w-])|\bbg-repone-white\b|\btext-repone-black\b/,
+    pattern: /\b(?:text|bg|border)-(?:black|white)(?:\/\d+)?\b(?![\w-])/,
     message: "Use theme tokens (foreground, card, border, muted-foreground…).",
   },
   {

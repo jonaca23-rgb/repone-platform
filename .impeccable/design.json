@@ -365,7 +365,7 @@
       "refersTo": "button-outline",
       "description": "Secondary and navigation actions.",
       "html": "<button class=\"ds-btn-outline\">Mark paid</button>",
-      "css": ".ds-btn-outline{background:rgba(42,42,46,.3);color:#fafafa;height:36px;padding:0 10px;border:1px solid #2a2a2e;border-radius:8px;font:500 14px/1 Inter,system-ui,sans-serif;cursor:pointer}.ds-btn-outline:hover{background:rgba(42,42,46,.5)}.ds-btn-outline:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
+      "css": ".ds-btn-outline{background:#0a0a0a;color:#fafafa;height:36px;padding:0 10px;border:1px solid #2a2a2e;border-radius:8px;font:500 14px/1 Inter,system-ui,sans-serif;cursor:pointer}.ds-btn-outline:hover{background:#1f1f22}.ds-btn-outline:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
     },
     {
       "name": "Destructive Button",
@@ -381,7 +381,7 @@
       "refersTo": "input",
       "description": "16px text, Hairline border, Signal Red focus.",
       "html": "<label class=\"ds-field\"><span>Notes</span><input class=\"ds-input\" placeholder=\"e.g. paid cash at check-in\"></label>",
-      "css": ".ds-field{display:grid;gap:8px;color:#fafafa;font:500 14px/1.4 Inter,system-ui,sans-serif}.ds-input{height:36px;padding:4px 10px;background:rgba(42,42,46,.3);color:#fafafa;border:1px solid #2a2a2e;border-radius:8px;font:400 16px/1.5 Inter,system-ui,sans-serif}.ds-input::placeholder{color:#a1a1aa}.ds-input:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
+      "css": ".ds-field{display:grid;gap:8px;color:#fafafa;font:500 14px/1.4 Inter,system-ui,sans-serif}.ds-input{height:36px;padding:4px 10px;background:transparent;color:#fafafa;border:1px solid #2a2a2e;border-radius:8px;font:400 16px/1.5 Inter,system-ui,sans-serif}.ds-input::placeholder{color:#a1a1aa}.ds-input:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
     },
     {
       "name": "Card",
