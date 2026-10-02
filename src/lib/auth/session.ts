@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/server";
 import { createClient } from "@/lib/db/server";
 import { loadSessionContext, type SessionContext } from "@/lib/auth/authorize";
 
-export { hasAnyRole, type SessionContext } from "@/lib/auth/authorize";
+export { orgCan, type SessionContext } from "@/lib/auth/authorize";
 
 /**
  * Who the BetterAuth session cookie says is signed in, or null. Cached for the
@@ -40,7 +40,7 @@ export interface AthleteSessionContext {
 /**
  * Athlete accounts are a separate identity space from staff accounts (see
  * 0010_athlete_open_log.sql) — same BetterAuth user table, but an
- * athlete never gets a profiles.organization_id or a user_roles row, so
+ * athlete is not an org member, so
  * getSessionContext() above naturally treats them as signed-in-but-no-role,
  * which already keeps them out of /admin/*. This is the athlete-side
  * equivalent: it looks up their linked `athletes` row (if any) instead of a

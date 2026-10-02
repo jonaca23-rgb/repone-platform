@@ -1,10 +1,15 @@
 // Creates (or resets) one login per role on the LOCAL stack and prints them.
 // Idempotent: re-running resets passwords and re-applies roles/assignments.
 // Logins go through BetterAuth (createOrResetUser); everything the app keeps
-// about them — profile, roles, assignments, athlete link — through the service client.
+// about them — profile, assignments, athlete link — through the service client;
+// org roles through BetterAuth's addMember.
 import { requireLocal } from "./env";
 
 import { createClient } from "@supabase/supabase-js";
+import { and, eq } from "drizzle-orm";
+import { db as pg } from "@/db";
+import { member } from "@/db/schema";
+import { auth } from "@/lib/auth/auth";
 import { DEV_PASSWORD as PASSWORD, createOrResetUser } from "./auth-helpers";
 
 const ORG_ID = "00000000-0000-0000-0000-000000000001"; // from supabase/seed.sql
@@ -17,7 +22,7 @@ const ACCOUNTS: { email: string; name: string; kind: Kind; note: string }[] = [
     email: "admin@repone.test",
     name: "Ada Admin",
     kind: "admin",
-    note: "/admin — org admin, every event",
+    note: "/admin — org owner, every module",
   },
   {
     email: "scorekeeper@repone.test",
@@ -99,35 +104,22 @@ async function main() {
       continue;
     }
 
-    // Staff: belongs to the seeded org (the profiles row is made by the trigger on public."user").
+    // Staff: a display name on the profiles row (made by the trigger on public."user").
     check(
       "profile",
-      await db
-        .from("profiles")
-        .update({ organization_id: ORG_ID, full_name: account.name })
-        .eq("id", user.id),
+      await db.from("profiles").update({ full_name: account.name }).eq("id", user.id),
     );
 
     if (account.kind === "admin") {
       adminId = user.id;
-      // No upsert: the unique key includes event_id, which is NULL for an
-      // org-wide role, and NULLs never conflict.
-      const roles = check(
-        "admin role",
-        await db
-          .from("user_roles")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("role", "admin")
-          .is("event_id", null),
-      );
-      if (roles.length === 0) {
-        check(
-          "admin role",
-          await db
-            .from("user_roles")
-            .insert({ user_id: user.id, organization_id: ORG_ID, role: "admin" }),
-        );
+      const [existing] = await pg
+        .select({ id: member.id })
+        .from(member)
+        .where(and(eq(member.userId, user.id), eq(member.organizationId, ORG_ID)));
+      if (!existing) {
+        await auth.api.addMember({
+          body: { userId: user.id, role: "owner", organizationId: ORG_ID },
+        });
       }
       continue;
     }

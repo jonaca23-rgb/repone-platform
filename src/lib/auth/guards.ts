@@ -27,7 +27,7 @@ export async function requireSignedIn(): Promise<SessionContext> {
   return ctx;
 }
 
-/** Admin or event director; returns the organization they manage. */
+/** Someone whose org role grants event:update (owner, admin, event director); returns their organization. */
 export async function requireOrgManager() {
   const ctx = await requireSignedIn();
   const organizationId = orgManagerOf(ctx);

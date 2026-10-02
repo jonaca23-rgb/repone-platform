@@ -228,7 +228,7 @@ async function main() {
     {
       const { data: otherOrg } = await service
         .from("organizations")
-        .insert({ name: "RLS check org" })
+        .insert({ name: "RLS check org", slug: `rls-check-${Date.now()}` })
         .select("id")
         .single();
       cleanup.push(() =>

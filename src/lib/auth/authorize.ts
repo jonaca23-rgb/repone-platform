@@ -8,21 +8,23 @@
 // action refuses up front with a clear error instead of relying on RLS, whose
 // denials look like success (an update that matches 0 rows).
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, UserRoleDb } from "@/lib/db/database.types";
+import type { Database } from "@/lib/db/database.types";
+import { type OrgRole, type Permissions, roleCan, splitRoles } from "@/lib/auth/permissions";
 
 type Db = SupabaseClient<Database>;
 
+/**
+ * Who is signed in and their org roles, from their BetterAuth `member` row
+ * (0029). Event-only staff and athletes are not members: no org, no roles.
+ */
 export interface SessionContext {
   userId: string;
   email: string | null;
   organizationId: string | null;
-  roles: UserRoleDb[];
+  roles: OrgRole[];
 }
 
 export type EventStaffRole = "scorekeeper" | "producer" | "commentator";
-
-/** Org-wide roles that manage events, rosters, fees, sponsors and staff. */
-export const ORG_MANAGER_ROLES: UserRoleDb[] = ["admin", "event_director"];
 
 /** Who is signed in, as the BetterAuth session says (or a script's sign-in). */
 export interface SessionIdentity {
@@ -41,27 +43,30 @@ export async function loadSessionContext(
 ): Promise<SessionContext | null> {
   if (!identity) return null;
 
-  const [{ data: profile }, { data: roleRows }] = await Promise.all([
-    db.from("profiles").select("organization_id").eq("id", identity.userId).maybeSingle(),
-    db.from("user_roles").select("role").eq("user_id", identity.userId),
-  ]);
+  const { data: memberships } = await db
+    .from("member")
+    .select("organization_id, role, created_at")
+    .eq("user_id", identity.userId)
+    .order("created_at", { ascending: true });
+  // RepOne runs one organization; the first membership is it.
+  const first = memberships?.[0];
 
   return {
     userId: identity.userId,
     email: identity.email,
-    organizationId: profile?.organization_id ?? null,
-    roles: (roleRows ?? []).map((r) => r.role),
+    organizationId: first?.organization_id ?? null,
+    roles: splitRoles(first?.role),
   };
 }
 
-export function hasAnyRole(ctx: SessionContext | null, roles: UserRoleDb[]): boolean {
-  if (!ctx) return false;
-  return ctx.roles.some((r) => roles.includes(r));
+/** Does this person's org role grant `permissions`? (Event assignments are checked by eventAccess.) */
+export function orgCan(ctx: SessionContext | null, permissions: Permissions): boolean {
+  return !!ctx?.organizationId && roleCan(ctx.roles, permissions);
 }
 
-/** The organization this user manages (admin / event director), or null. */
+/** The organization this person manages (event:update), or null. */
 export function orgManagerOf(ctx: SessionContext | null): string | null {
-  return ctx?.organizationId && hasAnyRole(ctx, ORG_MANAGER_ROLES) ? ctx.organizationId : null;
+  return orgCan(ctx, { event: ["update"] }) ? ctx!.organizationId : null;
 }
 
 const STAFF_CHECK = {

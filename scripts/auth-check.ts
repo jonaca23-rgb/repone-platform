@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { auth } from "@/lib/auth/auth";
+import { splitRoles } from "@/lib/auth/permissions";
 import { cookieOf, signInAs } from "./auth-helpers";
 
 const target = requireLocal();
@@ -109,13 +110,10 @@ async function main() {
     expect("sign-out ends the session", after === null, after?.user);
 
     const admin = await signInAs("admin@repone.test");
-    const roles = await admin.db
-      .from("user_roles")
-      .select("user_id, role")
-      .eq("user_id", admin.userId);
+    const roles = await admin.db.from("member").select("user_id, role").eq("user_id", admin.userId);
     expect(
-      "signInAs(admin) reads the admin's own user_roles row through RLS",
-      !roles.error && roles.data?.some((r) => r.role === "admin") === true,
+      "signInAs(admin) reads the admin's own member row (owner) through RLS",
+      !roles.error && roles.data?.some((r) => splitRoles(r.role).includes("owner")) === true,
       roles,
     );
 

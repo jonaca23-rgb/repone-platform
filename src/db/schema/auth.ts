@@ -16,12 +16,12 @@ import {
  * drizzleAdapter reads it.
  *
  * ids are `uuid`, not BetterAuth's default text: auth.uid() casts the minted
- * JWT's `sub` to uuid and every domain FK (profiles.id, user_roles.user_id, …)
+ * JWT's `sub` to uuid and every domain FK (profiles.id, member.user_id, …)
  * is a uuid. BetterAuth is configured with generateId: "uuid" to match.
  *
- * RepOne's organizations, roles and event assignments are its own tables, so
- * none of BetterAuth's organization/admin columns are here. `user` is a
- * reserved word in Postgres; Drizzle quotes identifiers, so it is `"user"`.
+ * Organizations and their members are BetterAuth's organization plugin (0029);
+ * per-event staff stay in RepOne's assignment tables. `user` is a reserved
+ * word in Postgres; Drizzle quotes identifiers, so it is `"user"`.
  */
 
 const timestamps = {
@@ -39,6 +39,10 @@ export const user = pgTable("user", {
   email: text().notNull().unique(),
   emailVerified: boolean().notNull().default(false),
   image: text(),
+  role: text(),
+  banned: boolean().default(false),
+  banReason: text(),
+  banExpires: timestamp({ withTimezone: true }),
   ...timestamps,
 });
 
@@ -53,6 +57,8 @@ export const session = pgTable(
     userId: uuid()
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    activeOrganizationId: uuid(),
+    impersonatedBy: uuid(),
     ...timestamps,
   },
   (t) => [index("session_user_id_idx").on(t.userId)],
@@ -103,3 +109,50 @@ export const rateLimit = pgTable("rate_limit", {
   count: integer().notNull(),
   lastRequest: bigint({ mode: "number" }).notNull(),
 });
+
+/** BetterAuth's organization model, on RepOne's existing table (0001, 0029). */
+export const organizations = pgTable("organizations", {
+  id: uuid().primaryKey().defaultRandom(),
+  name: text().notNull(),
+  slug: text().notNull().unique(),
+  logo: text(),
+  metadata: text(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A person's roles in an organization, comma-joined (src/lib/auth/permissions.ts). */
+export const member = pgTable(
+  "member",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text().notNull().default("member"),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("member_user_id_idx").on(t.userId)],
+);
+
+/** Required by the plugin; RepOne invites through createUser + a password link instead. */
+export const invitation = pgTable(
+  "invitation",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text().notNull(),
+    role: text(),
+    status: text().notNull().default("pending"),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    inviterId: uuid()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("invitation_email_idx").on(t.email)],
+);

@@ -10,7 +10,7 @@ import { GoogleButton, OAuthErrorNotice } from "../GoogleButton";
 export function AthleteSignUpForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
   // Athlete accounts share the BetterAuth user table with staff, but signing up
   // only creates the user (and its bare profiles row); staff roles come only
-  // from user_roles or event assignments. autoSignIn is on, so the new session
+  // from a member row or event assignments. autoSignIn is on, so the new session
   // cookie is set by this response, and onboarding links the athletes row.
   // BetterAuth requires a name but accepts ""; the profile trigger stores it as
   // null. Sending the email instead would show it as this person's name to

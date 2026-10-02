@@ -1,6 +1,7 @@
-import type { UserRoleDb } from "@/lib/db/database.types";
+import type { OrgRole } from "@/lib/auth/permissions";
 
-export const ROLE_LABELS: Record<UserRoleDb, string> = {
+export const ROLE_LABELS: Record<OrgRole, string> = {
+  owner: "Owner",
   admin: "Admin",
   event_director: "Event Director",
   scoring_operator: "Scoring Operator",

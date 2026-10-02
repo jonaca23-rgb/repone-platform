@@ -25,12 +25,10 @@ export async function getEventStaffCandidates(
   if (!organizationId) return [];
   const supabase = await createClient();
 
-  const [{ data: profiles }, { data: athletes }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("organization_id", organizationId)
-      .order("full_name"),
+  // Staff are the org's members (BetterAuth's member table, 0029); their
+  // names come from profiles.
+  const [{ data: members }, { data: athletes }] = await Promise.all([
+    supabase.from("member").select("user_id").eq("organization_id", organizationId),
     supabase
       .from("athletes")
       .select("auth_user_id, first_name, last_name")
@@ -38,6 +36,11 @@ export async function getEventStaffCandidates(
       .not("auth_user_id", "is", null)
       .order("last_name"),
   ]);
+
+  const memberIds = (members ?? []).map((m) => m.user_id);
+  const { data: profiles } = memberIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", memberIds).order("full_name")
+    : { data: [] };
 
   const candidates: StaffCandidate[] = [];
   const seen = new Set<string>();

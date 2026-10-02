@@ -56,7 +56,7 @@ async function main() {
   // An event in a second organization: nobody in the seed org may act on it.
   const { data: otherOrg } = await service
     .from("organizations")
-    .insert({ name: "Authz other org" })
+    .insert({ name: "Authz other org", slug: `authz-other-${Date.now()}` })
     .select("id")
     .single();
   const { data: otherEvent } = await service
@@ -75,8 +75,8 @@ async function main() {
     console.log("\nSession context");
     expect("anonymous has no session", anon.ctx === null);
     expect(
-      "admin session carries the org and admin role",
-      admin.ctx?.organizationId === ORG_ID && admin.ctx.roles.includes("admin"),
+      "admin session carries the org and owner role",
+      admin.ctx?.organizationId === ORG_ID && admin.ctx.roles.includes("owner"),
       admin.ctx,
     );
 
@@ -179,14 +179,96 @@ async function main() {
       }
     }
 
+    console.log("\nPermissions on member (0029)");
+    {
+      // Review Focus 2: an owner passes admin-only policies.
+      const { error } = await admin.db
+        .from("circuits")
+        .insert({ organization_id: ORG_ID, name: "authz-owner-check" });
+      expect(
+        "owner passes an admin/event_director write (has_role admin includes owner)",
+        !error,
+        error,
+      );
+      await service.from("circuits").delete().eq("name", "authz-owner-check");
+
+      // Review Focus 1: comma-joined roles are a union, in SQL and in the app.
+      const { userId } = await signInAs("commentator@repone.test");
+      const { error: insertError } = await service
+        .from("member")
+        .insert({ organization_id: ORG_ID, user_id: userId, role: "event_director,commentator" });
+      expect("service role adds a two-role member row", !insertError, insertError);
+      try {
+        const twoRoles = await signInAs("commentator@repone.test");
+        const twoCtx = await loadSessionContext(twoRoles.db, {
+          userId: twoRoles.userId,
+          email: twoRoles.email,
+        });
+        expect("two-role member manages the org (app)", orgManagerOf(twoCtx) === ORG_ID, twoCtx);
+        const { error: e2 } = await twoRoles.db
+          .from("circuits")
+          .insert({ organization_id: ORG_ID, name: "authz-two-roles" });
+        expect("two-role member passes event_director policies (SQL)", !e2, e2);
+        await service.from("circuits").delete().eq("name", "authz-two-roles");
+
+        // Read while still a member: "members read org members" is has_role-based.
+        const { data: others } = await twoRoles.db.from("member").select("user_id");
+        expect(
+          "a member reads the org's other members",
+          (others ?? []).some((m) => m.user_id !== userId),
+          others,
+        );
+      } finally {
+        await service.from("member").delete().eq("user_id", userId);
+      }
+    }
+
+    console.log("\nThe organization cannot be deleted (disableOrganizationDeletion)");
+    {
+      const owner = await signInAs("admin@repone.test");
+      const body = { organizationId: ORG_ID };
+      const inProcess = await auth.api
+        .deleteOrganization({ headers: owner.headers, body })
+        .then(() => null)
+        .catch((e: unknown) => e);
+      expect(
+        "owner's deleteOrganization is refused (auth.api)",
+        String((inProcess as { body?: { code?: string } } | null)?.body?.code) ===
+          "ORGANIZATION_DELETION_DISABLED",
+        inProcess,
+      );
+      // The same request over HTTP, as a browser would send it (needs `pnpm dev`).
+      const http = await fetch("http://localhost:3200/api/auth/organization/delete", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3200",
+          cookie: owner.headers.get("cookie") ?? "",
+        },
+        body: JSON.stringify(body),
+      }).catch(() => null);
+      if (http) {
+        const text = await http.text();
+        expect(
+          "owner's POST /api/auth/organization/delete is refused",
+          !http.ok && text.includes("ORGANIZATION_DELETION_DISABLED"),
+          `${http.status} ${text}`,
+        );
+      } else {
+        console.log("skip  POST /api/auth/organization/delete (dev server not running)");
+      }
+      const { data: org } = await service.from("organizations").select("id").eq("id", ORG_ID);
+      expect("the organization still exists", org?.length === 1, org);
+    }
+
     console.log("\nSigning out ends the identity");
     const beforeOut = await signInAs("admin@repone.test");
     const ownRoles = await beforeOut.db
-      .from("user_roles")
+      .from("member")
       .select("user_id")
       .eq("user_id", beforeOut.userId);
     expect(
-      "signed in, admin reads their own user_roles row",
+      "signed in, admin reads their own member row",
       (ownRoles.data?.length ?? 0) > 0,
       ownRoles,
     );
@@ -195,9 +277,9 @@ async function main() {
     expect("after sign-out the session is gone", afterOut === null, afterOut);
     // With no session the app mints no token: the client is plain anon.
     const anonAfter = createClient<Database>(target.apiUrl, publishableKey, options);
-    const rolesAfter = await anonAfter.from("user_roles").select("user_id");
+    const rolesAfter = await anonAfter.from("member").select("user_id");
     expect(
-      "after sign-out the client cannot read user_roles",
+      "after sign-out the client cannot read member",
       !!rolesAfter.error || (rolesAfter.data?.length ?? 0) === 0,
       rolesAfter,
     );

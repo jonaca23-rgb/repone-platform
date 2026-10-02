@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/db/server";
-import { hasAnyRole, type SessionContext } from "@/lib/auth/session";
+import { orgCan, type SessionContext } from "@/lib/auth/session";
 import { eventAccess, type EventStaffRole } from "@/lib/auth/authorize";
 import type { EventStatus } from "@/lib/db/database.types";
 
 // Event-scoped staff assignment checks (0024_event_role_assignments.sql) —
-// Scorekeeper/Producer/Commentator are per-event, unlike Admin, which stays
-// the org-wide `user_roles` row (see hasAnyRole in session.ts). These are
+// Scorekeeper/Producer/Commentator are per-event, unlike org roles, which
+// are the org-wide BetterAuth `member` row (see orgCan in authorize.ts). These are
 // app-layer convenience for deciding what to render/redirect; the actual
 // write authorization always happens in Postgres RLS via the matching
 // is_event_scorekeeper()/is_event_producer()/is_event_commentator() SQL
@@ -74,7 +74,7 @@ export async function getAssignedEvents(
   if (!ctx) return [];
   const supabase = await createClient();
 
-  if (hasAnyRole(ctx, ["admin"])) {
+  if (orgCan(ctx, { event: ["update"] })) {
     const { data } = await supabase
       .from("events")
       .select("id, name, status, starts_on, ends_on")
@@ -93,9 +93,6 @@ export async function getAssignedEvents(
   return (rows ?? []).map((r) => r.events).filter((e): e is AssignedEvent => !!e);
 }
 
-/** Roles allowed into /admin. Everyone else is sent to staffLandingPath(). */
-export const ADMIN_AREA_ROLES = ["admin", "event_director"] as const;
-
 /**
  * Where a signed-in user belongs when they reach a staff screen they can't
  * use (e.g. /admin, which every staff login lands on first): their first
@@ -108,9 +105,9 @@ export async function staffLandingPath(ctx: SessionContext): Promise<string> {
     producer: "/producer",
     commentator: "/commentator",
   };
-  if (hasAnyRole(ctx, ["scoring_operator"])) return roleHome.scorekeeper;
-  if (hasAnyRole(ctx, ["production_director"])) return roleHome.producer;
-  if (hasAnyRole(ctx, ["commentator"])) return roleHome.commentator;
+  if (orgCan(ctx, { score: ["enter"] })) return roleHome.scorekeeper;
+  if (orgCan(ctx, { broadcast: ["control"] })) return roleHome.producer;
+  if (orgCan(ctx, { commentary: ["read"] })) return roleHome.commentator;
 
   const supabase = await createClient();
   for (const role of ["scorekeeper", "producer", "commentator"] as const) {
