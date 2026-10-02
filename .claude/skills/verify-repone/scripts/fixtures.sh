@@ -9,12 +9,12 @@ case "${1:-show}" in
   show)
     cat <<EOF
 Logins (password for all: $PASSWORD) — everyone signs in at $APP_URL/login (then / is the start page)
-  admin@repone.test          admin, org-wide            -> /admin
-  scorekeeper@repone.test    assigned to every event    -> /scorekeeper
-  producer@repone.test       assigned to every event    -> /producer
-  commentator@repone.test    assigned to every event    -> /commentator
+  admin@repone.test          admin, org-wide            -> / (cards: all four staff modules)
+  scorekeeper@repone.test    assigned to every event    -> / (Scorekeeper card)
+  producer@repone.test       assigned to every event    -> / (Production card)
+  commentator@repone.test    assigned to every event    -> / (Commentator card)
   athlete@repone.test        linked to Maria Rivera     -> /athlete
-  new-athlete@repone.test    not onboarded yet          -> /athlete/onboarding
+  new-athlete@repone.test    not onboarded yet          -> / (empty start page)
 
 Seed ids (supabase/seed.sql)
   org       $ORG_ID  RepOneLive

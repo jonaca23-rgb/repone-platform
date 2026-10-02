@@ -1,10 +1,10 @@
 # Role access and private athlete data
 
-Each role lands on its own screen and can't open another role's; athlete email, phone and date of birth are visible only to staff and the athlete themselves, never on public pages.
+Everyone signs in at one `/login` and lands on the start page with cards for the modules their permissions open (an athlete-only account is forwarded on to `/athlete`); nobody can open a module their permissions don't cover; athlete email, phone and date of birth are visible only to staff and the athlete themselves, never on public pages.
 
 ## Sub-features
 
-- `access-landing` staff login sends each role to its screen: admin → `/admin`, scorekeeper → `/scorekeeper`, producer → `/producer`, commentator → `/commentator`, athlete → `/athlete`.
+- `access-landing` sign-in lands on `/`: admin, scorekeeper, producer and commentator end on `/` with their module cards; `athlete@` (athlete-only) is forwarded on to `/athlete`; `new-athlete@` ends on `/` with the empty start page and `Create my athlete profile`.
 - `access-admin-gate` a non-admin opening any `/admin/*` URL is redirected to their own screen.
 - `access-signed-out` a signed-out visitor opening a staff URL is sent to `/login`.
 - `access-pii-staff` admin sees an athlete's email/phone/date of birth and age category on the roster and athlete page.
@@ -29,7 +29,7 @@ Preconditions:
 - **Staff sees private data.** In the admin context open `/admin/athletes/00000000-0000-0000-0000-000000000062`. Snapshot: heading `SofiaDelgado`, textbox `Email` value `sofia@example.test`, a `Phone` textbox, a `Date of birth` date input.
 - **Public never does.** `curl -s http://localhost:3200/overlay/00000000-0000-0000-0000-000000000030/lanes | grep -c example.test` → `0` while names (`Rivera`, `Delgado`) are present. The same for `/live/00000000-0000-0000-0000-000000000010`.
 - **Other athletes don't.** In the athlete context open `/athlete/directory/00000000-0000-0000-0000-000000000062`: `Sofia Delgado`, `Box 787`, and no age-category line (even when Sofia has a date of birth set).
-- **Proof.** `$dir/landing.txt` with each role's final pathname, `take_screenshot filePath=$dir/admin-athlete.png`, `$dir/athlete-directory.png`, and the curl outputs in `$dir/public.txt`. Sign-in and sign-out end in a full page load (BetterAuth), so re-snapshot afterwards.
+- **Proof.** `$dir/landing.txt` with each account's final pathname (`/` for the four staff accounts and `new-athlete@`, `/athlete` for `athlete@`) and the cards shown, `take_screenshot filePath=$dir/admin-athlete.png`, `$dir/athlete-directory.png`, and the curl outputs in `$dir/public.txt`. Sign-in and sign-out end in a full page load (BetterAuth), so re-snapshot afterwards.
 
 ## Gotchas
 

@@ -71,14 +71,14 @@ The first run applies every migration in `supabase/migrations/` and
 `supabase/seed.sql`, loads the QA circuit (`supabase/seed_qa_circuit.sql`), and
 prints one login per role (password `Repone1234!`):
 
-| Account | Lands on |
+| Account | After signing in (`/`, the start page) |
 |---|---|
-| admin@repone.test | `/admin`, org admin |
-| scorekeeper@repone.test | `/scorekeeper`, assigned to every event |
-| producer@repone.test | `/producer`, `/dashboard` |
-| commentator@repone.test | `/commentator` |
-| athlete@repone.test | `/athlete`, linked to seeded athlete Maria Rivera |
-| new-athlete@repone.test | `/athlete`, not onboarded yet |
+| admin@repone.test | cards for all four staff modules; org owner |
+| scorekeeper@repone.test | Scorekeeper card, assigned to every event |
+| producer@repone.test | Production card |
+| commentator@repone.test | Commentator card |
+| athlete@repone.test | forwarded on to `/athlete` (athlete-only), linked to seeded athlete Maria Rivera |
+| new-athlete@repone.test | empty start page, not onboarded yet |
 
 Ports are offset so this runs beside other local Supabase projects:
 
@@ -107,7 +107,7 @@ values, which you add by hand) holds:
 | `SUPABASE_JWT_SIGNING_KEY` | app (mints each session's Supabase token), scripts |
 | `SUPABASE_SECRET_KEY` | scripts only (service role, bypasses RLS) |
 | `SMTP_URL`, `EMAIL_FROM` | app (server): verification, reset and invitation email; see Signing in |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, added by hand (`env:local` doesn't write them); enables "Continue with Google" for athletes |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, added by hand (`env:local` doesn't write them); enables "Continue with Google" on the single `/login` and `/signup` |
 
 ### Scripts
 

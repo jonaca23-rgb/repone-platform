@@ -5,7 +5,7 @@ Athletes sign up or sign in, complete a profile, log lifts and benchmarks, brows
 ## Sub-features
 
 - `athlete-signup` create an account with email/password → onboarding.
-- `athlete-login` email/password sign-in (Google is off locally).
+- `athlete-login` email/password sign-in at the single `/login` (Google is off locally).
 - `athlete-onboarding` first/last name, affiliate, email, phone, date of birth, gender → `/athlete`.
 - `athlete-lifts` save lifts/run times and benchmark workouts on the home page.
 - `athlete-directory` search athletes, open a profile, add a roster athlete.
@@ -34,8 +34,7 @@ Preconditions:
 
 ## Gotchas
 
-- Sign-up requires email verification: read the link in Mailpit (see the Invite recipe in access-control.md), open it, then you land on an empty start page; `Create my athlete profile` leads to onboarding.
-- Sign-up of a brand-new email creates a real BetterAuth user (password ≥10 chars) and needs email verification via Mailpit, then onboarding: use a unique `verify+<ts>@example.test` address and afterwards delete its messages, its `athletes` row and its `"user"` row with `psql "$DATABASE_URL"` (sessions/accounts cascade). `Sign out` ends in a full page load on `/login`; `/api/supabase-token` then answers 401.
+- Sign-up of a brand-new email creates a real BetterAuth user (password ≥10 chars) and needs email verification: read the link in Mailpit (see the Invite recipe in access-control.md), open it, and you land on an empty start page, where `Create my athlete profile` leads to onboarding. Use a unique `verify+<ts>@example.test` address and afterwards delete its messages, its `athletes` row and its `"user"` row with `psql "$DATABASE_URL"` (sessions/accounts cascade). `Sign out` ends in a full page load on `/login`; `/api/supabase-token` then answers 401.
 - The like button's accessible name is only its count (empty at 0): find it by its position after the profile heading in the snapshot, not by name.
 - Only onboarded athletes (linked to an `athletes` row) can message; `new-athlete@` must finish onboarding first.
 - Staff contacts appear only for staff in the athlete's organization (the seed admin is `Ada Admin`).
