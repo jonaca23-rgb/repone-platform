@@ -21,7 +21,7 @@ export default async function ResetPasswordPage({
           This link has expired or was already used.{" "}
           <Link
             href="/forgot-password"
-            className="rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+            className="inline-flex min-h-11 items-center rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
           >
             Send a new one
           </Link>

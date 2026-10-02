@@ -16,7 +16,7 @@ export default async function ForgotPasswordPage() {
       <p className="mt-6 text-sm">
         <Link
           href="/login"
-          className="rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+          className="inline-flex min-h-11 items-center rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
         >
           Back to sign in
         </Link>
