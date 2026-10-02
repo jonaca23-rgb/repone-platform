@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { staffLandingPath } from "@/lib/auth/eventRoles";
-import { getSessionContext, orgCan } from "@/lib/auth/session";
-import { signOut } from "@/app/(app)/login/actions";
-import { SignOutButton } from "@/components/SignOutButton";
+import { getSessionContext } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/userModules";
+import { AccountMenu } from "@/components/AccountMenu";
 import { getUnreadCount } from "@/lib/db/messages";
 import { MessagesNavLink } from "@/components/MessagesNavLink";
 
@@ -17,9 +15,9 @@ const NAV = [
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  await requireModule("admin");
   const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
-  if (!orgCan(ctx, { event: ["update"] })) redirect(await staffLandingPath(ctx));
+  if (!ctx) return null; // unreachable: requireModule redirects when signed out
   const unreadCount = await getUnreadCount(ctx.userId);
 
   return (
@@ -82,11 +80,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </Link>
           </nav>
         </div>
-        <SignOutButton
-          action={signOut}
-          redirectTo="/login"
-          className="text-sm text-white/60 hover:text-white"
-        />
+        <AccountMenu />
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
     </div>

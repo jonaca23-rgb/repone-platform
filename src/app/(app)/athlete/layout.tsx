@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getAthleteSessionContext } from "@/lib/auth/session";
-import { athleteSignOut } from "./actions";
-import { SignOutButton } from "@/components/SignOutButton";
+import { AccountMenu } from "@/components/AccountMenu";
 import { getUnreadCount } from "@/lib/db/messages";
 import { MessagesNavLink } from "@/components/MessagesNavLink";
 
@@ -54,11 +53,7 @@ export default async function AthleteLayout({ children }: { children: React.Reac
                 {ctx.firstName} {ctx.lastName}
               </span>
             ) : null}
-            <SignOutButton
-              action={athleteSignOut}
-              redirectTo="/athlete/login"
-              className="text-white/60 hover:text-white"
-            />
+            <AccountMenu />
           </div>
         ) : (
           <Link href="/" className="text-sm text-white/60 hover:text-white">

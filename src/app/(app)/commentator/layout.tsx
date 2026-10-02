@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
-import { signOut } from "@/app/(app)/login/actions";
-import { SignOutButton } from "@/components/SignOutButton";
+import { requireModule } from "@/lib/auth/userModules";
+import { AccountMenu } from "@/components/AccountMenu";
 
 // Same "any signed-in staff account" gate as Score Keeper/Production
 // Dashboard (see lib/auth/session.ts) — this outer shell just confirms
@@ -12,8 +10,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 // tables (0024_event_role_assignments.sql) — an admin can reach every event,
 // everyone else only the ones they're assigned to.
 export default async function CommentatorLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
+  await requireModule("commentator");
 
   return (
     <div className="min-h-screen bg-repone-black text-repone-white">
@@ -61,11 +58,7 @@ export default async function CommentatorLayout({ children }: { children: React.
             Producer
           </Link>
         </div>
-        <SignOutButton
-          action={signOut}
-          redirectTo="/login"
-          className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-        />
+        <AccountMenu />
       </div>
       {children}
     </div>

@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
-import { signOut } from "@/app/(app)/login/actions";
-import { SignOutButton } from "@/components/SignOutButton";
+import { requireModule } from "@/lib/auth/userModules";
+import { AccountMenu } from "@/components/AccountMenu";
 
 export default async function ScoreKeeperLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
+  await requireModule("scorekeeper");
 
   return (
     <div className="min-h-screen bg-repone-black text-repone-white">
@@ -48,11 +45,7 @@ export default async function ScoreKeeperLayout({ children }: { children: React.
             Commentator
           </Link>
         </div>
-        <SignOutButton
-          action={signOut}
-          redirectTo="/login"
-          className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-        />
+        <AccountMenu />
       </div>
       {children}
     </div>

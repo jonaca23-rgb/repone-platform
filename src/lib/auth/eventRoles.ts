@@ -92,38 +92,3 @@ export async function getAssignedEvents(
 
   return (rows ?? []).map((r) => r.events).filter((e): e is AssignedEvent => !!e);
 }
-
-/**
- * Where a signed-in user belongs when they reach a staff screen they can't
- * use (e.g. /admin, which every staff login lands on first): their first
- * event assignment's screen, else their athlete portal, else the home page.
- * Never returns /admin, so redirecting to it can't loop.
- */
-export async function staffLandingPath(ctx: SessionContext): Promise<string> {
-  const roleHome: Record<EventStaffRole, string> = {
-    scorekeeper: "/scorekeeper",
-    producer: "/producer",
-    commentator: "/commentator",
-  };
-  if (orgCan(ctx, { score: ["enter"] })) return roleHome.scorekeeper;
-  if (orgCan(ctx, { broadcast: ["control"] })) return roleHome.producer;
-  if (orgCan(ctx, { commentary: ["read"] })) return roleHome.commentator;
-
-  const supabase = await createClient();
-  for (const role of ["scorekeeper", "producer", "commentator"] as const) {
-    const { table, userColumn } = assignments(supabase, role);
-    const { data } = await table
-      .select("id")
-      .eq(userColumn, ctx.userId)
-      .eq("status", "active")
-      .limit(1);
-    if (data?.length) return roleHome[role];
-  }
-
-  const { data: athlete } = await supabase
-    .from("athletes")
-    .select("id")
-    .eq("auth_user_id", ctx.userId)
-    .maybeSingle();
-  return athlete ? "/athlete" : "/";
-}

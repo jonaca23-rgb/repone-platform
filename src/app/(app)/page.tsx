@@ -1,15 +1,54 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAuthSession } from "@/lib/auth/session";
+import { resolveHome } from "@/lib/auth/modules";
+import { userModules } from "@/lib/auth/userModules";
+import { AccountMenu } from "@/components/AccountMenu";
 
 /**
- * Public landing page. Only two entry points are offered here — Live
- * Leaderboard (no login, same as the OBS overlay routes — see
- * live/layout.tsx) and Athlete Portal (its own login/signup one click in,
- * for /athlete/login) — per Jonathan's request. Staff/organizer sign-in is
- * a small link in the upper right rather than a third equally-weighted
- * button, matching the same "Organizer Sign In" placement already used on
- * the Live Leaderboard's own header.
+ * `/` — the public landing page for visitors, and the start page (one card
+ * per module the person can open) for anyone signed in.
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await getAuthSession();
+  if (!session) return <PublicLanding />;
+  const home = resolveHome(await userModules());
+  if ("redirect" in home) redirect(home.redirect);
+  const { modules, offerAthleteProfile } = home.start;
+
+  return (
+    <div className="flex min-h-screen flex-col bg-repone-black text-repone-white">
+      <header className="flex items-center justify-between px-6 py-4">
+        {/* eslint-disable-next-line @next/next/no-img-element -- local static asset */}
+        <img src="/repone-logo.png" alt="RepOne" className="h-9 w-auto" width={472} height={240} />
+        <AccountMenu />
+      </header>
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-10">
+        <h1 className="text-2xl font-bold">Hi, {session.name || session.email}</h1>
+        {modules.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {modules.map((m) => (
+              <Link key={m.kind} href={m.href} className="rounded-xl border border-white/10 bg-repone-gray p-6 hover:border-repone-red">
+                <p className="text-lg font-bold uppercase tracking-wide">{m.label}</p>
+                <p className="mt-1 text-sm text-white/60">{m.detail}</p>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+        {offerAthleteProfile ? (
+          <div className={modules.length ? "rounded-xl border border-dashed border-white/20 p-6" : "flex flex-col items-center gap-4 py-16 text-center"}>
+            <Link href="/athlete/onboarding" className="control-btn control-btn-red px-8">Create my athlete profile</Link>
+            {modules.length === 0 ? (
+              <p className="text-sm text-white/50">Invited as staff? Use the link in your email.</p>
+            ) : null}
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+function PublicLanding() {
   return (
     <div className="flex min-h-screen flex-col bg-repone-black text-repone-white">
       <header className="flex justify-end px-6 py-4">
@@ -38,10 +77,10 @@ export default function HomePage() {
             Live Leaderboard
           </Link>
           <Link
-            href="/athlete"
+            href="/login"
             className="control-btn control-btn-outline border-white/30 !bg-transparent !text-white px-8"
           >
-            Athlete Portal
+            Sign in
           </Link>
         </div>
       </main>
