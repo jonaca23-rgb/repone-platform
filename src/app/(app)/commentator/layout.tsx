@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
-import { signOut } from "@/app/(app)/login/actions";
-import { SignOutButton } from "@/components/SignOutButton";
+import { requireModule, userModules } from "@/lib/auth/userModules";
+import { AccountMenu } from "@/components/AccountMenu";
 
 // Same "any signed-in staff account" gate as Score Keeper/Production
 // Dashboard (see lib/auth/session.ts) — this outer shell just confirms
@@ -12,14 +10,15 @@ import { SignOutButton } from "@/components/SignOutButton";
 // tables (0024_event_role_assignments.sql) — an admin can reach every event,
 // everyone else only the ones they're assigned to.
 export default async function CommentatorLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
+  await requireModule("commentator");
+  // Link only to the modules this person has (a scorekeeper may not produce).
+  const mine = new Set((await userModules()).map((m) => m.kind));
 
   return (
     <div className="min-h-screen bg-repone-black text-repone-white">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10 px-4 py-2">
         <div className="flex flex-wrap items-center gap-4">
-          <Link href="/admin" className="shrink-0 hover:opacity-80">
+          <Link href="/" className="shrink-0 hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
             <img
               src="/repone-logo.png"
@@ -31,7 +30,7 @@ export default async function CommentatorLayout({ children }: { children: React.
           </Link>
           <span className="text-white/20">|</span>
           <Link
-            href="/admin"
+            href="/"
             className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
           >
             🏠 Home
@@ -42,30 +41,32 @@ export default async function CommentatorLayout({ children }: { children: React.
           >
             Commentator
           </Link>
-          <Link
-            href="/scorekeeper"
-            className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-          >
-            Score Keeper
-          </Link>
-          <Link
-            href="/dashboard"
-            className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-          >
-            Production Dashboard
-          </Link>
-          <Link
-            href="/producer"
-            className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-          >
-            Producer
-          </Link>
+          {mine.has("scorekeeper") && (
+            <Link
+              href="/scorekeeper"
+              className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+            >
+              Score Keeper
+            </Link>
+          )}
+          {mine.has("producer") && (
+            <Link
+              href="/dashboard"
+              className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+            >
+              Production Dashboard
+            </Link>
+          )}
+          {mine.has("producer") && (
+            <Link
+              href="/producer"
+              className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
+            >
+              Producer
+            </Link>
+          )}
         </div>
-        <SignOutButton
-          action={signOut}
-          redirectTo="/login"
-          className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-        />
+        <AccountMenu />
       </div>
       {children}
     </div>

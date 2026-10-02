@@ -17,7 +17,7 @@ export default async function CommentatorPickerPage() {
   return (
     <div className="mx-auto max-w-xl px-6 py-16">
       <p className="mb-4 text-sm">
-        <Link href="/admin" className="text-repone-red underline">
+        <Link href="/" className="text-repone-red underline">
           ← Back to Home
         </Link>
       </p>

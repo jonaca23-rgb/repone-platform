@@ -13,8 +13,8 @@ export default async function AthleteDirectoryProfilePage({
 }) {
   const { athleteId } = await params;
   const ctx = await getAthleteSessionContext();
-  if (!ctx) redirect("/athlete/login");
-  if (!ctx.athleteId) redirect("/athlete/onboarding");
+  if (!ctx) redirect("/login");
+  if (!ctx.athleteId) redirect("/");
 
   const athlete = await getAthleteProfile(athleteId, ctx.organizationId ?? "");
   if (!athlete) notFound();

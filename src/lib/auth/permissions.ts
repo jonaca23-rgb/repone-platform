@@ -47,15 +47,21 @@ const runsEvents = {
   staff: ["invite"],
 } as const;
 
-/** Answers for the organization. One per organization (member_one_owner_idx). */
+/**
+ * Answers for the organization. One per organization (member_one_owner_idx).
+ * Ownership is not transferable in the app yet: moving it is a manual SQL step.
+ */
 const owner = ac.newRole({ ...ownerAc.statements, ...runsEvents });
 /** Everything the owner can do except delete the organization. */
 const admin = ac.newRole({ ...adminAc.statements, ...runsEvents });
 /** Runs events and their staff; cannot add or change org members. */
 const event_director = ac.newRole({ ...memberAc.statements, ...runsEvents });
+// Producers also enter and correct scores (scorekeeper/[floorId], the
+// producer scores page); RLS lets an assigned producer manage results (0024).
 const production_director = ac.newRole({
   ...memberAc.statements,
   heat: ["manage"],
+  score: ["enter"],
   broadcast: ["control"],
   commentary: ["read"],
 });
@@ -99,9 +105,32 @@ export function roleCan(
   return list.some((r) => roles[r].authorize(permissions).success);
 }
 
+export type EventStaffKind = "scorekeeper" | "producer" | "commentator";
+export const EVENT_STAFF_KINDS: readonly EventStaffKind[] = [
+  "scorekeeper",
+  "producer",
+  "commentator",
+];
+
 /** The role an event assignment grants for that one event. */
 export const EVENT_STAFF_ROLE = {
   scorekeeper: "scoring_operator",
   producer: "production_director",
   commentator: "commentator",
-} as const satisfies Record<"scorekeeper" | "producer" | "commentator", OrgRole>;
+} as const satisfies Record<EventStaffKind, OrgRole>;
+
+/** The permission a staff kind's screens need (spec §4): an org role holding it reaches every event in the org. */
+export const STAFF_PERMISSION: Record<EventStaffKind, Permissions> = {
+  scorekeeper: { score: ["enter"] },
+  producer: { broadcast: ["control"] },
+  commentator: { commentary: ["read"] },
+};
+
+/**
+ * The assignment kinds whose event role authorizes `kind`'s permission, so
+ * their holders work `kind`'s screens for that event: a producer assignment
+ * opens the Scorekeeper and Commentator screens too.
+ */
+export function assignmentsOpening(kind: EventStaffKind): EventStaffKind[] {
+  return EVENT_STAFF_KINDS.filter((k) => roleCan(EVENT_STAFF_ROLE[k], STAFF_PERMISSION[kind]));
+}

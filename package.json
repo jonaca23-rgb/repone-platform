@@ -28,7 +28,8 @@
     "db:timer-check": "tsx scripts/timer-check.ts",
     "db:authz-check": "tsx scripts/authz-check.ts",
     "db:token-check": "tsx scripts/token-check.ts",
-    "db:auth-check": "tsx scripts/auth-check.ts"
+    "db:auth-check": "tsx scripts/auth-check.ts",
+    "db:invite-check": "tsx scripts/invite-check.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
@@ -38,6 +39,7 @@
     "drizzle-orm": "^0.45.3",
     "jose": "^6.2.12",
     "next": "16.3.4",
+    "nodemailer": "^10.0.13",
     "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
@@ -49,6 +51,7 @@
     "@biomejs/biome": "2.5.14",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

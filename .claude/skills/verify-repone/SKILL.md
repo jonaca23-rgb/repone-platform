@@ -37,8 +37,8 @@ Read-only. Checks: Supabase container and API up, `.env.local` targets the local
 The harness is the **Chrome DevTools MCP** tools (`mcp__chrome-devtools__*`; load them with ToolSearch if deferred). If they are unavailable, say so and report browser recipes as not run — do not substitute curl for a UI proof.
 
 - **One browser context per role.** `new_page` with `isolatedContext: "verify-<role>"` (e.g. `verify-scorekeeper`). Contexts don't share cookies, so two roles can be signed in side by side. Reuse the page id it returns.
-- **Sign in (staff).** `new_page url=http://localhost:3200/login` → `take_snapshot` → `fill_form` the `Email` and `Password` textboxes → `click` the `SIGN IN` button. Each role lands on its own screen (`/admin`, `/scorekeeper`, `/producer`, `/commentator`); an athlete who uses this form lands on `/athlete`.
-- **Sign in (athlete).** Same, at `/athlete/login`.
+- **Sign in.** `new_page url=http://localhost:3200/login` → `take_snapshot` → `fill_form` the `Email` and `Password` textboxes → `click` the `SIGN IN` button. Everyone signs in at `/login` and lands on `/`, the start page with a card per module; an athlete-only account goes straight on to `/athlete`.
+- **Start page.** There is one door, `/login` (athletes too; `/athlete/login` redirects to it). After sign-in `/` is the start page with a card per module the account may open; an athlete-only account goes straight to `/athlete`. Verification, reset and invitation emails are read in Mailpit at `http://127.0.0.1:54524` (API: `/api/v1/messages`).
 - **First visit of a route compiles it** (5-30s on a cold server). Pass `timeout: 60000` to `new_page` / `navigate_page`; a 10s timeout leaves you snapshotting a blank page.
 - **Find elements by `take_snapshot`, act by uid.** Accessible names come from the snapshot (headings, labels, button text — many render uppercase, e.g. `SAVE SCORE`). Take a fresh snapshot after every navigation or save; uids change.
 - **Confirm dialogs.** Destructive and finishing actions use `window.confirm` (e.g. *Finish Heat*). The `click` call reports "Open dialog … Call handle_dialog": answer with `handle_dialog action=accept`, then continue.

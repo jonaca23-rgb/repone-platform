@@ -52,6 +52,11 @@ export async function signInAs(
   return { db: client, userId: current.user.id, email: current.user.email, headers };
 }
 
+/** Script and dev accounts sign in right away, so they skip the verification email. */
+export async function markVerified(userId: string): Promise<void> {
+  await db.update(user).set({ emailVerified: true }).where(eq(user.id, userId));
+}
+
 /**
  * Makes sure `email` can sign in with `password`, and returns the user's id.
  * A new person signs up (which creates their profiles row); an existing one has
@@ -65,8 +70,10 @@ export async function createOrResetUser(
   const [existing] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
   if (!existing) {
     const created = await auth.api.signUpEmail({ body: { email, password, name } });
+    await markVerified(created.user.id);
     return created.user.id;
   }
+  await markVerified(existing.id);
 
   const hash = await (await auth.$context).password.hash(password);
   const updated = await db

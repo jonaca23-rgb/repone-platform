@@ -1,18 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
-import { signOut } from "@/app/(app)/login/actions";
-import { SignOutButton } from "@/components/SignOutButton";
+import { requireModule } from "@/lib/auth/userModules";
+import { AccountMenu } from "@/components/AccountMenu";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
+  await requireModule("producer");
 
   return (
     <div className="min-h-screen bg-repone-black text-repone-white">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10 px-4 py-2">
         <div className="flex flex-wrap items-center gap-4">
-          <Link href="/admin" className="shrink-0 hover:opacity-80">
+          <Link href="/" className="shrink-0 hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- local static asset in public/, not optimizable-domain content */}
             <img
               src="/repone-logo.png"
@@ -24,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </Link>
           <span className="text-white/20">|</span>
           <Link
-            href="/admin"
+            href="/"
             className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
           >
             🏠 Home
@@ -48,11 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             Commentator
           </Link>
         </div>
-        <SignOutButton
-          action={signOut}
-          redirectTo="/login"
-          className="text-xs font-bold uppercase tracking-wide text-white/60 hover:text-white"
-        />
+        <AccountMenu />
       </div>
       {children}
     </div>

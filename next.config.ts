@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Athletes sign in and sign up through the same screens as everyone else.
+  // Query strings carry over by default.
+  async redirects() {
+    return [
+      { source: "/athlete/login", destination: "/login", permanent: true },
+      { source: "/athlete/signup", destination: "/signup", permanent: true },
+    ];
+  },
   experimental: {
     serverActions: {
       // Next.js defaults Server Action request bodies to 1MB, which is well

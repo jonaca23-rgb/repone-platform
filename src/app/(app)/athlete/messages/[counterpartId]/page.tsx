@@ -11,8 +11,8 @@ export default async function AthleteThreadPage({
 }) {
   const { counterpartId } = await params;
   const ctx = await getAthleteSessionContext();
-  if (!ctx) redirect("/athlete/login");
-  if (!ctx.athleteId) redirect("/athlete/onboarding");
+  if (!ctx) redirect("/login");
+  if (!ctx.athleteId) redirect("/");
 
   const labels = await resolveCounterparts([counterpartId], ctx.organizationId ?? "");
   const counterpart = labels.get(counterpartId);

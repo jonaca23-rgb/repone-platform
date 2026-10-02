@@ -5,8 +5,8 @@ import { getConversations, getOrgStaffDirectory } from "@/lib/db/messages";
 
 export default async function AthleteMessagesPage() {
   const ctx = await getAthleteSessionContext();
-  if (!ctx) redirect("/athlete/login");
-  if (!ctx.athleteId) redirect("/athlete/onboarding");
+  if (!ctx) redirect("/login");
+  if (!ctx.athleteId) redirect("/");
 
   const organizationId = ctx.organizationId ?? "";
   const [conversations, staff] = await Promise.all([

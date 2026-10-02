@@ -314,7 +314,7 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
-# "Continue with Google" on /athlete/login. Off by default locally; to try it, create
+# "Continue with Google" on /login. Off by default locally; to try it, create
 # a Google OAuth client with redirect URI http://127.0.0.1:54521/auth/v1/callback,
 # put the two values in .env (read by the Supabase CLI), and set enabled = true.
 [auth.external.google]

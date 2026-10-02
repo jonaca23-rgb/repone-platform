@@ -27,6 +27,34 @@ Sports data, scoring, and broadcast-graphics platform for RepOneLive competition
   standalone `timer`, `heat`, `lanes`, `wod`, `lower-third`, `leaderboard`,
   `sponsor` layers. All transparent-background, all Realtime-synced.
 
+## Signing in
+
+There is one door: `/login` (and `/signup`). `/athlete/login` and
+`/athlete/signup` redirect to them. Email/password accounts must verify their
+email before signing in (`/verify-email`); `/forgot-password` and
+`/reset-password` handle a lost password.
+
+After signing in, `/` is the start page: one card per module the person's
+permissions open (Admin, Scorekeeper, Producer, Commentator, Athlete portal).
+An account that only opens the athlete portal goes straight to `/athlete`; a
+brand-new account sees an empty start page with "Create my athlete profile".
+Each module redirects outsiders back to `/`, and every header has an account
+menu to switch modules or sign out.
+
+Owners and admins invite staff by email: organization roles from `/admin/team`,
+event roles from an event's Staff page (pending invitations can be resent). The
+link (`/invite?token=`) lets the invitee set a password, then sign in.
+
+Email goes out over SMTP, configured by two variables:
+
+| Variable | Local | Production |
+|---|---|---|
+| `SMTP_URL` | `smtp://127.0.0.1:54525` (Mailpit; read mail at http://127.0.0.1:54524) | the provider's SMTP relay, e.g. `smtps://user:pass@smtp.example.com:465` |
+| `EMAIL_FROM` | `RepOne <no-reply@repone.test>` | a sender on a domain verified with the provider |
+
+`pnpm env:local` writes both locally. **Run `pnpm dev:setup` after pulling
+auth changes.**
+
 ## Running it locally
 
 Requirements: Node 24, pnpm 10 (`corepack enable`), the Supabase CLI, and a
@@ -43,14 +71,14 @@ The first run applies every migration in `supabase/migrations/` and
 `supabase/seed.sql`, loads the QA circuit (`supabase/seed_qa_circuit.sql`), and
 prints one login per role (password `Repone1234!`):
 
-| Account | Lands on |
+| Account | After signing in (`/`, the start page) |
 |---|---|
-| admin@repone.test | `/admin`, org admin |
-| scorekeeper@repone.test | `/scorekeeper`, assigned to every event |
-| producer@repone.test | `/producer`, `/dashboard` |
-| commentator@repone.test | `/commentator` |
-| athlete@repone.test | `/athlete`, linked to seeded athlete Maria Rivera |
-| new-athlete@repone.test | `/athlete`, not onboarded yet |
+| admin@repone.test | cards for all four staff modules; org owner |
+| scorekeeper@repone.test | Scorekeeper card, assigned to every event |
+| producer@repone.test | Production card |
+| commentator@repone.test | Commentator card |
+| athlete@repone.test | forwarded on to `/athlete` (athlete-only), linked to seeded athlete Maria Rivera |
+| new-athlete@repone.test | empty start page, not onboarded yet |
 
 Ports are offset so this runs beside other local Supabase projects:
 
@@ -78,7 +106,8 @@ values, which you add by hand) holds:
 | `DATABASE_URL` | app (BetterAuth's tables), scripts |
 | `SUPABASE_JWT_SIGNING_KEY` | app (mints each session's Supabase token), scripts |
 | `SUPABASE_SECRET_KEY` | scripts only (service role, bypasses RLS) |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, added by hand (`env:local` doesn't write them); enables "Continue with Google" for athletes |
+| `SMTP_URL`, `EMAIL_FROM` | app (server): verification, reset and invitation email; see Signing in |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, added by hand (`env:local` doesn't write them); enables "Continue with Google" on the single `/login` and `/signup` |
 
 ### Scripts
 
@@ -99,6 +128,7 @@ values, which you add by hand) holds:
 | `pnpm db:timer-check` | Prove the broadcast timer's commands (double resume, concurrent operators, adjust) (local only) |
 | `pnpm db:authz-check` | Prove who may manage the org, act on an event, drive a floor or score a heat (local only) |
 | `pnpm db:auth-check` | Prove BetterAuth sign-up, sign-in and sign-out, and that a session reaches Supabase with the minted token (local only) |
+| `pnpm db:invite-check` | Prove invitations: sending, accepting, resending and the mailer failing (local only) |
 | `pnpm db:token-check` | Prove local PostgREST accepts tokens the app mints and rejects forged, expired or role-less ones (local only) |
 | `pnpm check` | Lint + typecheck + unit tests (run before every commit) |
 | `pnpm format` | Biome formatter |
@@ -140,6 +170,14 @@ environment (Production, Preview):
 Apply the migrations to the hosted database (`supabase db push`) before the
 first deploy. BetterAuth's sign-in/sign-up rate limit is on in every
 environment (3 requests per 10 s per IP, stored in `public.rate_limit`).
+
+7. **Client IP for the rate limit.** Set BetterAuth's `advanced.ipAddress` in
+   `src/lib/auth/auth.ts` for the deploy target: `ipAddressHeaders` naming the
+   header your platform sets with the real client address (on Vercel,
+   `x-real-ip` / `x-forwarded-for`), or `trustedProxies` for your proxy
+   chain. If BetterAuth can't resolve a client IP it falls back to one shared
+   bucket per path, so 3 failed sign-ins anywhere lock out everyone for 10 s
+   (its log says "falling back to a single shared per-path bucket").
 
 ### Schema changes
 
