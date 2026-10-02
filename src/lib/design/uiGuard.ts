@@ -46,13 +46,21 @@ export const GUARD_RULES = [
   { id: "emoji", pattern: /[\u{1F300}-\u{1FAFF}]/u, message: "Use a lucide-react icon." },
 ] as const;
 
-const IGNORE = "ui-guard-ignore";
+const MARKER = /ui-guard-ignore:\s*\S/;
+const COMMENT_ONLY = /^(?:\/\/|\{\/\*|\/\*)/;
+
+/** A marker with a reason exempts its own line; a comment-only marker line also exempts the next. */
+function isExempt(lines: string[], i: number): boolean {
+  if (MARKER.test(lines[i])) return true;
+  const prev = i > 0 ? lines[i - 1].trim() : "";
+  return COMMENT_ONLY.test(prev) && MARKER.test(prev);
+}
 
 export function checkSource(file: string, source: string): GuardViolation[] {
   const out: GuardViolation[] = [];
   const lines = source.split("\n");
   lines.forEach((text, i) => {
-    if (text.includes(IGNORE) || (i > 0 && lines[i - 1].includes(IGNORE))) return;
+    if (isExempt(lines, i)) return;
     for (const r of GUARD_RULES)
       if (r.pattern.test(text)) out.push({ file, line: i + 1, rule: r.id, text: text.trim() });
   });

@@ -31,9 +31,23 @@ describe("ui guard", () => {
   it("passes clean shadcn code", () => {
     expect(rules(`<Button variant="destructive" size="touch">Save</Button>`)).toEqual([]);
   });
-  it("skips lines marked ui-guard-ignore, and the line after a marker comment", () => {
+  it("exempts a marked code line, and only that line", () => {
     expect(rules(`<div className="bg-white"> {/* ui-guard-ignore: QR */}`)).toEqual([]);
-    expect(rules(`// ui-guard-ignore: QR\n<div className="bg-white">`)).toEqual([]);
+    expect(
+      rules(`<div className="bg-white"> {/* ui-guard-ignore: QR */}\n<input name="x" />`),
+    ).toEqual(["raw-control"]);
     expect(rules(`<div className="bg-white">`)).toContain("light-colour");
+  });
+  it("exempts the line after a comment-only marker", () => {
+    expect(rules(`// ui-guard-ignore: QR\n<div className="bg-white">`)).toEqual([]);
+    expect(rules(`{/* ui-guard-ignore: QR */}\n<div className="bg-white">`)).toEqual([]);
+    expect(rules(`// ui-guard-ignore: QR\n<p>ok</p>\n<div className="bg-white">`)).toContain(
+      "light-colour",
+    );
+  });
+  it("ignores a marker without a reason", () => {
+    expect(rules(`<div className="bg-white"> // ui-guard-ignore`)).toContain("light-colour");
+    expect(rules(`// ui-guard-ignore\n<div className="bg-white">`)).toContain("light-colour");
+    expect(rules(`// ui-guard-ignore:\n<div className="bg-white">`)).toContain("light-colour");
   });
 });

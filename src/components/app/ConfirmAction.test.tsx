@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConfirmAction } from "./ConfirmAction";
@@ -39,5 +39,30 @@ describe("ConfirmAction", () => {
     await user.click(screen.getByRole("button", { name: "Remove" }));
     await user.dblClick(screen.getByRole("button", { name: "Remove heat" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+  it("stays open and can be retried when the action rejects", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error("Nope"));
+    render(
+      <ConfirmAction
+        trigger="Remove"
+        title="Remove Heat 3?"
+        description="d"
+        confirmLabel="Remove heat"
+        onConfirm={onConfirm}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove heat" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Remove heat" }).hasAttribute("disabled")).toBe(
+        false,
+      ),
+    );
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Remove heat" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
   });
 });

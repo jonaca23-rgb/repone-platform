@@ -1,13 +1,14 @@
 // Fails when a design-system-replaced pattern reappears (pnpm ui:guard [paths…]).
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { checkSource, GUARD_RULES } from "../src/lib/design/uiGuard";
 
 const SKIP = ["src/components/ui", "src/components/graphics", "src/app/(overlay)"];
 const roots = process.argv.slice(2).length ? process.argv.slice(2) : ["src/app", "src/components"];
 
 function* files(p: string): Generator<string> {
-  if (SKIP.some((s) => p.startsWith(s))) return;
+  const rel = relative(process.cwd(), resolve(p)).split(sep).join("/");
+  if (SKIP.some((s) => rel === s || rel.startsWith(`${s}/`))) return;
   if (statSync(p).isDirectory()) for (const f of readdirSync(p)) yield* files(join(p, f));
   else if (/\.(tsx|ts)$/.test(p) && !/\.test\.tsx?$/.test(p)) yield p;
 }
