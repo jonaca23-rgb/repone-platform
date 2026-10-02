@@ -185,14 +185,19 @@ async function main() {
       const { error } = await admin.db
         .from("circuits")
         .insert({ organization_id: ORG_ID, name: "authz-owner-check" });
-      expect("owner passes an admin-only write (has_role admin includes owner)", !error, error);
+      expect(
+        "owner passes an admin/event_director write (has_role admin includes owner)",
+        !error,
+        error,
+      );
       await service.from("circuits").delete().eq("name", "authz-owner-check");
 
       // Review Focus 1: comma-joined roles are a union, in SQL and in the app.
       const { userId } = await signInAs("commentator@repone.test");
-      await service
+      const { error: insertError } = await service
         .from("member")
         .insert({ organization_id: ORG_ID, user_id: userId, role: "event_director,commentator" });
+      expect("service role adds a two-role member row", !insertError, insertError);
       try {
         const twoRoles = await signInAs("commentator@repone.test");
         const twoCtx = await loadSessionContext(twoRoles.db, {
@@ -216,6 +221,44 @@ async function main() {
       } finally {
         await service.from("member").delete().eq("user_id", userId);
       }
+    }
+
+    console.log("\nThe organization cannot be deleted (disableOrganizationDeletion)");
+    {
+      const owner = await signInAs("admin@repone.test");
+      const body = { organizationId: ORG_ID };
+      const inProcess = await auth.api
+        .deleteOrganization({ headers: owner.headers, body })
+        .then(() => null)
+        .catch((e: unknown) => e);
+      expect(
+        "owner's deleteOrganization is refused (auth.api)",
+        String((inProcess as { body?: { code?: string } } | null)?.body?.code) ===
+          "ORGANIZATION_DELETION_DISABLED",
+        inProcess,
+      );
+      // The same request over HTTP, as a browser would send it (needs `pnpm dev`).
+      const http = await fetch("http://localhost:3200/api/auth/organization/delete", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3200",
+          cookie: owner.headers.get("cookie") ?? "",
+        },
+        body: JSON.stringify(body),
+      }).catch(() => null);
+      if (http) {
+        const text = await http.text();
+        expect(
+          "owner's POST /api/auth/organization/delete is refused",
+          !http.ok && text.includes("ORGANIZATION_DELETION_DISABLED"),
+          `${http.status} ${text}`,
+        );
+      } else {
+        console.log("skip  POST /api/auth/organization/delete (dev server not running)");
+      }
+      const { data: org } = await service.from("organizations").select("id").eq("id", ORG_ID);
+      expect("the organization still exists", org?.length === 1, org);
     }
 
     console.log("\nSigning out ends the identity");

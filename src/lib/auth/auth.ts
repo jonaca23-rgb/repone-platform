@@ -89,6 +89,8 @@ export const auth = betterAuth({
       schema: { organization: { modelName: "organizations" } },
       // One organization, created by first-run setup (bootstrap_organization).
       allowUserToCreateOrganization: false,
+      // The single org cascades to every event, athlete and result; nothing needs this route.
+      disableOrganizationDeletion: true,
     }),
     // createUser for invitations (called server-side with no headers).
     adminPlugin(),
