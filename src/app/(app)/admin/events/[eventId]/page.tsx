@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { updateEventStatus } from "@/lib/actions/events";
 import { DeleteEventButton } from "@/app/(app)/admin/DeleteEventButton";
 import type { EventStatus } from "@/lib/db/database.types";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
+import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAdminEvent } from "./adminEvent";
 
 const STATUSES: EventStatus[] = ["draft", "scheduled", "live", "completed", "archived"];
 
@@ -39,7 +46,30 @@ const SECTIONS = [
   },
 ];
 
-export default async function EventHubPage({ params }: { params: Promise<{ eventId: string }> }) {
+// Going live puts the event in front of the public and staff; archiving takes it away.
+const CONFIRMED: Partial<Record<EventStatus, string>> = {
+  live: "The event shows as live on the public leaderboard and to its staff.",
+  archived:
+    "The event is hidden from the active lists. You can set it back to another status later.",
+};
+
+const STATUS_LABEL: Record<EventStatus, string> = {
+  draft: "Draft",
+  scheduled: "Scheduled",
+  live: "Live",
+  completed: "Completed",
+  archived: "Archived",
+};
+
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { eventId } = await params;
+  const event = await getAdminEvent(eventId);
+  return { title: event ? `Overview · ${event.name}` : "Event" };
+}
+
+export default async function EventHubPage({ params }: Props) {
   const { eventId } = await params;
   const supabase = await createClient();
   const { data: event } = await supabase.from("events").select("*").eq("id", eventId).single();
@@ -50,99 +80,106 @@ export default async function EventHubPage({ params }: { params: Promise<{ event
     : { data: null };
 
   // Once an organizer has uploaded a cover photo for this event (Events
-  // page grid, 0011_event_cover_photo.sql), show it here too — as a banner
-  // behind the event's own name/status/actions, so the picture they picked
-  // to represent the event is visible on the event's home screen, not just
-  // on the card the operator clicked in from.
+  // page grid, 0011_event_cover_photo.sql), show it here too as a banner,
+  // so the picture they picked is visible on the event's home screen.
   const coverUrl: string | null = event.cover_image_url ?? null;
+  const dates =
+    `${event.starts_on ?? "—"} ${event.ends_on && event.ends_on !== event.starts_on ? `→ ${event.ends_on}` : ""}`.trim();
 
-  const header = (
-    <div
-      className={`flex flex-wrap items-start justify-between gap-4 ${coverUrl ? "text-white" : ""}`}
-    >
-      <div>
-        <h1 className={`text-2xl font-bold sm:text-3xl ${coverUrl ? "drop-shadow-md" : ""}`}>
-          {event.name}
-        </h1>
-        <p className={`text-sm ${coverUrl ? "text-white/80" : "text-black/50"}`}>
-          {event.starts_on ?? "—"}{" "}
-          {event.ends_on && event.ends_on !== event.starts_on ? `→ ${event.ends_on}` : ""}
-        </p>
-        {circuit ? (
-          <Link
-            href={`/admin/circuits/${circuit.id}`}
-            className={`text-sm hover:underline ${coverUrl ? "text-white" : "text-repone-red"}`}
-          >
-            Part of circuit: {circuit.name} →
-          </Link>
-        ) : (
-          <p className={`text-sm ${coverUrl ? "text-white/60" : "text-black/40"}`}>
-            Standalone event — not part of a circuit.
-          </p>
-        )}
-        <Link
-          href={`/live/${eventId}`}
-          target="_blank"
-          className={`block text-sm hover:underline ${coverUrl ? "text-white" : "text-repone-red"}`}
-        >
-          Public Leaderboard (share this link) →
-        </Link>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <form className="flex flex-wrap items-center gap-2">
-          {STATUSES.map((s) => (
-            <button
+  const statusControls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Event status" className="flex flex-wrap items-center gap-1">
+        {STATUSES.map((s) => {
+          const current = event.status === s;
+          if (current) {
+            return (
+              <Button
+                key={s}
+                size="sm"
+                aria-pressed="true"
+                disabled
+                className="disabled:opacity-100"
+              >
+                {STATUS_LABEL[s]}
+              </Button>
+            );
+          }
+          const consequence = CONFIRMED[s];
+          return consequence ? (
+            <ConfirmAction
               key={s}
-              formAction={updateEventStatus.bind(null, eventId, s)}
-              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-                event.status === s
-                  ? "bg-repone-red text-white"
-                  : coverUrl
-                    ? "bg-white/20 text-white hover:bg-white/30"
-                    : "bg-black/5 text-black/50 hover:bg-black/10"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </form>
-        <DeleteEventButton
-          eventId={eventId}
-          eventName={event.name}
-          variant={coverUrl ? "dark" : "light"}
-        />
+              trigger={STATUS_LABEL[s]}
+              triggerVariant="outline"
+              variant="default"
+              title={`Set ${event.name} to ${STATUS_LABEL[s]}?`}
+              description={consequence}
+              confirmLabel={`Set to ${STATUS_LABEL[s]}`}
+              onConfirm={updateEventStatus.bind(null, eventId, s)}
+            />
+          ) : (
+            <form key={s} action={updateEventStatus.bind(null, eventId, s)}>
+              <Button type="submit" size="sm" variant="outline" aria-pressed="false">
+                {STATUS_LABEL[s]}
+              </Button>
+            </form>
+          );
+        })}
       </div>
+      <DeleteEventButton eventId={eventId} eventName={event.name} />
     </div>
   );
 
   return (
-    <div>
-      <p className="mb-4 text-sm">
-        <Link href="/admin" className="text-repone-red underline">
-          ← All Events
-        </Link>
-      </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={event.name}
+        description={dates}
+        breadcrumb={
+          <AdminBreadcrumb items={[{ label: "Events", href: "/admin" }, { label: event.name }]} />
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/live/${eventId}`} target="_blank">
+              Public leaderboard
+            </Link>
+          </Button>
+        }
+      />
 
       {coverUrl ? (
-        <div className="relative mb-6 -mx-4 overflow-hidden sm:-mx-6 sm:rounded-2xl">
+        <div className="overflow-hidden rounded-xl border border-border">
           {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset */}
-          <img src={coverUrl} alt="" className="h-64 w-full object-cover sm:h-80" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5" />
-          <div className="absolute inset-0 flex items-end p-4 sm:p-6">{header}</div>
+          <img src={coverUrl} alt="" className="h-48 w-full object-cover sm:h-64" />
         </div>
-      ) : (
-        <div className="mb-6">{header}</div>
-      )}
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {circuit ? (
+          <Link
+            href={`/admin/circuits/${circuit.id}`}
+            className="text-sm text-brand-text hover:underline"
+          >
+            Part of circuit: {circuit.name}
+          </Link>
+        ) : (
+          <p className="text-sm text-muted-foreground">Standalone event, not part of a circuit.</p>
+        )}
+        {statusControls}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {SECTIONS.map((s) => (
           <Link
             key={s.slug}
             href={`/admin/events/${eventId}/${s.slug}`}
-            className="rounded-lg border border-black/10 p-5 hover:border-repone-red"
+            className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
           >
-            <p className="font-semibold">{s.label}</p>
-            <p className="mt-1 text-sm text-black/50">{s.desc}</p>
+            <Card size="sm" className="h-full hover:ring-primary/60">
+              <CardHeader>
+                <CardTitle>{s.label}</CardTitle>
+                <CardDescription>{s.desc}</CardDescription>
+              </CardHeader>
+            </Card>
           </Link>
         ))}
       </div>

@@ -1,12 +1,27 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/db/server";
 import { addFloor } from "@/lib/actions/venues";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getAdminEvent, requireAdminEvent } from "../adminEvent";
 
-export default async function VenuesPage({ params }: { params: Promise<{ eventId: string }> }) {
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getAdminEvent((await params).eventId);
+  return { title: event ? `Venues · ${event.name}` : "Venues" };
+}
+
+export default async function VenuesPage({ params }: Props) {
   const { eventId } = await params;
   const supabase = await createClient();
-  const [{ data: event }, { data: venues }] = await Promise.all([
-    supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
+  const [event, { data: venues }] = await Promise.all([
+    requireAdminEvent(eventId),
     supabase
       .from("venues")
       .select("id, name, floors(id, name, sort_order)")
@@ -14,49 +29,49 @@ export default async function VenuesPage({ params }: { params: Promise<{ eventId
   ]);
 
   return (
-    <div>
-      <p className="mb-4 text-sm">
-        <Link href={`/admin/events/${eventId}`} className="text-repone-red underline">
-          ← {event?.name ?? "Back to Event"}
-        </Link>
-      </p>
-      <h1 className="mb-2 text-2xl font-bold">Venues & Floors</h1>
-      <p className="mb-6 text-sm text-black/50">
-        Every event gets a default venue and Floor A automatically. Add more floors here to run
-        simultaneous competition floors/platforms.
-      </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Venues & floors"
+        description="Every event gets a default venue and Floor A automatically. Add more floors here to run simultaneous competition floors or platforms."
+        breadcrumb={<AdminBreadcrumb items={eventCrumbs(event, { label: "Venues" })} />}
+      />
 
       <div className="flex flex-col gap-6">
         {(venues ?? []).map((v) => (
-          <div key={v.id} className="rounded-lg border border-black/10 p-4">
-            <p className="mb-3 font-semibold">{v.name}</p>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {(v.floors ?? [])
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map((f) => (
-                  <span
-                    key={f.id}
-                    className="rounded-full bg-repone-black px-4 py-1.5 text-sm font-semibold text-white"
-                  >
-                    {f.name}
-                  </span>
-                ))}
-            </div>
-            <form action={addFloor.bind(null, eventId, v.id)} className="flex items-end gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                New floor name
-                <input
-                  name="name"
-                  required
-                  placeholder="Floor B"
-                  className="rounded-md border border-black/20 px-3 py-2"
-                />
-              </label>
-              <button className="control-btn control-btn-outline px-5 py-2.5 text-sm">
-                Add Floor
-              </button>
-            </form>
-          </div>
+          <Card key={v.id}>
+            <CardHeader>
+              <CardTitle>{v.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-2">
+                {(v.floors ?? [])
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((f) => (
+                    <Badge key={f.id} variant="secondary" className="h-7 px-3 text-sm">
+                      {f.name}
+                    </Badge>
+                  ))}
+              </div>
+              <form
+                action={addFloor.bind(null, eventId, v.id)}
+                className="flex flex-wrap items-end gap-3"
+              >
+                <div className="grid gap-2">
+                  <Label htmlFor={`floor-${v.id}`}>New floor name</Label>
+                  <Input
+                    id={`floor-${v.id}`}
+                    name="name"
+                    required
+                    placeholder="Floor B"
+                    className="text-base"
+                  />
+                </div>
+                <Button type="submit" variant="outline">
+                  Add floor
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>

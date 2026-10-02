@@ -1,7 +1,28 @@
+import type { Metadata } from "next";
+import { BadgeDollarSign } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
 import { createSponsor, toggleSponsorActive } from "@/lib/actions/sponsors";
 import type { SponsorTier } from "@/lib/db/database.types";
+import { ActionSwitch } from "@/components/app/ActionSwitch";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NONE } from "@/lib/validation/none";
+
+export const metadata: Metadata = { title: "Sponsors" };
 
 const TIER_LABELS: Record<SponsorTier, string> = {
   logo_sponsor: "Logo Sponsor — $50/event",
@@ -28,99 +49,109 @@ export default async function SponsorsPage() {
   ]);
 
   return (
-    <div>
-      <h1 className="mb-2 text-2xl font-bold">Sponsors</h1>
-      <p className="mb-6 text-sm text-black/50">
-        Current RepOneLive inventory tiers are pre-loaded below. Category-exclusive sponsors (e.g.
-        &quot;Official Physical Therapy Partner&quot;) are enforced at the database level per event.
-      </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Sponsors"
+        description='Current RepOneLive inventory tiers are pre-loaded below. Category-exclusive sponsors (e.g. "Official Physical Therapy Partner") are enforced at the database level per event.'
+      />
 
-      <form
-        action={createSponsor}
-        className="mb-8 grid grid-cols-2 gap-3 rounded-lg border border-black/10 p-4 sm:grid-cols-3"
-      >
-        <label className="flex flex-col gap-1 text-sm">
-          Business name
-          <input
-            name="business_name"
-            required
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Tier
-          <select name="tier" className="rounded-md border border-black/20 px-3 py-2">
-            {Object.entries(TIER_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Event
-          <select name="event_id" className="rounded-md border border-black/20 px-3 py-2">
-            <option value="">— all events —</option>
-            {(events ?? []).map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Category
-          <input
-            name="category"
-            placeholder="Physical Therapy"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <label className="flex items-center gap-2 self-end text-sm">
-          <input name="category_exclusive" type="checkbox" />
-          Category exclusive
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Website
-          <input name="website" className="rounded-md border border-black/20 px-3 py-2" />
-        </label>
-        <button className="control-btn control-btn-red col-span-2 w-fit px-6 py-3 text-base sm:col-span-3">
-          Add Sponsor
-        </button>
-      </form>
-
-      <div className="flex flex-col gap-2">
-        {(sponsors ?? []).map((s) => (
-          <div
-            key={s.id}
-            className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3"
-          >
-            <div>
-              <p className="font-semibold">
-                {s.business_name}
-                {s.category_exclusive ? (
-                  <span className="ml-2 rounded-full bg-repone-red/10 px-2 py-0.5 text-xs font-bold uppercase text-repone-red">
-                    Exclusive · {s.category}
-                  </span>
-                ) : null}
-              </p>
-              <p className="text-xs uppercase tracking-wide text-black/50">
-                {TIER_LABELS[s.tier as SponsorTier]}
-              </p>
+      <Card>
+        <CardContent>
+          <form action={createSponsor} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="sponsor-name">Business name</Label>
+              <Input id="sponsor-name" name="business_name" required className="text-base" />
             </div>
-            <form action={toggleSponsorActive.bind(null, s.id, !s.active)}>
-              <button
-                className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${
-                  s.active ? "bg-black/5 text-black/60" : "bg-repone-red/10 text-repone-red"
-                }`}
-              >
-                {s.active ? "Active" : "Inactive"}
-              </button>
-            </form>
-          </div>
-        ))}
-        {sponsors?.length === 0 && <p className="text-black/50">No sponsors yet.</p>}
-      </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sponsor-tier">Tier</Label>
+              <Select name="tier" defaultValue="logo_sponsor">
+                <SelectTrigger id="sponsor-tier" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TIER_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sponsor-event">Event</Label>
+              <Select name="event_id" defaultValue={NONE}>
+                <SelectTrigger id="sponsor-event" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>All events</SelectItem>
+                  {(events ?? []).map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sponsor-category">Category</Label>
+              <Input
+                id="sponsor-category"
+                name="category"
+                placeholder="Physical Therapy"
+                className="text-base"
+              />
+            </div>
+            <div className="flex items-center gap-2 self-end pb-2">
+              <Checkbox id="sponsor-exclusive" name="category_exclusive" />
+              <Label htmlFor="sponsor-exclusive">Category exclusive</Label>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sponsor-website">Website</Label>
+              <Input id="sponsor-website" name="website" className="text-base" />
+            </div>
+            <Button type="submit" className="w-fit sm:col-span-3">
+              Add sponsor
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {sponsors?.length === 0 ? (
+        <EmptyState
+          icon={BadgeDollarSign}
+          title="No sponsors yet"
+          description="Add your first sponsor with the form above."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {(sponsors ?? []).map((s) => (
+            <div
+              key={s.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-3"
+            >
+              <div>
+                <p className="flex flex-wrap items-center gap-2 font-semibold">
+                  {s.business_name}
+                  {s.category_exclusive ? (
+                    <Badge variant="outline" className="uppercase text-brand-text">
+                      Exclusive · {s.category}
+                    </Badge>
+                  ) : null}
+                </p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {TIER_LABELS[s.tier as SponsorTier]}
+                </p>
+              </div>
+              <ActionSwitch
+                checked={s.active}
+                action={toggleSponsorActive.bind(null, s.id)}
+                label={`${s.business_name} active`}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

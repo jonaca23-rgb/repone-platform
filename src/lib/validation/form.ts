@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseClockToSeconds } from "../timer/compute";
+import { NONE } from "./none";
 
 // Server actions receive FormData straight from the browser, so every field
 // is untrusted text. Each action declares a zod schema built from `field`
@@ -17,7 +18,8 @@ export class ValidationError extends Error {
 export function parseForm<S extends z.ZodType>(schema: S, formData: FormData): z.infer<S> {
   const raw: Record<string, FormDataEntryValue> = {};
   for (const [key, value] of formData.entries()) {
-    if (!(key in raw)) raw[key] = value;
+    // A Select's "none" item (see ./none) posts NONE; read it as blank.
+    if (!(key in raw)) raw[key] = value === NONE ? "" : value;
   }
   const result = schema.safeParse(raw);
   if (!result.success) {

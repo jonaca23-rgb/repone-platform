@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
@@ -5,13 +6,23 @@ import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
 import { removeRegistration } from "@/lib/actions/registrations";
 import { AGE_CATEGORY_LABELS, computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getAdminEvent, requireAdminEvent } from "../adminEvent";
 import { RegisterForms } from "./RegisterForms";
 
-export default async function EventAthletesPage({
-  params,
-}: {
-  params: Promise<{ eventId: string }>;
-}) {
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getAdminEvent((await params).eventId);
+  return { title: event ? `Athletes · ${event.name}` : "Athletes" };
+}
+
+export default async function EventAthletesPage({ params }: Props) {
   const { eventId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -19,13 +30,15 @@ export default async function EventAthletesPage({
   const lastDivisionId = cookieStore.get(`repone_last_division_${eventId}`)?.value ?? "";
 
   const [
+    adminEvent,
     { data: event },
     { data: divisions },
     { data: athletes },
     { data: teams },
     { data: registrations },
   ] = await Promise.all([
-    supabase.from("events").select("name, starts_on").eq("id", eventId).maybeSingle(),
+    requireAdminEvent(eventId),
+    supabase.from("events").select("starts_on").eq("id", eventId).maybeSingle(),
     supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
     supabase
       .from("athletes")
@@ -69,57 +82,56 @@ export default async function EventAthletesPage({
     typedRegistrations.flatMap((r) => (r.athlete_id ? [r.athlete_id] : [])),
   );
 
+  const header = (
+    <PageHeader
+      title="Athletes & registrations"
+      breadcrumb={<AdminBreadcrumb items={eventCrumbs(adminEvent, { label: "Athletes" })} />}
+    />
+  );
+
   if (!divisions?.length) {
     return (
-      <div>
-        <p className="mb-4 text-sm">
-          <Link href={`/admin/events/${eventId}`} className="text-repone-red underline">
-            ← {event?.name ?? "Back to Event"}
-          </Link>
-        </p>
-        <h1 className="mb-4 text-2xl font-bold">Athletes & Registrations</h1>
-        <p className="text-black/50">
-          Create at least one division first —{" "}
-          <Link href={`/admin/events/${eventId}/divisions`} className="text-repone-red underline">
-            go to Divisions
-          </Link>
-          .
-        </p>
+      <div className="flex flex-col gap-6">
+        {header}
+        <EmptyState
+          title="No divisions yet"
+          description="Create at least one division before registering athletes."
+          action={
+            <Button asChild variant="outline">
+              <Link href={`/admin/events/${eventId}/divisions`}>Go to Divisions</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div>
-      <p className="mb-4 text-sm">
-        <Link href={`/admin/events/${eventId}`} className="text-repone-red underline">
-          ← {event?.name ?? "Back to Event"}
-        </Link>
-      </p>
-      <h1 className="mb-2 text-2xl font-bold">Athletes & Registrations</h1>
-      <p className="mb-6 text-sm text-black/50">
-        Athletes are managed once at the org level (
-        <Link href="/admin/athletes" className="text-repone-red underline">
+    <div className="flex flex-col gap-6">
+      {header}
+      <p className="-mt-3 max-w-prose text-muted-foreground">
+        Athletes are managed once at the organization level (
+        <Link href="/admin/athletes" className="text-brand-text underline">
           Athletes
         </Link>
-        ) and registered per event into a division here. Pairs/teams/custom-format entries come from{" "}
-        <Link href="/admin/teams" className="text-repone-red underline">
+        ) and registered per event into a division here. Pairs, teams and custom-format entries come
+        from{" "}
+        <Link href="/admin/teams" className="text-brand-text underline">
           Teams
-        </Link>{" "}
-        — a competitor entry can be an individual athlete or a team of any size. Set registration
-        fees on the{" "}
-        <Link href={`/admin/events/${eventId}/fees`} className="text-repone-red underline">
+        </Link>
+        . Set registration fees on{" "}
+        <Link href={`/admin/events/${eventId}/fees`} className="text-brand-text underline">
           Fees
         </Link>{" "}
-        page and track who&apos;s paid on{" "}
-        <Link href={`/admin/events/${eventId}/payments`} className="text-repone-red underline">
+        and track who&apos;s paid on{" "}
+        <Link href={`/admin/events/${eventId}/payments`} className="text-brand-text underline">
           Payments
         </Link>
-        . Once everyone&apos;s registered, head to{" "}
-        <Link href={`/admin/events/${eventId}/heats`} className="text-repone-red underline">
-          Heats &amp; Lanes
-        </Link>{" "}
-        to build heats and assign lanes.
+        . Once everyone&apos;s registered, build heats and assign lanes on{" "}
+        <Link href={`/admin/events/${eventId}/heats`} className="text-brand-text underline">
+          Heats
+        </Link>
+        .
       </p>
 
       <RegisterForms
@@ -131,13 +143,15 @@ export default async function EventAthletesPage({
       />
 
       <div className="flex flex-col gap-6">
-        {divisions.map((d) => (
-          <div key={d.id}>
-            <p className="mb-2 font-semibold uppercase tracking-wide text-black/60">{d.name}</p>
-            <div className="flex flex-col gap-2">
-              {typedRegistrations
-                .filter((r) => r.division_id === d.id)
-                .map((r) => {
+        {divisions.map((d) => {
+          const inDivision = typedRegistrations.filter((r) => r.division_id === d.id);
+          return (
+            <div key={d.id}>
+              <h2 className="mb-2 font-semibold uppercase tracking-wide text-muted-foreground">
+                {d.name}
+              </h2>
+              <div className="flex flex-col gap-2">
+                {inDivision.map((r) => {
                   const category = r.athletes
                     ? computeAgeCategory(
                         privateDetails.get(r.athlete_id ?? "")?.dateOfBirth,
@@ -145,53 +159,63 @@ export default async function EventAthletesPage({
                         categoryAsOf,
                       )
                     : null;
+                  const name = r.athletes
+                    ? `${r.athletes.first_name} ${r.athletes.last_name}`
+                    : (r.teams?.name ?? "This entry");
                   return (
                     <div
                       key={r.id}
-                      className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-2"
                     >
-                      <span>
+                      <span className="flex flex-wrap items-center gap-x-2">
                         {r.athletes ? (
                           <>
-                            {r.athletes.first_name} {r.athletes.last_name}{" "}
+                            {name}
                             {r.athletes.affiliate ? (
-                              <span className="text-black/40">— {r.athletes.affiliate}</span>
+                              <span className="text-muted-foreground">
+                                — {r.athletes.affiliate}
+                              </span>
                             ) : null}
                           </>
                         ) : (
                           <>
-                            {r.teams?.name}{" "}
-                            <span className="ml-1 rounded-full bg-black/5 px-2 py-0.5 text-xs font-bold uppercase text-black/50">
+                            {r.teams?.name}
+                            <Badge variant="secondary" className="uppercase">
                               {r.teams?.entry_format}
-                            </span>
+                            </Badge>
                             {r.teams?.affiliate ? (
-                              <span className="text-black/40"> — {r.teams.affiliate}</span>
+                              <span className="text-muted-foreground">— {r.teams.affiliate}</span>
                             ) : null}
                           </>
                         )}
                         {r.bib_number ? (
-                          <span className="ml-2 text-xs text-black/40">#{r.bib_number}</span>
+                          <span className="text-xs text-muted-foreground">#{r.bib_number}</span>
                         ) : null}
                         {category ? (
-                          <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-repone-red">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-brand-text">
                             {AGE_CATEGORY_LABELS[category]}
                           </span>
                         ) : null}
                       </span>
-                      <form action={removeRegistration.bind(null, eventId, r.id)}>
-                        <button className="text-sm text-black/40 hover:text-repone-red">
-                          Remove
-                        </button>
-                      </form>
+                      <ConfirmAction
+                        trigger="Remove"
+                        title={`Remove ${name} from ${d.name}?`}
+                        description="Their registration for this event and its payment record are deleted. They stay on your roster and can be registered again."
+                        confirmLabel="Remove registration"
+                        onConfirm={removeRegistration.bind(null, eventId, r.id)}
+                      />
                     </div>
                   );
                 })}
-              {typedRegistrations.filter((r) => r.division_id === d.id).length === 0 && (
-                <p className="text-sm text-black/40">No registrations in this division yet.</p>
-              )}
+                {inDivision.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No registrations in this division yet.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
