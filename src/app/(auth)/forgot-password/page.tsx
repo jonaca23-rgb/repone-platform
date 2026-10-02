@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { getAuthSession } from "@/lib/auth/session";
 import { ForgotPasswordForm } from "./ForgotPasswordForm";
+
+export const metadata: Metadata = { title: "Reset your password" };
 
 export default async function ForgotPasswordPage() {
   if (await getAuthSession()) redirect("/");
@@ -10,8 +13,11 @@ export default async function ForgotPasswordPage() {
   return (
     <AuthCard title="Reset your password">
       <ForgotPasswordForm />
-      <p className="mt-6 text-sm text-white/50">
-        <Link href="/login" className="text-repone-red underline">
+      <p className="mt-6 text-sm">
+        <Link
+          href="/login"
+          className="rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        >
           Back to sign in
         </Link>
       </p>

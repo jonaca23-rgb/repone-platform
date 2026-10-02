@@ -2,16 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import {
-  ChevronDown,
-  ClipboardList,
-  House,
-  LayoutDashboard,
-  LogOut,
-  Mic,
-  Radio,
-  User,
-} from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,16 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/lib/auth/actions";
 import { leaveAfterIdentityChange } from "@/lib/auth/identityChange";
+import { MODULE_ICONS } from "./moduleIcons";
 import type { MenuItem } from "./moduleMenuItems";
-
-const ICONS = {
-  home: House,
-  admin: LayoutDashboard,
-  producer: Radio,
-  scorekeeper: ClipboardList,
-  commentator: Mic,
-  athlete: User,
-} as const;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -84,7 +67,7 @@ export function ModuleMenuView({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {items.map((item) => {
-          const Icon = ICONS[item.icon];
+          const Icon = MODULE_ICONS[item.icon];
           return (
             <DropdownMenuItem key={item.href} asChild>
               <Link href={item.href} aria-current={item.current ? "page" : undefined}>

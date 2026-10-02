@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { authClient } from "@/lib/auth/client";
 import { TOO_MANY } from "@/lib/auth/formErrors";
+import { Button } from "@/components/ui/button";
 
 export function ResendButton({ email }: { email: string }) {
   const [pending, setPending] = useState(false);
@@ -25,16 +26,18 @@ export function ResendButton({ email }: { email: string }) {
 
   return (
     <div className="mt-4">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="touch"
         onClick={resend}
         disabled={pending}
-        className="w-full rounded-md border border-white/20 px-4 py-3 font-semibold uppercase tracking-wide text-white/80 transition hover:border-white/40 hover:text-white disabled:opacity-50"
+        className="w-full"
       >
         {pending ? "Sending…" : "Resend the email"}
-      </button>
+      </Button>
       {message ? (
-        <p role="status" className="mt-3 text-sm text-white/70">
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
           {message}
         </p>
       ) : null}

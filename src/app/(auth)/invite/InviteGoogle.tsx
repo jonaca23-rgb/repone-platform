@@ -7,7 +7,7 @@ import { GoogleButton, OAuthErrorNotice } from "@/components/auth/GoogleButton";
 export function InviteGoogle() {
   const [failed, setFailed] = useState(false);
   return (
-    <div className="mt-4 border-t border-white/10 pt-4">
+    <div className="mt-4 border-t border-border pt-4">
       {failed ? <OAuthErrorNotice /> : null}
       <GoogleButton onFailure={() => setFailed(true)} />
     </div>

@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { authClient } from "@/lib/auth/client";
 import { resetErrorMessage } from "@/lib/auth/formErrors";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /** Saves a new password from a reset or invitation link's token, then goes to `redirectTo`. */
 export function SetPasswordForm({
@@ -48,42 +51,46 @@ export function SetPasswordForm({
     }
   }
 
-  const input =
-    "rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red";
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm text-white/80">
-        New password
-        <input
+      <div className="grid gap-2">
+        <Label htmlFor="password">New password</Label>
+        <Input
+          id="password"
           name="password"
           type="password"
           required
           minLength={10}
           autoComplete="new-password"
-          className={input}
+          aria-describedby="password-hint"
+          className="h-11"
         />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-white/80">
-        Confirm password
-        <input
+        <p id="password-hint" className="text-sm text-muted-foreground">
+          At least 10 characters.
+        </p>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="confirm">Confirm password</Label>
+        <Input
+          id="confirm"
           name="confirm"
           type="password"
           required
           minLength={10}
           autoComplete="new-password"
-          className={input}
+          className="h-11"
         />
-      </label>
+      </div>
 
-      {error ? <p className="text-sm text-repone-red">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="mt-2 rounded-md bg-repone-red px-4 py-3 font-semibold uppercase tracking-wide text-white transition disabled:opacity-50"
-      >
+      <Button type="submit" size="touch" disabled={pending} className="mt-2 w-full">
         {pending ? "Saving…" : submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }
