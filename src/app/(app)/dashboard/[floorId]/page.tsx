@@ -1,3 +1,5 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
@@ -5,9 +7,19 @@ import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { DashboardClient } from "./DashboardClient";
 
-export default async function DashboardPage({ params }: { params: Promise<{ floorId: string }> }) {
+type Props = { params: Promise<{ floorId: string }> };
+
+// Read once per request: the page and its title share it.
+const floorContext = cache(getFloorContext);
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const context = await floorContext((await params).floorId);
+  return { title: context ? `Production · ${context.eventName}` : "Production" };
+}
+
+export default async function DashboardPage({ params }: Props) {
   const { floorId } = await params;
-  const context = await getFloorContext(floorId);
+  const context = await floorContext(floorId);
   if (!context) notFound();
 
   // Defense in depth — see the matching comment in
