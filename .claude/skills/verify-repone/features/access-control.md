@@ -23,7 +23,7 @@ Preconditions:
 - `doctor.sh` exits 0.
 - Evidence folder: `dir=$(scripts/evidence.sh access-control)`.
 
-- **Landing per role.** For each of `admin`, `scorekeeper`, `producer`, `commentator`: `new_page url=http://localhost:3200/login isolatedContext=verify-<role>`, sign in, then `evaluate_script () => location.pathname` after the redirect settles. Expect `/admin`, `/scorekeeper`, `/producer`, `/commentator`. Sign in as `athlete@repone.test` on the same form → `/athlete`.
+- **Landing per role.** For each of `admin`, `scorekeeper`, `producer`, `commentator`: `new_page url=http://localhost:3200/login isolatedContext=verify-<role>`, sign in, then `evaluate_script () => location.pathname` after the redirect settles. Expect `/` for each, with that role's module cards in the snapshot. `new-athlete@repone.test` also ends on `/` (empty start page, `Create my athlete profile`). `athlete@repone.test` on the same form is forwarded on to `/athlete`.
 - **Admin gate.** In the scorekeeper context `navigate_page url=http://localhost:3200/admin/athletes/00000000-0000-0000-0000-000000000062`. The page ends on `/scorekeeper`, and no email is rendered.
 - **Signed out.** `new_page url=http://localhost:3200/admin isolatedContext=verify-anon` → ends on `/login`. After a `Sign out` click (full page load) `/api/supabase-token` answers 401.
 - **Staff sees private data.** In the admin context open `/admin/athletes/00000000-0000-0000-0000-000000000062`. Snapshot: heading `SofiaDelgado`, textbox `Email` value `sofia@example.test`, a `Phone` textbox, a `Date of birth` date input.
