@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Trophy } from "lucide-react";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/db/server";
+
+export const metadata: Metadata = { title: "Live Competitions" };
 
 /**
  * Public event picker — the entry point for athletes/spectators who don't
@@ -34,58 +42,63 @@ export default async function LiveEventsPage() {
   const dateRange = (startsOn: string | null, endsOn: string | null) => {
     if (!startsOn) return "Date TBD";
     if (!endsOn || endsOn === startsOn) return fmt(startsOn);
-    return `${fmt(startsOn)} — ${fmt(endsOn)}`;
+    return `${fmt(startsOn)} – ${fmt(endsOn)}`;
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-16">
-      <h1 className="mb-2 font-[family-name:var(--font-display)] text-3xl font-bold uppercase tracking-wide">
-        Live Competitions
-      </h1>
-      <p className="mb-8 text-sm text-white/50">
-        Follow along — current heat, WOD, and standings, updated live as the competition runs.
-      </p>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {(events ?? []).map((e) => (
-          <Link
-            key={e.id}
-            href={`/live/${e.id}`}
-            className="overflow-hidden rounded-lg border border-white/10 hover:border-repone-red"
-          >
-            <div className="relative aspect-video w-full bg-black">
-              {e.cover_image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset
-                <img src={e.cover_image_url} alt={e.name} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <span className="px-4 text-center text-sm font-semibold uppercase tracking-wide text-white/20">
-                    RepOne Live
-                  </span>
-                </div>
-              )}
-              {e.status === "live" && (
-                <span className="absolute left-2 top-2 rounded-full bg-repone-red px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                  ● Live Now
-                </span>
-              )}
-            </div>
-            <div className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/40">
-                {dateRange(e.starts_on, e.ends_on)}
-              </p>
-              <p className="mt-0.5 text-lg font-bold">{e.name}</p>
-              {e.circuit_id && (
-                <p className="mt-1 text-sm text-white/50">
-                  Part of {circuitNameById.get(e.circuit_id) ?? "a circuit"}
-                </p>
-              )}
-            </div>
-          </Link>
-        ))}
-        {(!events || events.length === 0) && (
-          <p className="text-white/50">No live or upcoming events right now — check back soon.</p>
-        )}
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Live Competitions"
+        description="Follow along: current heat, workout and standings, updated live as the competition runs."
+      />
+      {events && events.length > 0 ? (
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {events.map((e) => (
+            <li key={e.id}>
+              <Link
+                href={`/live/${e.id}`}
+                className="group block h-full rounded-xl focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-hidden"
+              >
+                <Card className="h-full gap-0 py-0 transition-colors group-hover:ring-brand-text/60">
+                  <div className="relative aspect-video w-full bg-muted">
+                    {e.cover_image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset
+                      <img src={e.cover_image_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Trophy className="size-10 text-muted-foreground" aria-hidden />
+                      </div>
+                    )}
+                    {e.status === "live" && (
+                      <Badge className="absolute top-2 left-2 gap-1.5 uppercase">
+                        <span className="size-1.5 rounded-full bg-primary-foreground" aria-hidden />
+                        Live now
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1 p-4">
+                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                      {dateRange(e.starts_on, e.ends_on)}
+                    </p>
+                    <p className="text-lg font-bold">{e.name}</p>
+                    {e.circuit_id && (
+                      <p className="text-sm text-muted-foreground">
+                        Part of {circuitNameById.get(e.circuit_id) ?? "a circuit"}
+                      </p>
+                    )}
+                  </div>
+                </Card>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState
+          icon={Trophy}
+          title="No live or upcoming events right now"
+          description="Check back soon: events appear here when they are scheduled."
+        />
+      )}
     </div>
   );
 }

@@ -1,21 +1,30 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
+import { OperatorShell } from "@/components/shells/OperatorShell";
 import {
   ScoreKeeperClient,
   type ScoreKeeperResult,
   type ScoreKeeperStanding,
 } from "./ScoreKeeperClient";
 
-export default async function ScoreKeeperPage({
-  params,
-}: {
-  params: Promise<{ floorId: string }>;
-}) {
+type Props = { params: Promise<{ floorId: string }> };
+
+// Read once per request: the page and its title share it.
+const floorContext = cache(getFloorContext);
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const context = await floorContext((await params).floorId);
+  return { title: context ? `Scorekeeper · ${context.eventName}` : "Scorekeeper" };
+}
+
+export default async function ScoreKeeperPage({ params }: Props) {
   const { floorId } = await params;
-  const context = await getFloorContext(floorId);
+  const context = await floorContext(floorId);
   if (!context) notFound();
 
   // Defense in depth: /scorekeeper/events/[eventId] already only links here
@@ -96,14 +105,15 @@ export default async function ScoreKeeperPage({
   });
 
   return (
-    <ScoreKeeperClient
-      floorId={floorId}
-      eventId={context.eventId}
-      eventName={context.eventName}
-      heats={context.heats}
-      initialBroadcastState={broadcastState ?? null}
-      resultsByHeatId={resultsByHeatId}
-      standingsByHeatId={standingsByHeatId}
-    />
+    <OperatorShell module="scorekeeper" moduleLabel="Scorekeeper" eventName={context.eventName}>
+      <ScoreKeeperClient
+        floorId={floorId}
+        eventId={context.eventId}
+        heats={context.heats}
+        initialBroadcastState={broadcastState ?? null}
+        resultsByHeatId={resultsByHeatId}
+        standingsByHeatId={standingsByHeatId}
+      />
+    </OperatorShell>
   );
 }

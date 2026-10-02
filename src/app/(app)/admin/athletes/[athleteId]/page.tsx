@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
@@ -16,12 +17,39 @@ import {
 import { AGE_CATEGORY_LABELS, computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NONE } from "@/lib/validation/none";
 
-export default async function AthleteDetailPage({
-  params,
-}: {
-  params: Promise<{ athleteId: string }>;
-}) {
+type Props = { params: Promise<{ athleteId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { athleteId } = await params;
+  const ctx = await getSessionContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("athletes")
+    .select("first_name, last_name")
+    .eq("id", athleteId)
+    .eq("organization_id", ctx?.organizationId ?? "")
+    .maybeSingle();
+  return { title: data ? `${data.first_name} ${data.last_name}` : "Athlete" };
+}
+
+export default async function AthleteDetailPage({ params }: Props) {
   const { athleteId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -146,14 +174,19 @@ export default async function AthleteDetailPage({
   const checkinUrl = `${protocol}://${host}/admin/checkin/${athleteId}`;
   const checkinQrDataUrl = await QRCode.toDataURL(checkinUrl, { width: 220, margin: 1 });
 
+  const name = `${athlete.first_name} ${athlete.last_name}`;
+
   return (
-    <div className="max-w-3xl">
-      <p className="mb-4 text-sm">
-        <Link href="/admin/athletes" className="text-repone-red underline">
-          ← Athlete Roster
-        </Link>
-      </p>
-      <div className="mb-6 flex items-center gap-4">
+    <div className="flex max-w-3xl flex-col gap-6">
+      <PageHeader
+        title={name}
+        breadcrumb={
+          <AdminBreadcrumb
+            items={[{ label: "Athletes", href: "/admin/athletes" }, { label: name }]}
+          />
+        }
+      />
+      <div className="flex items-center gap-4">
         {athlete.photo_url ? (
           <a
             href={athlete.photo_url}
@@ -164,20 +197,17 @@ export default async function AthleteDetailPage({
             {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset */}
             <img
               src={athlete.photo_url}
-              alt={`${athlete.first_name} ${athlete.last_name}`}
-              className="h-20 w-20 rounded-full border border-black/10 object-cover object-top"
+              alt={name}
+              className="h-20 w-20 rounded-full border border-border object-cover object-top"
             />
           </a>
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-black/10 bg-black/5 text-xs text-black/40">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-border bg-muted text-xs text-muted-foreground">
             No photo
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-bold">
-            {athlete.first_name} {athlete.last_name}
-          </h1>
-          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand-text">
             {category
               ? `${AGE_CATEGORY_LABELS[category]} (as of today)`
               : "No competitive age category (as of today)"}
@@ -185,267 +215,283 @@ export default async function AthleteDetailPage({
           {athlete.auth_user_id ? (
             <Link
               href={`/admin/messages/${athlete.auth_user_id}`}
-              className="mt-2 inline-block text-sm font-semibold text-repone-red underline"
+              className="mt-2 inline-block text-sm font-semibold text-brand-text underline"
             >
-              Message {athlete.first_name} →
+              Message {athlete.first_name}
             </Link>
           ) : (
-            <p className="mt-2 text-sm text-black/40">
-              Hasn&apos;t created a RepOne account yet — can&apos;t be messaged.
+            <p className="mt-2 text-sm text-muted-foreground">
+              Hasn&apos;t created a RepOne account yet, so can&apos;t be messaged.
             </p>
           )}
         </div>
       </div>
 
-      <section className="mb-8 flex flex-wrap items-center gap-4 rounded-lg border border-black/10 p-4">
-        {/* eslint-disable-next-line @next/next/no-img-element -- server-generated data: URI PNG, not a static/optimizable asset */}
-        <img
-          src={checkinQrDataUrl}
-          alt="Check-in QR code"
-          className="h-32 w-32 shrink-0 rounded-md border border-black/10"
-        />
-        <div>
-          <h2 className="font-semibold">Check-In QR Code</h2>
-          <p className="mt-1 max-w-md text-sm text-black/60">
-            Scan this at event-day registration to instantly pull up {athlete.first_name}&apos;s
-            payment status.
-          </p>
-          <Link
-            href={`/admin/checkin/${athleteId}`}
-            className="mt-2 inline-block text-sm font-semibold text-repone-red underline"
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element -- server-generated data: URI PNG, not a static/optimizable asset */}
+          <img
+            src={checkinQrDataUrl}
+            alt="Check-in QR code"
+            className="h-32 w-32 shrink-0 rounded-md border border-border"
+          />
+          <div>
+            <h2 className="font-semibold">Check-In QR code</h2>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              Scan this at event-day registration to pull up {athlete.first_name}&apos;s payment
+              status.
+            </p>
+            <Link
+              href={`/admin/checkin/${athleteId}`}
+              className="mt-2 inline-block text-sm font-semibold text-brand-text underline"
+            >
+              Open Check-In screen
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Photo</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <form
+            action={uploadAthletePhoto.bind(null, athleteId)}
+            className="flex flex-wrap items-end gap-3"
           >
-            Open Check-In screen →
-          </Link>
-        </div>
-      </section>
-
-      <section className="mb-8 rounded-lg border border-black/10 p-4">
-        <h2 className="mb-3 font-semibold">Photo</h2>
-        <form
-          action={uploadAthletePhoto.bind(null, athleteId)}
-          className="flex flex-wrap items-end gap-3"
-        >
-          <label className="flex flex-col gap-1 text-sm">
-            Upload a photo
-            <input type="file" name="photo" accept="image/*" required className="text-sm" />
-          </label>
-          <button className="control-btn control-btn-red px-6 py-3 text-base">Upload</button>
-        </form>
-        {athlete.photo_url && (
-          <form action={removeAthletePhoto.bind(null, athleteId)} className="mt-3">
-            <button className="text-sm text-black/40 hover:text-repone-red">
-              Remove current photo
-            </button>
-          </form>
-        )}
-      </section>
-
-      <section className="mb-8 rounded-lg border border-black/10 p-4">
-        <h2 className="mb-3 font-semibold">Profile</h2>
-        <form
-          action={updateAthleteProfile.bind(null, athleteId)}
-          className="flex flex-wrap items-end gap-3"
-        >
-          <label className="flex flex-col gap-1 text-sm">
-            First name
-            <input
-              name="first_name"
-              required
-              defaultValue={athlete.first_name}
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Last name
-            <input
-              name="last_name"
-              required
-              defaultValue={athlete.last_name}
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Box / affiliate
-            <input
-              name="affiliate"
-              defaultValue={athlete.affiliate ?? ""}
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Email
-            <input
-              type="email"
-              name="email"
-              required
-              defaultValue={athlete.email ?? ""}
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Phone
-            <input
-              type="tel"
-              name="phone"
-              defaultValue={athlete.phone ?? ""}
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Date of birth
-            <input
-              type="date"
-              name="date_of_birth"
-              defaultValue={athlete.date_of_birth ?? ""}
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Gender
-            <select
-              name="gender"
-              defaultValue={athlete.gender ?? ""}
-              className="rounded-md border border-black/20 px-3 py-2"
-            >
-              <option value="">—</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </label>
-          <button className="control-btn control-btn-red px-6 py-3 text-base">Save</button>
-        </form>
-      </section>
-
-      <section className="mb-8 rounded-lg border border-black/10 p-4">
-        <h2 className="mb-3 font-semibold">Basic Lifts &amp; Run Times</h2>
-        <form
-          action={saveAthleteLifts.bind(null, athleteId)}
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3"
-        >
-          {LIFT_NAMES.map((lift) => {
-            const existing = liftByName.get(lift);
-            const timeLift = isTimeLift(lift);
-            return (
-              <label key={lift} className="flex flex-col gap-1 text-sm">
-                {LIFT_LABELS[lift]} {timeLift ? "(mm:ss)" : "(lbs)"}
-                {timeLift ? (
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
-                    placeholder="21:30"
-                    name={lift}
-                    defaultValue={
-                      existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
-                    }
-                    className="rounded-md border border-black/20 px-3 py-2"
-                  />
-                ) : (
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    name={lift}
-                    defaultValue={existing?.weight_lbs ?? ""}
-                    className="rounded-md border border-black/20 px-3 py-2"
-                  />
-                )}
-              </label>
-            );
-          })}
-          <button className="control-btn control-btn-red col-span-full mt-2 w-fit px-6 py-3 text-base">
-            Save Lifts
-          </button>
-        </form>
-      </section>
-
-      <section className="mb-8 rounded-lg border border-black/10 p-4">
-        <h2 className="mb-3 font-semibold">Benchmark Workouts</h2>
-        <form
-          action={upsertAthleteBenchmark.bind(null, athleteId)}
-          className="mb-4 flex flex-wrap items-end gap-3"
-        >
-          <label className="flex flex-col gap-1 text-sm">
-            Benchmark
-            <input
-              name="name"
-              required
-              placeholder="Fran"
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Result
-            <input
-              name="result_display"
-              required
-              placeholder="3:45"
-              className="rounded-md border border-black/20 px-3 py-2"
-            />
-          </label>
-          <button className="control-btn control-btn-red px-6 py-3 text-base">Save</button>
-        </form>
-
-        <div className="flex flex-col gap-2">
-          {(benchmarks ?? []).map((b) => (
-            <div
-              key={b.id}
-              className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2"
-            >
-              <span>
-                <span className="font-semibold">{b.name}</span>{" "}
-                <span className="text-black/60">{b.result_display}</span>
-              </span>
-              <form action={deleteAthleteBenchmark.bind(null, athleteId, b.id)}>
-                <button className="text-sm text-black/40 hover:text-repone-red">Remove</button>
-              </form>
+            <div className="grid gap-2">
+              <Label htmlFor="athlete-photo">Upload a photo</Label>
+              <Input id="athlete-photo" type="file" name="photo" accept="image/*" required />
             </div>
-          ))}
-          {benchmarks?.length === 0 && (
-            <p className="text-black/50">No benchmark times logged yet.</p>
+            <Button type="submit">Upload</Button>
+          </form>
+          {athlete.photo_url && (
+            <div>
+              <ConfirmAction
+                trigger="Remove current photo"
+                title={`Remove ${name}'s photo?`}
+                description="Their profile goes back to having no photo. You can upload a new one any time."
+                confirmLabel="Remove photo"
+                onConfirm={removeAthletePhoto.bind(null, athleteId)}
+              />
+            </div>
           )}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="rounded-lg border border-black/10 p-4">
-        <h2 className="mb-3 font-semibold">Competition History</h2>
-        {history.length === 0 ? (
-          <p className="text-black/50">No competition results recorded yet.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {history.map((h) => (
-              <div key={h.eventId} className="rounded-lg border border-black/10 p-4">
-                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{h.eventName}</p>
-                    <p className="text-xs uppercase tracking-wide text-black/50">
-                      {h.divisionName}
-                    </p>
-                  </div>
-                  {h.overall && (
-                    <p className="text-sm font-bold text-repone-red">
-                      Overall: {h.overall.placement ? `#${h.overall.placement}` : "—"}
-                      {h.overall.points !== null ? ` (${h.overall.points} pts)` : ""}
-                    </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            action={updateAthleteProfile.bind(null, athleteId)}
+            className="flex flex-wrap items-end gap-3"
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="profile-first">First name</Label>
+              <Input
+                id="profile-first"
+                name="first_name"
+                required
+                defaultValue={athlete.first_name}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-last">Last name</Label>
+              <Input id="profile-last" name="last_name" required defaultValue={athlete.last_name} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-affiliate">Box / affiliate</Label>
+              <Input
+                id="profile-affiliate"
+                name="affiliate"
+                defaultValue={athlete.affiliate ?? ""}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-email">Email</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                name="email"
+                required
+                defaultValue={athlete.email ?? ""}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-phone">Phone</Label>
+              <Input
+                id="profile-phone"
+                type="tel"
+                name="phone"
+                defaultValue={athlete.phone ?? ""}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-dob">Date of birth</Label>
+              <Input
+                id="profile-dob"
+                type="date"
+                name="date_of_birth"
+                defaultValue={athlete.date_of_birth ?? ""}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-gender">Gender</Label>
+              <Select name="gender" defaultValue={athlete.gender ?? NONE}>
+                <SelectTrigger id="profile-gender" className="min-w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Not set</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit">Save</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Basic lifts &amp; run times</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            action={saveAthleteLifts.bind(null, athleteId)}
+            className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+          >
+            {LIFT_NAMES.map((lift) => {
+              const existing = liftByName.get(lift);
+              const timeLift = isTimeLift(lift);
+              const id = `lift-${lift}`;
+              return (
+                <div key={lift} className="grid gap-2">
+                  <Label htmlFor={id}>
+                    {LIFT_LABELS[lift]} {timeLift ? "(mm:ss)" : "(lbs)"}
+                  </Label>
+                  {timeLift ? (
+                    <Input
+                      id={id}
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
+                      placeholder="21:30"
+                      name={lift}
+                      defaultValue={
+                        existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
+                      }
+                    />
+                  ) : (
+                    <Input
+                      id={id}
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      name={lift}
+                      defaultValue={existing?.weight_lbs ?? ""}
+                    />
                   )}
                 </div>
-                {h.wods.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {h.wods.map((w) => (
-                      <span
-                        key={w.wodId}
-                        className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold text-black/70"
-                      >
-                        {w.name}: {w.placement ? `#${w.placement}` : "—"}
-                      </span>
-                    ))}
-                  </div>
-                )}
+              );
+            })}
+            <Button type="submit" className="col-span-full mt-2 w-fit">
+              Save lifts
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Benchmark workouts</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <form
+            action={upsertAthleteBenchmark.bind(null, athleteId)}
+            className="flex flex-wrap items-end gap-3"
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="benchmark-name">Benchmark</Label>
+              <Input id="benchmark-name" name="name" required placeholder="Fran" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="benchmark-result">Result</Label>
+              <Input id="benchmark-result" name="result_display" required placeholder="3:45" />
+            </div>
+            <Button type="submit">Save</Button>
+          </form>
+
+          <div className="flex flex-col gap-2">
+            {(benchmarks ?? []).map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border px-4 py-2"
+              >
+                <span>
+                  <span className="font-semibold">{b.name}</span>{" "}
+                  <span className="text-muted-foreground">{b.result_display}</span>
+                </span>
+                <ConfirmAction
+                  trigger="Remove"
+                  title={`Remove ${b.name}?`}
+                  description={`${name}'s ${b.name} time (${b.result_display}) is deleted from their benchmarks.`}
+                  confirmLabel="Remove benchmark"
+                  onConfirm={deleteAthleteBenchmark.bind(null, athleteId, b.id)}
+                />
               </div>
             ))}
+            {benchmarks?.length === 0 && (
+              <p className="text-muted-foreground">No benchmark times logged yet.</p>
+            )}
           </div>
-        )}
-      </section>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Competition history</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {history.length === 0 ? (
+            <p className="text-muted-foreground">No competition results recorded yet.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {history.map((h) => (
+                <div key={h.eventId} className="rounded-lg border border-border p-4">
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{h.eventName}</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        {h.divisionName}
+                      </p>
+                    </div>
+                    {h.overall && (
+                      <p className="text-sm font-bold text-brand-text">
+                        Overall: {h.overall.placement ? `#${h.overall.placement}` : "—"}
+                        {h.overall.points !== null ? ` (${h.overall.points} pts)` : ""}
+                      </p>
+                    )}
+                  </div>
+                  {h.wods.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {h.wods.map((w) => (
+                        <Badge key={w.wodId} variant="secondary">
+                          {w.name}: {w.placement ? `#${w.placement}` : "—"}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

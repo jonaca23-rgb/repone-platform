@@ -1,0 +1,485 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-02T20:55:31.882362+00:00",
+  "title": "Design System: RepOne",
+  "extensions": {
+    "colorMeta": {
+      "arena-black": {
+        "role": "neutral",
+        "displayName": "Arena Black",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#8c8c8c",
+          "#b2b2b2",
+          "#d9d9d9",
+          "#f2f2f2"
+        ]
+      },
+      "console-gray": {
+        "role": "neutral",
+        "displayName": "Console Gray",
+        "canonical": "#161618",
+        "tonalRamp": [
+          "#252528",
+          "#3d3d43",
+          "#55555d",
+          "#6e6e78",
+          "#878791",
+          "#afafb6",
+          "#d7d7da",
+          "#f2f2f3"
+        ]
+      },
+      "rail-gray": {
+        "role": "neutral",
+        "displayName": "Rail Gray",
+        "canonical": "#1f1f22",
+        "tonalRamp": [
+          "#242428",
+          "#3d3d43",
+          "#55555d",
+          "#6d6d78",
+          "#878792",
+          "#afafb6",
+          "#d7d7db",
+          "#f2f2f3"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#2a2a2e",
+        "tonalRamp": [
+          "#252528",
+          "#3d3d43",
+          "#55555d",
+          "#6e6e78",
+          "#878791",
+          "#afafb6",
+          "#d7d7da",
+          "#f2f2f3"
+        ]
+      },
+      "floodlight-white": {
+        "role": "neutral",
+        "displayName": "Floodlight White",
+        "canonical": "#fafafa",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#8c8c8c",
+          "#b2b2b2",
+          "#d9d9d9",
+          "#f2f2f2"
+        ]
+      },
+      "booth-gray": {
+        "role": "neutral",
+        "displayName": "Booth Gray",
+        "canonical": "#a1a1aa",
+        "tonalRamp": [
+          "#242428",
+          "#3d3d43",
+          "#55555e",
+          "#6d6d79",
+          "#868692",
+          "#afafb6",
+          "#d7d7db",
+          "#f2f2f3"
+        ]
+      },
+      "repone-red": {
+        "role": "primary",
+        "displayName": "RepOne Red",
+        "canonical": "#e0122f",
+        "tonalRamp": [
+          "#47060f",
+          "#760919",
+          "#a50d23",
+          "#d4112d",
+          "#ee2b46",
+          "#f47184",
+          "#f9b8c1",
+          "#fde7ea"
+        ]
+      },
+      "signal-red": {
+        "role": "primary",
+        "displayName": "Signal Red",
+        "canonical": "#ff4d63",
+        "tonalRamp": [
+          "#4c0009",
+          "#800010",
+          "#b20016",
+          "#e6001c",
+          "#ff1a36",
+          "#ff6679",
+          "#ffb2bc",
+          "#ffe5e9"
+        ]
+      },
+      "alarm-red": {
+        "role": "tertiary",
+        "displayName": "Alarm Red",
+        "canonical": "#f04438",
+        "tonalRamp": [
+          "#470a05",
+          "#771009",
+          "#a6170d",
+          "#d51d10",
+          "#ef362a",
+          "#f47971",
+          "#fabcb8",
+          "#fde9e7"
+        ]
+      },
+      "alarm-red-fill": {
+        "role": "tertiary",
+        "displayName": "Alarm Red Fill",
+        "canonical": "#d92d20",
+        "tonalRamp": [
+          "#430e0a",
+          "#6f1710",
+          "#9c2017",
+          "#c8291d",
+          "#e24337",
+          "#eb827a",
+          "#f5c0bc",
+          "#fceae9"
+        ]
+      },
+      "go-green": {
+        "role": "tertiary",
+        "displayName": "Go Green",
+        "canonical": "#22c55e",
+        "tonalRamp": [
+          "#0b411f",
+          "#136d34",
+          "#1a9849",
+          "#22c45d",
+          "#3bdd77",
+          "#7de8a4",
+          "#bef4d2",
+          "#e9fbf0"
+        ]
+      },
+      "go-green-text": {
+        "role": "tertiary",
+        "displayName": "Go Green Text",
+        "canonical": "#4ade80",
+        "tonalRamp": [
+          "#0c411f",
+          "#146c34",
+          "#1c9749",
+          "#23c25d",
+          "#3ddc77",
+          "#7ee7a4",
+          "#bef3d2",
+          "#e9fbf0"
+        ]
+      },
+      "hold-amber": {
+        "role": "tertiary",
+        "displayName": "Hold Amber",
+        "canonical": "#f59e0b",
+        "tonalRamp": [
+          "#492f03",
+          "#7a4f05",
+          "#ab6e07",
+          "#dc8e09",
+          "#f6a723",
+          "#f9c56c",
+          "#fce2b6",
+          "#fef5e7"
+        ]
+      },
+      "hold-amber-text": {
+        "role": "tertiary",
+        "displayName": "Hold Amber Text",
+        "canonical": "#fbbf24",
+        "tonalRamp": [
+          "#4b3701",
+          "#7d5b02",
+          "#af7f03",
+          "#e1a404",
+          "#fbbd1e",
+          "#fcd369",
+          "#fee9b4",
+          "#fff8e6"
+        ]
+      },
+      "broadcast-black": {
+        "role": "broadcast",
+        "displayName": "Broadcast Black",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#8c8c8c",
+          "#b2b2b2",
+          "#d9d9d9",
+          "#f2f2f2"
+        ]
+      },
+      "broadcast-white": {
+        "role": "broadcast",
+        "displayName": "Broadcast White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#8c8c8c",
+          "#b2b2b2",
+          "#d9d9d9",
+          "#f2f2f2"
+        ]
+      },
+      "broadcast-red": {
+        "role": "broadcast",
+        "displayName": "Broadcast Red",
+        "canonical": "#e0122f",
+        "tonalRamp": [
+          "#47060f",
+          "#760919",
+          "#a50d23",
+          "#d4112d",
+          "#ee2b46",
+          "#f47184",
+          "#f9b8c1",
+          "#fde7ea"
+        ]
+      },
+      "broadcast-slate": {
+        "role": "broadcast",
+        "displayName": "Broadcast Slate",
+        "canonical": "#1c1c1e",
+        "tonalRamp": [
+          "#252528",
+          "#3e3e42",
+          "#56565c",
+          "#6f6f77",
+          "#888890",
+          "#b0b0b5",
+          "#d7d7da",
+          "#f2f2f3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles and the heat line; uppercase, wide tracking."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Operator card titles, greetings, live-event names."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Admin card and section titles, names in rows."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All running text and inputs; never below 16px."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, tabs, form labels, table headers."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Times, scores, ranks, money, lane numbers; tabular."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shadow-xs",
+        "value": "0 1px 2px 0 rgba(0,0,0,.05)",
+        "purpose": "shadcn default on cards, inputs and outline buttons; invisible on black, never load-bearing."
+      },
+      {
+        "name": "overlay-lift",
+        "value": "0 25px 50px -12px rgba(0,0,0,.25)",
+        "purpose": "On-air graphics only, to separate from video."
+      }
+    ],
+    "focus": [
+      {
+        "name": "ring",
+        "value": "0 0 0 3px #ff4d63",
+        "purpose": "Full-strength Signal Red focus ring (ring-3 ring-ring); never ring-ring/50."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Tailwind transition default for hover and focus color changes; no decorative motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default action: RepOne Red fill, white label.",
+      "html": "<button class=\"ds-btn-primary\">Save</button>",
+      "css": ".ds-btn-primary{background:#e0122f;color:#fff;height:36px;padding:0 10px;border:1px solid transparent;border-radius:8px;font:500 14px/1 Inter,system-ui,sans-serif;cursor:pointer;transition:background .15s}.ds-btn-primary:hover{background:rgba(224,18,47,.8)}.ds-btn-primary:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}.ds-btn-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Touch Button",
+      "kind": "button",
+      "refersTo": "button-touch",
+      "description": "Live controls and primary phone actions, 48px minimum (64px on the production dashboard).",
+      "html": "<button class=\"ds-btn-touch\">Save score</button>",
+      "css": ".ds-btn-touch{background:#e0122f;color:#fff;min-height:48px;padding:0 24px;border:1px solid transparent;border-radius:8px;font:500 16px/1 Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.025em;cursor:pointer}.ds-btn-touch:hover{background:rgba(224,18,47,.8)}.ds-btn-touch:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary and navigation actions.",
+      "html": "<button class=\"ds-btn-outline\">Mark paid</button>",
+      "css": ".ds-btn-outline{background:#0a0a0a;color:#fafafa;height:36px;padding:0 10px;border:1px solid #2a2a2e;border-radius:8px;font:500 14px/1 Inter,system-ui,sans-serif;cursor:pointer}.ds-btn-outline:hover{background:#1f1f22}.ds-btn-outline:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Confirm action inside ConfirmAction dialogs only.",
+      "html": "<button class=\"ds-btn-danger\">Delete event</button>",
+      "css": ".ds-btn-danger{background:#d92d20;color:#fff;height:36px;padding:0 10px;border:1px solid transparent;border-radius:8px;font:500 14px/1 Inter,system-ui,sans-serif;cursor:pointer}.ds-btn-danger:hover{background:rgba(217,45,32,.9)}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 0 0 3px #ff4d63}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "16px text, Hairline border, Signal Red focus.",
+      "html": "<label class=\"ds-field\"><span>Notes</span><input class=\"ds-input\" placeholder=\"e.g. paid cash at check-in\"></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:#fafafa;font:500 14px/1.4 Inter,system-ui,sans-serif}.ds-input{height:36px;padding:4px 10px;background:transparent;color:#fafafa;border:1px solid #2a2a2e;border-radius:8px;font:400 16px/1.5 Inter,system-ui,sans-serif}.ds-input::placeholder{color:#a1a1aa}.ds-input:focus-visible{outline:none;border-color:#ff4d63;box-shadow:0 0 0 3px #ff4d63}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Console Gray container on the black page.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-k\">Collected</p><p class=\"ds-card-v\">$0.00</p></div>",
+      "css": ".ds-card{background:#161618;color:#fafafa;border-radius:14px;padding:24px;box-shadow:inset 0 0 0 1px rgba(250,250,250,.1);font-family:Inter,system-ui,sans-serif}.ds-card-k{margin:0;font:500 12px/1 Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#a1a1aa}.ds-card-v{margin:12px 0 0;font:700 36px/1.1 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;color:#4ade80;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Status pairs: base at low opacity for fill and border, -text tone for the word.",
+      "html": "<span class=\"ds-badge ds-ok\">Paid</span> <span class=\"ds-badge ds-warn\">Unpaid</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:9999px;font:500 12px/1 Inter,system-ui,sans-serif;text-transform:uppercase}.ds-ok{border:1px solid rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#4ade80}.ds-warn{border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#fbbf24}"
+    },
+    {
+      "name": "Event Tabs",
+      "kind": "nav",
+      "refersTo": "event-tab",
+      "description": "Operator shell tabs: 44px, red underline on the current tab.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"page\">Production</a><a href=\"#\">Heats</a><a href=\"#\">Scores</a></nav>",
+      "css": ".ds-tabs{display:flex;gap:4px;background:#0a0a0a;border-bottom:1px solid #2a2a2e;padding:0 8px}.ds-tabs a{display:flex;align-items:center;min-height:44px;padding:0 12px;border-bottom:2px solid transparent;color:#a1a1aa;text-decoration:none;font:500 14px/1 Inter,system-ui,sans-serif}.ds-tabs a:hover{color:#fafafa}.ds-tabs a[aria-current=page]{color:#fafafa;border-bottom-color:#e0122f}.ds-tabs a:focus-visible{outline:none;box-shadow:inset 0 0 0 2px #ff4d63}"
+    },
+    {
+      "name": "Heat Line",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "The operator screens' glanceable heat header.",
+      "html": "<div class=\"ds-heat\"><p class=\"ds-heat-t\">WOD 2 · Heat 6 / 9</p><p class=\"ds-heat-d\">Intermediate Female</p></div>",
+      "css": ".ds-heat{background:#161618;border-radius:14px;padding:24px;box-shadow:inset 0 0 0 1px rgba(250,250,250,.1)}.ds-heat-t{margin:0;font:700 30px/1.2 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;text-transform:uppercase;letter-spacing:.025em;color:#fafafa}.ds-heat-d{margin:4px 0 0;font:500 16px/1.4 Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.025em;color:#ff4d63}"
+    },
+    {
+      "name": "Lower Third (overlay)",
+      "kind": "custom",
+      "refersTo": "overlay-panel",
+      "description": "On-air graphic: square slab, red accent bar, transparent page.",
+      "html": "<div class=\"ds-l3\"><div class=\"ds-l3-bar\"></div><div class=\"ds-l3-body\"><p class=\"ds-l3-n\">Sofia Delgado</p><p class=\"ds-l3-s\">Box 787</p></div></div>",
+      "css": ".ds-l3{display:inline-flex;box-shadow:0 25px 50px -12px rgba(0,0,0,.25)}.ds-l3-bar{width:8px;background:#e0122f}.ds-l3-body{background:rgba(10,10,10,.95);padding:16px 32px}.ds-l3-n{margin:0;font:700 36px/1.1 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;text-transform:uppercase;letter-spacing:.025em;color:#fff}.ds-l3-s{margin:4px 0 0;font:600 14px/1 Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.7)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Broadcast Booth",
+    "overview": "RepOne looks like the inside of a sports network's production truck: black glass, white type, one red that means \"live\". The same identity runs from the 1920×1080 overlays an audience sees on video to the phone a scorekeeper holds on a loud, bright competition floor. The app is never a light office tool with a dark mode; there is one dark theme, defined once on `:root`, and every screen sits on it.\n\nThe product is an operating tool first (PRODUCT.md: \"Event day first\"). Density is moderate and calm: surfaces separate by tone, not by shadow; type does the hierarchy; red is rationed so it still reads as a signal. Expression lives in the condensed uppercase display type and the red, not in decoration. Screens used live (scoring, production, commentary) are glanceable, with 44 to 64px touch targets and 16px inputs so phones never zoom.\n\nEvery area has its own shell on the same tokens: a sidebar for organizers, an operator top bar with event tabs for producers, scorekeepers and commentators, a top bar plus phone tab bar for athletes, and a public shell for spectators. Overlays are the exception that proves the rule: no shadcn, no shells, no focus rings, just the four broadcast tokens and the display font over a transparent page.",
+    "keyCharacteristics": [
+      "One dark theme on `:root`; no `.dark` class, no theme switcher.",
+      "Tonal layering (black, console, rail) instead of shadows.",
+      "RepOne red for fills and \"live\", a lighter signal red for red text.",
+      "Barlow Condensed, uppercase, for headings, numbers and on-air type; Inter for everything you read.",
+      "Every text pair is at least 4.5:1, every focus ring and UI border at least 3:1 (checked by `src/lib/design/contrast.test.ts`).",
+      "A shell per area, one account menu everywhere."
+    ],
+    "rules": [
+      {
+        "name": "The Signal Rule",
+        "body": "RepOne Red is a fill; Signal Red is a word. Never put `text-primary` or the base red on dark as running text.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Fading Rule",
+        "body": "Never dim text with opacity (`text-white/50`, `text-foreground/40`). The only quieter text is `text-muted-foreground`. The UI guard rejects the opacity forms.",
+        "section": "colors"
+      },
+      {
+        "name": "The Status Pair Rule",
+        "body": "Green and amber come in pairs: the base for fills and borders at low opacity, the `-text` tone for words. A status badge is `border-success/40 bg-success/10 text-success-text` (or the warning equivalent).",
+        "section": "colors"
+      },
+      {
+        "name": "The Shout Once Rule",
+        "body": "Uppercase condensed type is for one line per region (the page title, the heat line, a tile's number). Paragraphs, descriptions and form text stay in sentence-case Inter.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Floor Rule",
+        "body": "In the app, separate surfaces by tone and Hairline borders. Do not add shadows to signal importance; use red, size or position.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use the semantic tokens (`bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `text-brand-text`, `text-success-text`, `text-warning-text`) for every color in the app.",
+      "**Do** keep text at 4.5:1 or more and focus rings and UI borders at 3:1 or more on Arena Black and Console Gray; add a pair to `contrast.test.ts` when you add a token.",
+      "**Do** put destructive and on-air actions behind `ConfirmAction`.",
+      "**Do** use `size=\"touch\"` (48px minimum) for live controls and primary phone actions, and keep every operator and athlete control at least 44px.",
+      "**Do** use `font-display` uppercase for page titles, heat lines and numbers, with `tabular-nums` on anything that updates live.",
+      "**Do** give every page a `metadata` title (or `generateMetadata` when it depends on data) and every icon-only control an accessible name.",
+      "**Do** use lucide icons in navigation.",
+      "**Do** run `pnpm ui:guard` (part of `pnpm check`) and fix what it flags."
+    ],
+    "donts": [
+      "**Don't** add a light theme, a `.dark` class or a theme switcher. There is one dark theme on `:root`.",
+      "**Don't** dim text with opacity utilities (`text-white/50`, `text-foreground/40`) or use raw `text-white`, `text-black`, `bg-white` in the app; the guard rejects them.",
+      "**Don't** use RepOne Red (`#e0122f`) as text on dark; use Signal Red (`text-brand-text`).",
+      "**Don't** weaken focus rings (`ring-ring/50` measured about 2.3:1); rings are full strength.",
+      "**Don't** bring back `.control-btn`, raw `<button>`, `<input>`, `<select>` or `window.confirm` in app code; use the `src/components/ui` and `src/components/app` components.",
+      "**Don't** import shadcn components, shells or app colors into overlays; they use only `--broadcast-*` and `font-display`, on a transparent page.",
+      "**Don't** shrink inputs below 16px, or put emoji in navigation."
+    ]
+  }
+}

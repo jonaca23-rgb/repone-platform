@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { googleEnabled } from "@/lib/auth/server";
 import { getAuthSession } from "@/lib/auth/session";
 import { LoginForm } from "./LoginForm";
 import type { OAuthFailure } from "@/components/auth/GoogleButton";
+
+export const metadata: Metadata = { title: "Sign in" };
 
 const NOTICES: Record<string, string> = {
   reset: "Password saved — sign in.",

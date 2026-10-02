@@ -1,6 +1,13 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+import { CalendarX2 } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { getAssignedEvents } from "@/lib/auth/eventRoles";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { PickLink } from "@/components/app/PickLink";
+import { OperatorShell } from "@/components/shells/OperatorShell";
+
+export const metadata: Metadata = { title: "Commentator" };
 
 // Entry point into the event-scoped Commentator tree
 // (commentator/events/[eventId]/...). An admin sees every scheduled/live
@@ -15,38 +22,32 @@ export default async function CommentatorPickerPage() {
   const events = await getAssignedEvents(ctx, "commentator");
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-16">
-      <p className="mb-4 text-sm">
-        <Link href="/" className="text-repone-red underline">
-          ← Back to Home
-        </Link>
-      </p>
-      <h1 className="mb-1 font-[family-name:var(--font-display)] text-3xl font-bold uppercase tracking-wide">
-        Select an Event to Commentate
-      </h1>
-      <p className="mb-6 text-sm text-white/50">
-        Only events you&apos;re assigned to commentate show up here.
-      </p>
-      <div className="flex flex-col gap-4">
-        {events.map((e) => (
-          <Link
-            key={e.id}
-            href={`/commentator/events/${e.id}/dashboard`}
-            className="control-btn control-btn-red flex-col !items-start gap-1 py-6"
-          >
-            <span className="text-2xl">{e.name}</span>
-            <span className="text-sm font-normal normal-case tracking-normal opacity-80">
-              {e.status === "live" ? "Live now" : "Scheduled"}
-            </span>
-          </Link>
-        ))}
-        {events.length === 0 && (
-          <p className="text-white/50">
-            No events assigned to you yet — ask an admin to add you as a commentator from that
-            event&apos;s Staff tab.
-          </p>
+    <OperatorShell module="commentator" moduleLabel="Commentator">
+      <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-10 sm:px-6">
+        <PageHeader
+          title="Select an event to commentate"
+          description="Only events you're assigned to commentate show up here."
+        />
+        {events.length > 0 ? (
+          <ul className="flex flex-col gap-3">
+            {events.map((e) => (
+              <li key={e.id}>
+                <PickLink
+                  href={`/commentator/events/${e.id}/dashboard`}
+                  title={e.name}
+                  detail={e.status === "live" ? "Live now" : "Scheduled"}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            icon={CalendarX2}
+            title="No events assigned to you yet"
+            description="Ask an admin to add you as a commentator from that event's Staff tab."
+          />
         )}
       </div>
-    </div>
+    </OperatorShell>
   );
 }

@@ -2,6 +2,7 @@
 
 import { authClient } from "@/lib/auth/client";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { GoogleIcon } from "./GoogleIcon";
 
 /**
@@ -14,7 +15,10 @@ export type OAuthFailure = "account_not_linked" | "other";
 
 export function OAuthErrorNotice({ failure = "other" }: { failure?: OAuthFailure }) {
   return (
-    <p className="mb-4 rounded-md border border-repone-red/40 bg-repone-red/10 p-3 text-sm text-repone-red">
+    <p
+      role="alert"
+      className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+    >
       {failure === "account_not_linked"
         ? "This email already has a password account that isn't confirmed yet — confirm it from your inbox, then try Google again."
         : "Google sign-in didn't go through. Please try again, or use email and password."}
@@ -50,14 +54,15 @@ export function GoogleButton({ onFailure }: { onFailure: () => void }) {
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
       onClick={start}
       disabled={pending}
-      className="flex w-full items-center justify-center gap-3 rounded-md border border-white/20 bg-white px-4 py-3 font-semibold text-black/80 transition hover:bg-white/90 disabled:opacity-50"
+      className="h-11 w-full gap-3 text-base"
     >
       <GoogleIcon />
       Continue with Google
-    </button>
+    </Button>
   );
 }

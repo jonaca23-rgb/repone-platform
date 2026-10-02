@@ -5,7 +5,7 @@ Everyone signs in at one `/login` and lands on the start page with cards for the
 ## Sub-features
 
 - `access-landing` sign-in lands on `/`: admin, scorekeeper, producer and commentator end on `/` with their module cards; `athlete@` (athlete-only) is forwarded on to `/athlete`; `new-athlete@` ends on `/` with the empty start page and `Create my athlete profile`.
-- `access-admin-gate` a non-admin opening any `/admin/*` URL is redirected to their own screen.
+- `access-admin-gate` a non-admin opening any `/admin/*` URL is redirected to the start page `/`.
 - `access-signed-out` a signed-out visitor opening a staff URL is sent to `/login`.
 - `access-pii-staff` admin sees an athlete's email/phone/date of birth and age category on the roster and athlete page.
 - `access-pii-public` public pages and other athletes never see them (the directory profile of another athlete shows no age category).
@@ -24,8 +24,8 @@ Preconditions:
 - Evidence folder: `dir=$(scripts/evidence.sh access-control)`.
 
 - **Landing per role.** For each of `admin`, `scorekeeper`, `producer`, `commentator`: `new_page url=http://localhost:3200/login isolatedContext=verify-<role>`, sign in, then `evaluate_script () => location.pathname` after the redirect settles. Expect `/` for each, with that role's module cards in the snapshot. `new-athlete@repone.test` also ends on `/` (empty start page, `Create my athlete profile`). `athlete@repone.test` on the same form is forwarded on to `/athlete`.
-- **Admin gate.** In the scorekeeper context `navigate_page url=http://localhost:3200/admin/athletes/00000000-0000-0000-0000-000000000062`. The page ends on `/scorekeeper`, and no email is rendered.
-- **Signed out.** `new_page url=http://localhost:3200/admin isolatedContext=verify-anon` → ends on `/login`. After a `Sign out` click (full page load) `/api/supabase-token` answers 401.
+- **Admin gate.** In the scorekeeper context `navigate_page url=http://localhost:3200/admin/athletes/00000000-0000-0000-0000-000000000062`. The page ends on `/` (the start page), and no email is rendered.
+- **Signed out.** `new_page url=http://localhost:3200/admin isolatedContext=verify-anon` → ends on `/login`. After `Sign out` from the account menu (full page load) `/api/supabase-token` answers 401.
 - **Staff sees private data.** In the admin context open `/admin/athletes/00000000-0000-0000-0000-000000000062`. Snapshot: heading `SofiaDelgado`, textbox `Email` value `sofia@example.test`, a `Phone` textbox, a `Date of birth` date input.
 - **Public never does.** `curl -s http://localhost:3200/overlay/00000000-0000-0000-0000-000000000030/lanes | grep -c example.test` → `0` while names (`Rivera`, `Delgado`) are present. The same for `/live/00000000-0000-0000-0000-000000000010`.
 - **Other athletes don't.** In the athlete context open `/athlete/directory/00000000-0000-0000-0000-000000000062`: `Sofia Delgado`, `Box 787`, and no age-category line (even when Sofia has a date of birth set).
@@ -44,7 +44,7 @@ Preconditions:
 
 Preconditions: admin context signed in; a unique address like `verify+<ts>@example.test`.
 
-- **Send.** `/admin/team` -> invite the address as `Scorekeeper` (org-wide), or on `/admin/events/<eventId>/staff` invite per role. The event page shows `Pending` with `Resend`.
+- **Send.** `Members` in the admin sidebar (`/admin/team`) -> invite the address as `Scorekeeper` (org-wide), or on `/admin/events/<eventId>/staff` invite per role. The event page shows `Pending` with `Resend`.
 - **Read the mail.** `curl -s http://127.0.0.1:54524/api/v1/messages` lists messages; `curl -s http://127.0.0.1:54524/api/v1/message/<ID>` has the `/invite?token=` link in `Text`/`HTML` (or open http://127.0.0.1:54524 in the browser).
 - **Accept.** In a fresh `isolatedContext`, open the link, set a password (10+ chars) -> `/login?invited=1`, sign in -> start page with the `Scorekeeper` card.
 - **Cleanup.** Delete the address's `"user"` row (and any invitation rows) with `psql "$DATABASE_URL"`.

@@ -1,9 +1,41 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
 import { addEventToCircuit, removeEventFromCircuit } from "@/lib/actions/circuits";
 import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+type Props = { params: Promise<{ circuitId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { circuitId } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase.from("circuits").select("name").eq("id", circuitId).maybeSingle();
+  return { title: data?.name ?? "Circuit" };
+}
 
 /**
  * Circuit-wide leaderboard, computed live on every page load — no stored
@@ -19,11 +51,7 @@ import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
  * circuit only works cleanly if the same division names — e.g. "Rx Male" —
  * are reused at every stop).
  */
-export default async function CircuitDetailPage({
-  params,
-}: {
-  params: Promise<{ circuitId: string }>;
-}) {
+export default async function CircuitDetailPage({ params }: Props) {
   const { circuitId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -150,136 +178,149 @@ export default async function CircuitDetailPage({
     };
   });
 
+  const dates =
+    circuit.starts_on || circuit.ends_on
+      ? `${circuit.starts_on ?? "—"} ${circuit.ends_on && circuit.ends_on !== circuit.starts_on ? `→ ${circuit.ends_on}` : ""}`.trim()
+      : null;
+  const description = [circuit.description, dates].filter(Boolean).join(" · ") || undefined;
+
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{circuit.name}</h1>
-          {circuit.description && <p className="text-sm text-black/50">{circuit.description}</p>}
-          {(circuit.starts_on || circuit.ends_on) && (
-            <p className="text-sm text-black/40">
-              {circuit.starts_on ?? "—"}{" "}
-              {circuit.ends_on && circuit.ends_on !== circuit.starts_on
-                ? `→ ${circuit.ends_on}`
-                : ""}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <Link
-            href={`/live/circuits/${circuitId}`}
-            target="_blank"
-            className="text-sm text-repone-red hover:underline"
-          >
-            Public Leaderboard (share this link) →
-          </Link>
-          <Link href="/admin/circuits" className="text-sm text-black/50 hover:text-repone-red">
-            ← All circuits
-          </Link>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={circuit.name}
+        description={description}
+        breadcrumb={
+          <AdminBreadcrumb
+            items={[{ label: "Circuits", href: "/admin/circuits" }, { label: circuit.name }]}
+          />
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/live/circuits/${circuitId}`} target="_blank">
+              Public leaderboard
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="mb-8 rounded-lg border border-black/10 p-4">
-        <h2 className="mb-3 font-semibold">Events in this circuit</h2>
-        <div className="mb-4 flex flex-col gap-2">
-          {(circuitEvents ?? []).map((e) => (
-            <div
-              key={e.id}
-              className="flex items-center justify-between rounded-md bg-black/5 px-3 py-2"
-            >
-              <Link
-                href={`/admin/events/${e.id}`}
-                className="text-sm font-medium hover:text-repone-red"
+      <Card>
+        <CardHeader>
+          <CardTitle>Events in this circuit</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            {(circuitEvents ?? []).map((e) => (
+              <div
+                key={e.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted px-3 py-2"
               >
-                {e.name}
-                <span className="ml-2 text-xs uppercase text-black/40">{e.status}</span>
-              </Link>
-              <form action={removeEventFromCircuit.bind(null, circuitId, e.id)}>
-                <button className="text-xs text-black/40 hover:text-repone-red">
-                  Remove from circuit
-                </button>
-              </form>
-            </div>
-          ))}
-          {circuitEvents?.length === 0 && (
-            <p className="text-sm text-black/50">
-              No events yet — add a standalone event below, or create a new event and select this
-              circuit.
-            </p>
+                <Link
+                  href={`/admin/events/${e.id}`}
+                  className="flex items-center gap-2 text-sm font-medium hover:text-brand-text"
+                >
+                  {e.name}
+                  <Badge variant="outline" className="uppercase">
+                    {e.status}
+                  </Badge>
+                </Link>
+                <ConfirmAction
+                  trigger="Remove from circuit"
+                  title={`Remove ${e.name} from ${circuit.name}?`}
+                  description="The event becomes standalone and its results stop counting toward this circuit's leaderboard. You can add it back later."
+                  confirmLabel="Remove from circuit"
+                  onConfirm={removeEventFromCircuit.bind(null, circuitId, e.id)}
+                />
+              </div>
+            ))}
+            {circuitEvents?.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No events yet. Add a standalone event below, or create a new event and choose this
+                circuit.
+              </p>
+            )}
+          </div>
+
+          {(standaloneEvents ?? []).length > 0 && (
+            <form
+              action={addEventToCircuit.bind(null, circuitId)}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <div className="grid gap-2">
+                <Label htmlFor="circuit-add-event">Standalone event</Label>
+                <Select name="event_id" defaultValue={(standaloneEvents ?? [])[0]?.id}>
+                  <SelectTrigger id="circuit-add-event" className="min-w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(standaloneEvents ?? []).map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" variant="outline">
+                Add to this circuit
+              </Button>
+            </form>
           )}
+        </CardContent>
+      </Card>
+
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Cumulative leaderboard</h2>
+          <p className="text-sm text-muted-foreground">
+            Lower total is better: the same placement-as-points method used to combine WODs into one
+            event&apos;s standings, applied here across events. Only divisions with at least one
+            completed, scored event show up below.
+          </p>
         </div>
 
-        {(standaloneEvents ?? []).length > 0 && (
-          <form action={addEventToCircuit.bind(null, circuitId)} className="flex items-end gap-2">
-            <select name="event_id" className="rounded-md border border-black/20 px-3 py-2 text-sm">
-              {(standaloneEvents ?? []).map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-            <button className="rounded-md border border-black/20 px-3 py-2 text-sm hover:border-repone-red">
-              Add existing event to this circuit
-            </button>
-          </form>
-        )}
-      </div>
-
-      <h2 className="mb-3 text-lg font-semibold">Cumulative leaderboard</h2>
-      <p className="mb-4 text-sm text-black/50">
-        Lower total is better — same placement-as-points method used to combine WODs into one
-        event&apos;s standings, applied here across events. Only divisions with at least one
-        completed, scored event show up below.
-      </p>
-
-      <div className="flex flex-col gap-8">
         {divisionLeaderboards.map((division) => (
           <div key={division.name}>
             <h3 className="mb-2 font-semibold">{division.name}</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-max border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wide text-black/50">
-                    <th className="py-2 pr-4">Place</th>
-                    <th className="py-2 pr-4">Competitor</th>
-                    {(circuitEvents ?? []).map((e) => (
-                      <th key={e.id} className="py-2 pr-4">
-                        {e.name}
-                      </th>
-                    ))}
-                    <th className="py-2 pr-4">Total points</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {division.standings.map((entry) => {
-                    const placementByEvent = new Map(
-                      entry.placements.map((p) => [p.wodId, p.placement]),
-                    );
-                    return (
-                      <tr key={entry.competitorId} className="border-b border-black/5">
-                        <td className="py-2 pr-4 font-semibold">{entry.overallPlacement}</td>
-                        <td className="py-2 pr-4">{entry.displayName}</td>
-                        {(circuitEvents ?? []).map((e) => (
-                          <td key={e.id} className="py-2 pr-4 text-black/60">
-                            {placementByEvent.get(e.id) ?? "—"}
-                          </td>
-                        ))}
-                        <td className="py-2 pr-4 font-semibold">{entry.totalPoints}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table className="[&_tr]:border-border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Place</TableHead>
+                  <TableHead>Competitor</TableHead>
+                  {(circuitEvents ?? []).map((e) => (
+                    <TableHead key={e.id}>{e.name}</TableHead>
+                  ))}
+                  <TableHead>Total points</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {division.standings.map((entry) => {
+                  const placementByEvent = new Map(
+                    entry.placements.map((p) => [p.wodId, p.placement]),
+                  );
+                  return (
+                    <TableRow key={entry.competitorId}>
+                      <TableCell className="font-semibold">{entry.overallPlacement}</TableCell>
+                      <TableCell>{entry.displayName}</TableCell>
+                      {(circuitEvents ?? []).map((e) => (
+                        <TableCell key={e.id} className="text-muted-foreground">
+                          {placementByEvent.get(e.id) ?? "—"}
+                        </TableCell>
+                      ))}
+                      <TableCell className="font-semibold">{entry.totalPoints}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
         ))}
         {divisionLeaderboards.length === 0 && (
-          <p className="text-black/50">
-            No scored results yet across this circuit&apos;s events — the leaderboard fills in as
+          <p className="text-muted-foreground">
+            No scored results yet across this circuit&apos;s events. The leaderboard fills in as
             each event&apos;s heats are finished.
           </p>
         )}
-      </div>
+      </section>
     </div>
   );
 }

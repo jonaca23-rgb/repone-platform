@@ -1,9 +1,20 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { X } from "lucide-react";
 import { getSessionContext, orgCan } from "@/lib/auth/session";
 import { ORG_ROLES, splitRoles, type OrgRole } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/db/server";
-import { InlineActionButton, InviteByEmailForm } from "@/components/InviteForms";
+import {
+  ConfirmFormResultAction,
+  InlineActionButton,
+  InviteByEmailForm,
+} from "@/components/InviteForms";
 import { inviteTeamMember, removeTeamRole, resendTeamInvite } from "@/lib/actions/team";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export const metadata: Metadata = { title: "Members" };
 
 const ROLE_LABEL: Record<OrgRole, string> = {
   owner: "Owner",
@@ -21,9 +32,10 @@ const INVITABLE = ORG_ROLES.filter((r) => r !== "owner").map((r) => ({
 }));
 
 /**
- * The organization's team: who holds which org role, who has yet to accept
+ * The organization's members: who holds which org role, who has yet to accept
  * their invitation, and the invite form. Owners and admins only
  * (member:create); per-event staff are invited from each event's Staff tab.
+ * Called "Members" in the UI; the route stays /admin/team.
  */
 export default async function TeamPage() {
   const ctx = await getSessionContext();
@@ -51,26 +63,29 @@ export default async function TeamPage() {
   const accountById = new Map((emails ?? []).map((e) => [e.user_id, e]));
 
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-bold">Team</h1>
-        <p className="text-sm text-black/50">
-          Invite people by email and choose their role in the organization. Someone new gets an
-          email to set their password; someone with an account is given the role and told.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Members"
+        description="Invite people by email and choose their role in the organization. Someone new gets an email to set their password; someone with an account is given the role and told."
+      />
 
-      <section className="rounded-xl border border-black/10 p-5">
-        <h2 className="text-lg font-bold">Invite to the team</h2>
-        <p className="mb-4 text-sm text-black/50">
-          To give someone access to a single event, use that event&apos;s Staff tab instead.
-        </p>
-        <InviteByEmailForm action={inviteTeamMember} roles={INVITABLE} />
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite a member</CardTitle>
+          <CardDescription>
+            To give someone access to a single event, use that event&apos;s Staff page instead.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InviteByEmailForm action={inviteTeamMember} roles={INVITABLE} />
+        </CardContent>
+      </Card>
 
-      <section className="rounded-xl border border-black/10 p-5">
-        <h2 className="mb-4 text-lg font-bold">Members</h2>
-        <div className="flex flex-col gap-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Members</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
           {(members ?? []).map((m) => {
             const account = accountById.get(m.user_id);
             const name = nameById.get(m.user_id) || account?.email || "Unknown account";
@@ -78,31 +93,40 @@ export default async function TeamPage() {
             return (
               <div
                 key={m.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/5 px-4 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-4 py-2"
               >
                 <span className="flex flex-col">
                   <span className="font-semibold">{name}</span>
                   {account?.email && account.email !== name ? (
-                    <span className="text-xs text-black/50">{account.email}</span>
+                    <span className="text-xs text-muted-foreground">{account.email}</span>
                   ) : null}
                 </span>
                 <span className="flex flex-wrap items-center gap-2">
                   {splitRoles(m.role).map((role) => (
-                    <span
+                    <Badge
                       key={role}
-                      className="inline-flex items-center gap-1 rounded-full bg-black/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide"
+                      variant="outline"
+                      className="h-auto gap-0 py-0 pr-0 uppercase tracking-wide"
                     >
                       {ROLE_LABEL[role]}
-                      <InlineActionButton
+                      <ConfirmFormResultAction
                         action={removeTeamRole.bind(null, m.id, role)}
-                        label="×"
-                        ariaLabel={`Remove ${ROLE_LABEL[role]} from ${name}`}
-                        className="text-sm text-repone-red hover:opacity-70"
+                        trigger={
+                          <>
+                            <X aria-hidden />
+                            <span className="sr-only">
+                              Remove {ROLE_LABEL[role]} from {name}
+                            </span>
+                          </>
+                        }
+                        title={`Remove ${ROLE_LABEL[role]} from ${name}?`}
+                        description={`${name} loses what the ${ROLE_LABEL[role]} role allows. If it is their only role, they leave the organization.`}
+                        confirmLabel="Remove role"
                       />
-                    </span>
+                    </Badge>
                   ))}
                   {pending && (
-                    <span className="flex items-center gap-2 text-sm text-black/50">
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
                       Pending ·
                       <InlineActionButton
                         action={resendTeamInvite.bind(null, m.user_id)}
@@ -115,10 +139,10 @@ export default async function TeamPage() {
             );
           })}
           {(members ?? []).length === 0 && (
-            <p className="text-sm text-black/40">Nobody on the team yet.</p>
+            <p className="text-sm text-muted-foreground">Nobody in the organization yet.</p>
           )}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
     </div>
   );
 }

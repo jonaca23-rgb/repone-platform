@@ -1,7 +1,18 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Route as RouteIcon } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
 import { createCircuit, deleteCircuit } from "@/lib/actions/circuits";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export const metadata: Metadata = { title: "Circuits" };
 
 export default async function CircuitsPage() {
   const ctx = await getSessionContext();
@@ -26,83 +37,78 @@ export default async function CircuitsPage() {
   }
 
   return (
-    <div>
-      <h1 className="mb-2 text-2xl font-bold">Circuits</h1>
-      <p className="mb-6 text-sm text-black/50">
-        A circuit groups several events into one season so a competitor&apos;s placement at each
-        stop rolls up into a single cumulative leaderboard. You can also start a circuit right from
-        the &quot;New Event&quot; form on the Events page — this page is for managing one directly,
-        or adding an already-existing standalone event to it after the fact.
-      </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Circuits"
+        description="A circuit groups several events into one season so a competitor's placement at each stop rolls up into a single cumulative leaderboard. You can also start one from the New event form on the Events page; this page is for managing one directly, or adding an existing standalone event to it."
+      />
 
-      <form
-        action={createCircuit}
-        className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border border-black/10 p-4"
-      >
-        <label className="flex flex-col gap-1 text-sm">
-          Circuit name
-          <input
-            name="name"
-            required
-            placeholder="MSTRS League PR"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Description (optional)
-          <input name="description" className="w-64 rounded-md border border-black/20 px-3 py-2" />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Season starts
-          <input
-            name="starts_on"
-            type="date"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Season ends
-          <input
-            name="ends_on"
-            type="date"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <button className="control-btn control-btn-red px-6 py-3 text-base">Create Circuit</button>
-      </form>
+      <Card>
+        <CardContent>
+          <form action={createCircuit} className="flex flex-wrap items-end gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="circuit-name">Circuit name</Label>
+              <Input id="circuit-name" name="name" required placeholder="MSTRS League PR" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="circuit-description">Description (optional)</Label>
+              <Input id="circuit-description" name="description" className="w-64" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="circuit-starts">Season starts</Label>
+              <Input id="circuit-starts" name="starts_on" type="date" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="circuit-ends">Season ends</Label>
+              <Input id="circuit-ends" name="ends_on" type="date" />
+            </div>
+            <Button type="submit">Create circuit</Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-2">
-        {(circuits ?? []).map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3 hover:border-repone-red"
-          >
-            <Link href={`/admin/circuits/${c.id}`} className="flex flex-1 items-center gap-3">
-              <span className="font-semibold">{c.name}</span>
-              <span className="text-xs uppercase tracking-wide text-black/50">
-                {countByCircuit.get(c.id) ?? 0} event
-                {(countByCircuit.get(c.id) ?? 0) === 1 ? "" : "s"}
-              </span>
-              {(c.starts_on || c.ends_on) && (
-                <span className="text-xs text-black/40">
-                  {c.starts_on ?? "—"}{" "}
-                  {c.ends_on && c.ends_on !== c.starts_on ? `→ ${c.ends_on}` : ""}
-                </span>
-              )}
-            </Link>
-            <form action={deleteCircuit.bind(null, c.id)}>
-              <button className="text-sm text-black/40 hover:text-repone-red">
-                Delete circuit
-              </button>
-            </form>
-          </div>
-        ))}
-        {circuits?.length === 0 && (
-          <p className="text-black/50">
-            No circuits yet — create one above, or start one from the New Event form.
-          </p>
-        )}
-      </div>
+      {circuits?.length === 0 ? (
+        <EmptyState
+          icon={RouteIcon}
+          title="No circuits yet"
+          description="Create one above, or start one from the New event form on the Events page."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {(circuits ?? []).map((c) => {
+            const count = countByCircuit.get(c.id) ?? 0;
+            return (
+              <div
+                key={c.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/60"
+              >
+                <Link
+                  href={`/admin/circuits/${c.id}`}
+                  className="flex flex-1 flex-wrap items-center gap-3"
+                >
+                  <span className="font-semibold">{c.name}</span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {count} event{count === 1 ? "" : "s"}
+                  </span>
+                  {(c.starts_on || c.ends_on) && (
+                    <span className="text-xs text-muted-foreground">
+                      {c.starts_on ?? "—"}{" "}
+                      {c.ends_on && c.ends_on !== c.starts_on ? `→ ${c.ends_on}` : ""}
+                    </span>
+                  )}
+                </Link>
+                <ConfirmAction
+                  trigger="Delete circuit"
+                  title={`Delete ${c.name}?`}
+                  description="The circuit and its cumulative leaderboard go away. Its events stay, as standalone events with their own results."
+                  confirmLabel="Delete circuit"
+                  onConfirm={deleteCircuit.bind(null, c.id)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

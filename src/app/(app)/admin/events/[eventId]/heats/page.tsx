@@ -1,10 +1,67 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Check, ListOrdered } from "lucide-react";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/db/server";
 import { createHeat, deleteHeat, generateHeats } from "@/lib/actions/heats";
 import { compareDivisionNames, compareHeatsForRunningOrder } from "@/lib/scoring/divisionOrder";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getAdminEvent, requireAdminEvent } from "../adminEvent";
 
-export default async function HeatsPage({ params }: { params: Promise<{ eventId: string }> }) {
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getAdminEvent((await params).eventId);
+  return { title: event ? `Heats · ${event.name}` : "Heats" };
+}
+
+/** A required pick from a short list, defaulting to the first option as the native select did. */
+function PickOne({
+  id,
+  name,
+  label,
+  options,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Select name={name} required defaultValue={options[0]?.value}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+export default async function HeatsPage({ params }: Props) {
   const { eventId } = await params;
   const supabase = await createClient();
   const cookieStore = await cookies();
@@ -12,14 +69,14 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
     Number(cookieStore.get(`repone_lanes_per_heat_${eventId}`)?.value ?? 6) || 6;
 
   const [
-    { data: event },
+    event,
     { data: floors },
     { data: wods },
     { data: divisions },
     { data: heats },
     { data: registrations },
   ] = await Promise.all([
-    supabase.from("events").select("name").eq("id", eventId).maybeSingle(),
+    requireAdminEvent(eventId),
     supabase
       .from("floors")
       .select("id, name, venues!inner(event_id)")
@@ -96,203 +153,123 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
   const canCreate =
     (floors?.length ?? 0) > 0 && (wods?.length ?? 0) > 0 && (divisions?.length ?? 0) > 0;
 
+  const floorOptions = (floors ?? []).map((f) => ({ value: f.id, label: f.name }));
+  const wodOptions = (wods ?? []).map((w) => ({ value: w.id, label: w.name }));
+
   return (
-    <div>
-      <p className="mb-4 text-sm">
-        <Link href={`/admin/events/${eventId}`} className="text-repone-red underline">
-          ← {event?.name ?? "Back to Event"}
-        </Link>
-      </p>
-      <h1 className="mb-6 text-2xl font-bold">Heats & Lanes</h1>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Heats & lanes"
+        description="Schedule heats and assign lane order."
+        breadcrumb={<AdminBreadcrumb items={eventCrumbs(event, { label: "Heats" })} />}
+      />
 
       {!canCreate ? (
-        <p className="mb-6 text-sm text-black/50">
-          Set up at least one floor, one WOD, and one division before creating heats.
-        </p>
+        <EmptyState
+          icon={ListOrdered}
+          title="Not ready for heats yet"
+          description="Set up at least one floor, one WOD and one division before creating heats."
+        />
       ) : (
         <>
-          <div className="mb-4 rounded-lg border border-black/10 p-4">
-            <h2 className="mb-1 font-semibold uppercase tracking-wide text-black/60">
-              Generate Heats
-            </h2>
-            <p className="mb-3 text-sm text-black/50">
-              Pick a Floor, WOD, and Division and how many lanes to run at once — every athlete or
-              team already registered for that division gets slotted into lanes automatically,
-              across as many heats as it takes.
-            </p>
-            <form
-              action={generateHeats.bind(null, eventId)}
-              className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-            >
-              <label className="flex flex-col gap-1 text-sm">
-                Floor
-                <select
-                  name="floor_id"
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                >
-                  {(floors ?? []).map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                WOD
-                <select
-                  name="wod_id"
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                >
-                  {(wods ?? []).map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Division
-                <select
+          <Card>
+            <CardHeader>
+              <CardTitle>Generate heats</CardTitle>
+              <CardDescription>
+                Pick a floor, WOD and division and how many lanes run at once. Every athlete or team
+                registered in that division is slotted into lanes automatically, across as many
+                heats as it takes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                action={generateHeats.bind(null, eventId)}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <PickOne id="gen-floor" name="floor_id" label="Floor" options={floorOptions} />
+                <PickOne id="gen-wod" name="wod_id" label="WOD" options={wodOptions} />
+                <PickOne
+                  id="gen-division"
                   name="division_id"
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                >
-                  {orderedDivisions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({registrationCounts.get(d.id) ?? 0} registered)
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Lanes per heat
-                <input
-                  name="lanes_per_heat"
-                  type="number"
-                  min={1}
-                  max={20}
-                  defaultValue={lastLanesPerHeat}
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
+                  label="Division"
+                  options={orderedDivisions.map((d) => ({
+                    value: d.id,
+                    label: `${d.name} (${registrationCounts.get(d.id) ?? 0} registered)`,
+                  }))}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                First heat start
-                <input
-                  name="scheduled_start"
-                  type="datetime-local"
-                  className="rounded-md border border-black/20 px-3 py-2"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Minutes between heats
-                <input
-                  name="interval_minutes"
-                  type="number"
-                  min={0}
-                  defaultValue={10}
-                  className="rounded-md border border-black/20 px-3 py-2"
-                />
-              </label>
-              <button className="control-btn control-btn-red self-end px-6 py-3 text-base">
-                Generate Heats
-              </button>
-            </form>
-          </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="gen-lanes">Lanes per heat</Label>
+                  <Input
+                    id="gen-lanes"
+                    name="lanes_per_heat"
+                    type="number"
+                    min={1}
+                    max={20}
+                    defaultValue={lastLanesPerHeat}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="gen-start">First heat start</Label>
+                  <Input id="gen-start" name="scheduled_start" type="datetime-local" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="gen-interval">Minutes between heats</Label>
+                  <Input
+                    id="gen-interval"
+                    name="interval_minutes"
+                    type="number"
+                    min={0}
+                    defaultValue={10}
+                  />
+                </div>
+                <Button type="submit" className="self-end">
+                  Generate heats
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
-          <details className="mb-8 rounded-lg border border-black/10 p-4">
-            <summary className="cursor-pointer font-semibold uppercase tracking-wide text-black/60">
-              Add Single Heat (manual)
-            </summary>
+          <details className="rounded-xl border border-border bg-card p-4">
+            <summary className="cursor-pointer font-semibold">Add a single heat (manual)</summary>
             <form
               action={createHeat.bind(null, eventId)}
-              className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4"
+              className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
             >
-              <label className="flex flex-col gap-1 text-sm">
-                Floor
-                <select
-                  name="floor_id"
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                >
-                  {(floors ?? []).map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                WOD
-                <select
-                  name="wod_id"
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                >
-                  {(wods ?? []).map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Division
-                <select
-                  name="division_id"
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                >
-                  {orderedDivisions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Heat #
-                <input
-                  name="heat_number"
-                  type="number"
-                  min={1}
-                  required
-                  className="rounded-md border border-black/20 px-3 py-2"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Of (total heats)
-                <input
-                  name="heat_count"
-                  type="number"
-                  min={1}
-                  className="rounded-md border border-black/20 px-3 py-2"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Lanes
-                <input
+              <PickOne id="add-floor" name="floor_id" label="Floor" options={floorOptions} />
+              <PickOne id="add-wod" name="wod_id" label="WOD" options={wodOptions} />
+              <PickOne
+                id="add-division"
+                name="division_id"
+                label="Division"
+                options={orderedDivisions.map((d) => ({ value: d.id, label: d.name }))}
+              />
+              <div className="grid gap-2">
+                <Label htmlFor="add-number">Heat #</Label>
+                <Input id="add-number" name="heat_number" type="number" min={1} required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="add-count">Of (total heats)</Label>
+                <Input id="add-count" name="heat_count" type="number" min={1} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="add-lanes">Lanes</Label>
+                <Input
+                  id="add-lanes"
                   name="lane_count"
                   type="number"
                   min={1}
                   max={20}
                   defaultValue={6}
-                  className="rounded-md border border-black/20 px-3 py-2"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Scheduled start
-                <input
-                  name="scheduled_start"
-                  type="datetime-local"
-                  className="rounded-md border border-black/20 px-3 py-2"
-                />
-              </label>
-              <button className="control-btn control-btn-red self-end px-6 py-3 text-base">
-                Add Heat
-              </button>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="add-start">Scheduled start</Label>
+                <Input id="add-start" name="scheduled_start" type="datetime-local" />
+              </div>
+              <Button type="submit" className="self-end">
+                Add heat
+              </Button>
             </form>
           </details>
         </>
@@ -302,43 +279,51 @@ export default async function HeatsPage({ params }: { params: Promise<{ eventId:
         {typedHeats.map((h) => {
           const completed = Boolean(h.ended_at);
           const isNextUp = h.id === nextUpcomingId;
+          const label = `${h.wods?.name ?? "WOD"} — Heat ${h.heat_number}`;
           return (
             <div
               key={h.id}
-              className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+              className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3 ${
                 isNextUp
-                  ? "border-repone-red bg-red-50 ring-1 ring-repone-red"
+                  ? "border-primary bg-primary/10 ring-1 ring-primary"
                   : completed
-                    ? "border-black/10 bg-black/[0.02]"
-                    : "border-black/10"
+                    ? "border-border bg-background"
+                    : "border-border bg-card"
               }`}
             >
               <Link href={`/admin/events/${eventId}/heats/${h.id}`} className="flex-1">
-                <p className="flex items-center gap-2 font-semibold">
-                  {h.wods?.name} — Heat {h.heat_number}
+                <p className="flex flex-wrap items-center gap-2 font-semibold">
+                  {label}
                   {h.heat_count ? ` / ${h.heat_count}` : ""}
                   {completed && (
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-800">
-                      ✓ Completed
-                    </span>
+                    <Badge className="border-success/40 bg-success/10 text-success-text uppercase">
+                      <Check aria-hidden />
+                      Completed
+                    </Badge>
                   )}
-                  {isNextUp && (
-                    <span className="rounded-full bg-repone-red px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                      Next Up
-                    </span>
-                  )}
+                  {isNextUp && <Badge className="uppercase">Next up</Badge>}
                 </p>
-                <p className="text-xs uppercase tracking-wide text-black/50">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
                   {h.divisions?.name} · {h.floors?.name} · {h.lanes?.length ?? 0} lanes
                 </p>
               </Link>
-              <form action={deleteHeat.bind(null, eventId, h.id)}>
-                <button className="text-sm text-black/40 hover:text-repone-red">Remove</button>
-              </form>
+              <ConfirmAction
+                trigger="Remove"
+                title={`Remove ${label}?`}
+                description="The heat is deleted with its lane assignments and any results entered for it. This cannot be undone."
+                confirmLabel="Remove heat"
+                onConfirm={deleteHeat.bind(null, eventId, h.id)}
+              />
             </div>
           );
         })}
-        {heats?.length === 0 && <p className="text-black/50">No heats yet.</p>}
+        {heats?.length === 0 && canCreate && (
+          <EmptyState
+            icon={ListOrdered}
+            title="No heats yet"
+            description="Generate heats for a division with the form above."
+          />
+        )}
       </div>
     </div>
   );

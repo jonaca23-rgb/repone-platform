@@ -1,11 +1,26 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { ChevronLeft, ChevronRight, ListOrdered } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
 import { floorWatches } from "@/lib/realtime/floorWatches";
 import { useRefreshOnChanges } from "@/lib/realtime/useRefreshOnChanges";
 import { TimerDisplay } from "@/components/graphics/TimerDisplay";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { EmptyState } from "@/components/app/EmptyState";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   setCurrentHeat,
   setActiveGraphic,
@@ -45,6 +60,46 @@ const GRAPHIC_BUTTONS: Array<{ key: ActiveGraphic; label: string }> = [
   { key: "score", label: "Score" },
   { key: "leaderboard", label: "Leaderboard" },
 ];
+
+/** Live controls: 64px tall so they're hard to miss on a tablet mid-broadcast. */
+const LIVE = "min-h-16";
+
+/**
+ * Production builds hide server error text, so the message names what failed;
+ * the detail is added in development.
+ */
+function failureMessage(what: string, e: unknown): string {
+  const detail =
+    process.env.NODE_ENV === "development" && e instanceof Error ? ` (${e.message})` : "";
+  return `Couldn't ${what}. Check the connection and try again.${detail}`;
+}
+
+function Section({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const id = `section-${title.toLowerCase().replace(/\W+/g, "-")}`;
+  return (
+    <Card size="sm" role="region" aria-labelledby={id} className={className}>
+      <CardHeader>
+        <CardTitle>
+          <h2
+            id={id}
+            className="text-xs font-semibold tracking-widest text-muted-foreground uppercase"
+          >
+            {title}
+          </h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
 
 export function DashboardClient({
   floorId,
@@ -90,21 +145,33 @@ export function DashboardClient({
     anchorTimeMs: state?.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
   });
 
-  // Every control goes through here: the action is awaited, "Sending…" shows
-  // while it runs, and a failure is shown to the operator instead of
-  // vanishing mid-broadcast. Production builds hide server error text, so the
-  // message names what failed; the detail is added in development.
+  // Every one-tap control goes through here: the action is awaited,
+  // "Sending…" shows while it runs, and a failure is shown to the operator
+  // instead of vanishing mid-broadcast.
   function go(what: string, action: () => Promise<unknown>) {
     setFailure(null);
     startTransitionFn(async () => {
       try {
         await action();
       } catch (e) {
-        const detail =
-          process.env.NODE_ENV === "development" && e instanceof Error ? ` (${e.message})` : "";
-        setFailure(`Couldn't ${what}. Check the connection and try again.${detail}`);
+        setFailure(failureMessage(what, e));
       }
     });
+  }
+
+  // The confirmed controls (Reset, Clear graphics) run inside the dialog,
+  // which stays open and shows the same message as a toast on failure.
+  function confirmed(what: string, action: () => Promise<unknown>) {
+    return async () => {
+      setFailure(null);
+      try {
+        await action();
+      } catch (e) {
+        // A redirect or notFound is Next's to handle; ConfirmAction rethrows it too.
+        unstable_rethrow(e);
+        throw new Error(failureMessage(what, e));
+      }
+    };
   }
 
   function selectHeat(index: number) {
@@ -115,118 +182,142 @@ export function DashboardClient({
 
   if (!currentHeat) {
     return (
-      <div className="flex min-h-[80vh] items-center justify-center px-6 text-center text-white/60">
-        No heats scheduled on this floor yet. Set them up in Admin → Heats & Lanes.
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <EmptyState
+          icon={ListOrdered}
+          title="No heats scheduled on this floor yet"
+          description="Set them up in Admin → Heats & Lanes."
+        />
       </div>
     );
   }
 
+  const paused = state?.timer_status === "paused";
+  const athletesInHeat = currentHeat.lanes.filter((l) => l.athleteId);
+
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-4 sm:gap-6 sm:py-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-repone-gray px-5 py-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-white/50">{eventName}</p>
-          <p className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">
-            {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
-            {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
-          </p>
-          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
-            {currentHeat.division.name}
-          </p>
-        </div>
-        <span className="flex items-center gap-3">
-          <span role="status" aria-live="polite" className="text-xs uppercase text-white/60">
-            {pending ? "Sending…" : ""}
-          </span>
-          <span
-            className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
-            title={connected ? "Live" : "Reconnecting…"}
-          />
-        </span>
-      </div>
+      <Card size="sm">
+        <CardContent className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">{eventName}</p>
+            <h1 className="font-display text-2xl font-bold tracking-wide uppercase">
+              {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
+              {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
+            </h1>
+            <p className="text-sm font-semibold tracking-wide text-brand-text uppercase">
+              {currentHeat.division.name}
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs tracking-wide uppercase">
+            <span role="status" aria-live="polite" className="text-muted-foreground">
+              {pending ? "Sending…" : ""}
+            </span>
+            <span
+              role="status"
+              aria-live="polite"
+              className={cn(
+                "flex items-center gap-2 font-semibold",
+                connected ? "text-success-text" : "text-brand-text",
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "size-3 rounded-full",
+                  connected ? "bg-success" : "animate-pulse bg-primary",
+                )}
+              />
+              {connected ? "Live" : "Reconnecting…"}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       {failure && (
         <div
           role="alert"
-          className="flex items-center justify-between gap-3 rounded-xl border border-repone-red bg-repone-red/15 px-5 py-3 text-sm"
+          className="flex items-center justify-between gap-3 rounded-xl border border-destructive/50 bg-destructive/10 px-5 py-2 text-sm"
         >
           <span>{failure}</span>
-          <button className="text-xs font-bold uppercase" onClick={() => setFailure(null)}>
+          <Button variant="ghost" className="min-h-11 shrink-0" onClick={() => setFailure(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
       {!onAir && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-repone-red bg-repone-red/15 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary bg-primary/10 px-5 py-4">
           <span className="font-semibold">
             No heat is on air. Overlays show nothing until one is.
           </span>
-          <button
-            className="control-btn control-btn-red"
-            onClick={() => selectHeat(effectiveIndex)}
-          >
+          <Button size="touch" className={LIVE} onClick={() => selectHeat(effectiveIndex)}>
             Put Heat {currentHeat.heatNumber} on air
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Heat nav */}
       <div className="grid grid-cols-2 gap-3">
-        <button
-          className="control-btn"
+        <Button
+          size="touch"
+          variant="secondary"
+          className={cn(LIVE, "gap-2")}
           disabled={effectiveIndex <= 0}
           onClick={() => selectHeat(Math.max(0, effectiveIndex - 1))}
         >
-          ← Previous Heat
-        </button>
-        <button
-          className="control-btn"
+          <ChevronLeft aria-hidden />
+          Previous heat
+        </Button>
+        <Button
+          size="touch"
+          variant="secondary"
+          className={cn(LIVE, "gap-2")}
           disabled={effectiveIndex >= heats.length - 1}
           onClick={() => selectHeat(Math.min(heats.length - 1, effectiveIndex + 1))}
         >
-          Next Heat →
-        </button>
+          Next heat
+          <ChevronRight aria-hidden />
+        </Button>
       </div>
 
       {/* Lanes */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <ul aria-label="Lanes" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {currentHeat.lanes.map((lane) => (
-          <div
+          <li
             key={lane.laneNumber}
-            className="flex items-center gap-3 rounded-lg bg-repone-gray px-4 py-3"
+            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-repone-red font-bold">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded bg-primary font-bold text-primary-foreground">
               {lane.laneNumber}
             </span>
             <span className="truncate font-semibold uppercase">{lane.name ?? "—"}</span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      {/* Timer */}
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">Timer</p>
-        <div className="mb-4 flex justify-center">
+      <Section title="Timer">
+        <div className="flex justify-center">
           <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} />
         </div>
-        <div className="mb-3 flex justify-center gap-2 text-xs">
+        <div role="group" aria-label="Timer direction" className="flex justify-center gap-2">
           {(["count_down", "count_up"] as const).map((d) => (
-            <button
+            <Button
               key={d}
+              size="touch"
+              variant={countDirection === d ? "default" : "secondary"}
+              aria-pressed={countDirection === d}
               onClick={() => setCountDirection(d)}
-              className={`rounded-full px-3 py-1 font-semibold uppercase ${
-                countDirection === d ? "bg-repone-red" : "bg-white/10 text-white/60"
-              }`}
             >
-              {d === "count_down" ? "Count Down" : "Count Up"}
-            </button>
+              {d === "count_down" ? "Count down" : "Count up"}
+            </Button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <button
-            className="control-btn control-btn-red"
+          <Button
+            size="touch"
+            className={LIVE}
             onClick={() =>
               go("start the timer", () =>
                 startTimer(
@@ -241,130 +332,153 @@ export function DashboardClient({
             }
           >
             Start
-          </button>
-          <button
-            className="control-btn"
+          </Button>
+          <Button
+            size="touch"
+            variant="secondary"
+            className={LIVE}
             onClick={() =>
-              go(state?.timer_status === "paused" ? "resume the timer" : "pause the timer", () =>
-                state?.timer_status === "paused"
-                  ? resumeTimer(floorId, eventId)
-                  : pauseTimer(floorId, eventId),
+              go(paused ? "resume the timer" : "pause the timer", () =>
+                paused ? resumeTimer(floorId, eventId) : pauseTimer(floorId, eventId),
               )
             }
           >
-            {state?.timer_status === "paused" ? "Resume" : "Pause"}
-          </button>
-          <button
-            className="control-btn"
-            onClick={() => go("reset the timer", () => resetTimer(floorId, eventId))}
-          >
-            Reset
-          </button>
+            {paused ? "Resume" : "Pause"}
+          </Button>
+          <ConfirmAction
+            trigger="Reset"
+            title="Reset the timer?"
+            description="The clock goes back to zero and stops, on the dashboard and on air."
+            confirmLabel="Reset timer"
+            variant="default"
+            triggerVariant="secondary"
+            triggerSize="touch"
+            triggerClassName={LIVE}
+            onConfirm={confirmed("reset the timer", () => resetTimer(floorId, eventId))}
+          />
           <div className="flex gap-2">
-            <button
-              className="control-btn flex-1"
+            <Button
+              size="touch"
+              variant="secondary"
+              className={cn(LIVE, "flex-1 px-2")}
               onClick={() => go("adjust the timer", () => adjustTimer(floorId, -10, eventId))}
             >
               −10s
-            </button>
-            <button
-              className="control-btn flex-1"
+            </Button>
+            <Button
+              size="touch"
+              variant="secondary"
+              className={cn(LIVE, "flex-1 px-2")}
               onClick={() => go("adjust the timer", () => adjustTimer(floorId, 10, eventId))}
             >
               +10s
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Section>
 
-      {/* Graphics */}
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">Graphics</p>
+      <Section title="Graphics">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {GRAPHIC_BUTTONS.map((g) => (
-            <button
-              key={g.key}
-              className={`control-btn ${state?.active_graphic === g.key ? "control-btn-red" : ""}`}
-              onClick={() =>
-                go(`show ${g.label.toLowerCase()}`, () => setActiveGraphic(floorId, g.key, eventId))
-              }
-            >
-              Show {g.label}
-            </button>
-          ))}
-          <button
-            className="control-btn control-btn-outline border-white/30 !bg-transparent !text-white col-span-2 sm:col-span-3"
-            onClick={() => go("clear the graphics", () => clearGraphics(floorId, eventId))}
-          >
-            Clear Graphics
-          </button>
+          {GRAPHIC_BUTTONS.map((g) => {
+            const pressed = state?.active_graphic === g.key;
+            return (
+              <Button
+                key={g.key}
+                size="touch"
+                variant={pressed ? "default" : "secondary"}
+                aria-pressed={pressed}
+                className={cn(LIVE, "h-auto px-3 whitespace-normal")}
+                onClick={() =>
+                  go(`show ${g.label.toLowerCase()}`, () =>
+                    setActiveGraphic(floorId, g.key, eventId),
+                  )
+                }
+              >
+                Show {g.label}
+              </Button>
+            );
+          })}
+          <div className="col-span-2 grid sm:col-span-3">
+            <ConfirmAction
+              trigger="Clear graphics"
+              title="Clear all graphics from air?"
+              description="The graphic, the lower third and the sponsor all come off the program output."
+              confirmLabel="Clear graphics"
+              variant="default"
+              triggerVariant="outline"
+              triggerSize="touch"
+              triggerClassName={LIVE}
+              onConfirm={confirmed("clear the graphics", () => clearGraphics(floorId, eventId))}
+            />
+          </div>
         </div>
-      </div>
+      </Section>
 
-      {/* Lower third */}
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">
-          Lower Third
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={lowerThirdAthlete}
-            onChange={(e) => setLowerThirdAthlete(e.target.value)}
-            className="flex-1 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-          >
-            <option value="">Select athlete…</option>
-            {currentHeat.lanes
-              .filter((l) => l.athleteId)
-              .map((l) => (
-                <option key={l.laneNumber} value={l.athleteId!}>
-                  Lane {l.laneNumber} — {l.name}
-                </option>
-              ))}
-          </select>
-          <button
-            className="control-btn control-btn-red w-fit px-6"
+      <Section title="Lower third">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid min-w-56 flex-1 gap-2">
+            <Label htmlFor="lower-third-athlete">Lower third athlete</Label>
+            <Select value={lowerThirdAthlete} onValueChange={setLowerThirdAthlete}>
+              <SelectTrigger id="lower-third-athlete" className="w-full data-[size=default]:h-12">
+                <SelectValue placeholder="Select athlete…" />
+              </SelectTrigger>
+              <SelectContent>
+                {athletesInHeat.map((l) => (
+                  <SelectItem key={l.laneNumber} value={l.athleteId!}>
+                    Lane {l.laneNumber} — {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            size="touch"
+            className={LIVE}
             disabled={!lowerThirdAthlete}
             onClick={() =>
               go("show the lower third", () => setLowerThird(floorId, lowerThirdAthlete, eventId))
             }
           >
             Show
-          </button>
-          <button
-            className="control-btn w-fit px-6"
+          </Button>
+          <Button
+            size="touch"
+            variant="secondary"
+            className={LIVE}
             onClick={() => go("hide the lower third", () => setLowerThird(floorId, null, eventId))}
           >
             Hide
-          </button>
+          </Button>
         </div>
-      </div>
+      </Section>
 
-      {/* Sponsors */}
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">Sponsors</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {sponsors.map((s) => (
-            <button
-              key={s.id}
-              className={`control-btn ${state?.active_sponsor_id === s.id ? "control-btn-red" : ""}`}
-              onClick={() =>
-                go(`toggle ${s.business_name}`, () =>
-                  setActiveSponsor(
-                    floorId,
-                    state?.active_sponsor_id === s.id ? null : s.id,
-                    eventId,
-                  ),
-                )
-              }
-            >
-              {s.business_name}
-            </button>
-          ))}
-          {sponsors.length === 0 && (
-            <p className="text-sm text-white/40">No active sponsors for this event.</p>
-          )}
-        </div>
-      </div>
+      <Section title="Sponsors">
+        {sponsors.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {sponsors.map((s) => {
+              const pressed = state?.active_sponsor_id === s.id;
+              return (
+                <Button
+                  key={s.id}
+                  size="touch"
+                  variant={pressed ? "default" : "secondary"}
+                  aria-pressed={pressed}
+                  className={cn(LIVE, "h-auto px-3 whitespace-normal")}
+                  onClick={() =>
+                    go(`toggle ${s.business_name}`, () =>
+                      setActiveSponsor(floorId, pressed ? null : s.id, eventId),
+                    )
+                  }
+                >
+                  {s.business_name}
+                </Button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No active sponsors for this event.</p>
+        )}
+      </Section>
     </div>
   );
 }

@@ -1,16 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/db/server";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { producerEventTitle } from "../producerEvent";
+
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  return { title: await producerEventTitle((await params).eventId, "Scores") };
+}
 
 // Read-only score status across the whole event — "Official/unofficial
 // score status" + a way in to "Score corrections" per spec. Producer RLS
 // (0024_event_role_assignments.sql) already permits writing results for an
 // assigned event, so corrections happen on the existing Score Keeper screen
 // for the relevant floor rather than a second results-entry UI here.
-export default async function ProducerEventScoresPage({
-  params,
-}: {
-  params: Promise<{ eventId: string }>;
-}) {
+export default async function ProducerEventScoresPage({ params }: Props) {
   const { eventId } = await params;
   const supabase = await createClient();
 
@@ -54,55 +62,58 @@ export default async function ProducerEventScoresPage({
   });
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="flex flex-col gap-1.5">
-        {resultRows.map((r) => {
-          const heat = heatById.get(r.heat_id);
-          const name = r.athletes
-            ? `${r.athletes.first_name} ${r.athletes.last_name}`
-            : (r.teams?.name ?? "—");
-          return (
-            <div
-              key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-repone-gray px-4 py-2.5"
-            >
-              <div>
-                <span className="font-semibold text-white">{name}</span>
-                <span className="ml-2 text-sm text-white/50">
-                  {heat?.wods?.name} · Heat {heat?.heat_number} ({heat?.divisions?.name})
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                {r.manually_adjusted && (
-                  <span className="rounded-full bg-black/40 px-2 py-0.5 text-white/60">
-                    Adjusted
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+      <PageHeader
+        title="Scores"
+        description="Every result for this event. Corrections happen on the floor's Score Keeper screen."
+      />
+      {resultRows.length > 0 ? (
+        <ul className="flex flex-col gap-1.5">
+          {resultRows.map((r) => {
+            const heat = heatById.get(r.heat_id);
+            const name = r.athletes
+              ? `${r.athletes.first_name} ${r.athletes.last_name}`
+              : (r.teams?.name ?? "—");
+            return (
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-2"
+              >
+                <div>
+                  <span className="font-semibold">{name}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {heat?.wods?.name} · Heat {heat?.heat_number} ({heat?.divisions?.name})
                   </span>
-                )}
-                <span
-                  className={`rounded-full px-2 py-0.5 font-bold ${
-                    r.status === "completed"
-                      ? "bg-green-500/20 text-green-400"
-                      : "bg-repone-red/20 text-repone-red"
-                  }`}
-                >
-                  {r.status}
-                </span>
-                {heat && (
-                  <Link
-                    href={`/scorekeeper/${heat.floor_id}`}
-                    className="text-repone-red underline"
+                </div>
+                <div className="flex items-center gap-2">
+                  {r.manually_adjusted && <Badge variant="secondary">Adjusted</Badge>}
+                  <Badge
+                    variant="outline"
+                    className={
+                      r.status === "completed"
+                        ? "border-success/40 bg-success/10 text-success-text"
+                        : "border-warning/40 bg-warning/10 text-warning-text"
+                    }
                   >
-                    Correct →
-                  </Link>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {resultRows.length === 0 && (
-          <p className="text-white/50">No scores recorded for this event yet.</p>
-        )}
-      </div>
+                    {r.status}
+                  </Badge>
+                  {heat && (
+                    <Link
+                      href={`/scorekeeper/${heat.floor_id}`}
+                      className="inline-flex min-h-11 items-center gap-1 rounded-sm px-2 text-sm font-medium text-brand-text underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+                    >
+                      Correct
+                      <span className="sr-only"> {name}</span>
+                    </Link>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <EmptyState icon={ClipboardList} title="No scores recorded for this event yet" />
+      )}
     </div>
   );
 }

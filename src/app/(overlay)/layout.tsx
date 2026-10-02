@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "../globals.css";
+import { fontVariables } from "../fonts";
 
 export const metadata: Metadata = {
   title: "RepOne Broadcast Overlay",
@@ -9,10 +10,11 @@ export const metadata: Metadata = {
 // is genuinely transparent — required for these routes to work as OBS/vMix/
 // YoloBox browser sources. The (app) group's root layout paints an opaque
 // background for the admin/dashboard UI; this one deliberately does not.
-// No next/font/google here either — see the matching comment in (app)/layout.tsx.
+// color-scheme is reset so the dark theme never leaks into the browser source.
+// Fonts are bundled locally (src/app/fonts.ts); colours come from --broadcast-*.
 export default function OverlayRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className={`h-full ${fontVariables}`} style={{ colorScheme: "normal" }}>
       <body className="h-full w-full bg-transparent">{children}</body>
     </html>
   );

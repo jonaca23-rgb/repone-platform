@@ -14,9 +14,9 @@ A producer drives a floor's broadcast from the Production Dashboard (current hea
 
 ## How to get to it (user POV)
 
-- Sign in at `/login` as `producer@repone.test` → `/producer` → "Select an Event to Produce" → the event → tab `Production`.
+- Sign in at `/login` as `producer@repone.test` → start page `/` → `Production` card → `/producer` ("Select an event to produce") → the event → event tab `Production`.
 - `/dashboard` → "Select a Floor" → `/dashboard/<floorId>` (same controls).
-- Admin header `PRODUCTION DASHBOARD →`.
+- Admin: the account menu (avatar and name, sidebar footer) → `Production`.
 - Overlays: `/overlay/<floorId>` lists every browser-source URL (no login).
 
 ## Driving it with Chrome DevTools MCP
@@ -27,7 +27,7 @@ Preconditions:
 - No scoring run in progress (the scorekeeper screen follows the producer's heat).
 - Evidence folder: `dir=$(scripts/evidence.sh production-overlays)`.
 
-- **Sign in.** `new_page url=http://localhost:3200/login isolatedContext=verify-producer`, sign in as `producer@repone.test`. Lands on `/producer` with heading `Select an Event to Produce`.
+- **Sign in.** `new_page url=http://localhost:3200/login isolatedContext=verify-producer`, sign in as `producer@repone.test`. Lands on `/`, the start page with the `Production` card.
 - **Open the dashboard.** `navigate_page url=http://localhost:3200/dashboard/00000000-0000-0000-0000-000000000030`. Header shows `WOD 2 · Heat 6 / 9` and `Intermediate Female`; six lane tiles.
 - **Open the program overlay.** `new_page url=http://localhost:3200/overlay/00000000-0000-0000-0000-000000000030/program isolatedContext=verify-anon`. With nothing active it renders an empty transparent page.
 - **Heat intro.** On the dashboard `click` `Show Heat Intro`. Program shows `WOD 2`, `Heat 6 of 9`, `Intermediate Female`. DB: `scripts/q.sh "select active_graphic from broadcast_state where floor_id='00000000-0000-0000-0000-000000000030'"` → `heat_intro`.

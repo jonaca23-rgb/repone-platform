@@ -1,17 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowRight, ExternalLink } from "lucide-react";
 import { getEventLiveContext } from "@/lib/db/queries";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { producerEventTitle } from "../producerEvent";
+
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  return { title: await producerEventTitle((await params).eventId, "Overview") };
+}
 
 // Event-level overview/command-center — "1. Event dashboard" in the spec,
 // distinct from the "10. Production dashboard" (live floor control, the
 // Production tab, which is today's existing Production Dashboard screen).
 // Quick status + links into the other tabs; the actual live-running work
 // happens on Production/Broadcast.
-export default async function ProducerEventDashboardPage({
-  params,
-}: {
-  params: Promise<{ eventId: string }>;
-}) {
+export default async function ProducerEventDashboardPage({ params }: Props) {
   const { eventId } = await params;
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();
@@ -20,31 +28,56 @@ export default async function ProducerEventDashboardPage({
   const liveFloors = context.floors.filter((f) => f.initialBroadcastState?.current_heat_id);
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-4 px-4 py-6 sm:grid-cols-2 lg:grid-cols-3">
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="text-xs uppercase tracking-widest text-white/50">Status</p>
-        <p className="mt-1 text-2xl font-bold uppercase text-white">{context.eventStatus}</p>
-      </div>
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="text-xs uppercase tracking-widest text-white/50">Floors</p>
-        <p className="mt-1 text-2xl font-bold text-white">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+      <PageHeader title="Overview" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Status">
+          <span className="uppercase">{context.eventStatus}</span>
+        </Stat>
+        <Stat label="Floors">
           {context.floors.length}{" "}
-          <span className="text-sm font-normal text-white/50">({liveFloors.length} live)</span>
-        </p>
+          <span className="text-sm font-normal text-muted-foreground">
+            ({liveFloors.length} live)
+          </span>
+        </Stat>
+        <Stat label="Heats">{totalHeats}</Stat>
       </div>
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="text-xs uppercase tracking-widest text-white/50">Heats</p>
-        <p className="mt-1 text-2xl font-bold text-white">{totalHeats}</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Button asChild size="touch" className="gap-2">
+          <Link href={`/producer/events/${eventId}/production`}>
+            Run production
+            <ArrowRight aria-hidden />
+          </Link>
+        </Button>
+        <Button asChild size="touch" variant="secondary" className="gap-2">
+          <Link href={`/live/${eventId}`} target="_blank">
+            Public leaderboard
+            <ExternalLink aria-hidden />
+            <span className="sr-only">(opens in a new tab)</span>
+          </Link>
+        </Button>
+        <Button asChild size="touch" variant="secondary" className="gap-2">
+          <Link href={`/admin/events/${eventId}`}>
+            Event setup (Admin)
+            <ArrowRight aria-hidden />
+          </Link>
+        </Button>
       </div>
-      <Link href={`/producer/events/${eventId}/production`} className="control-btn control-btn-red">
-        Run Production →
-      </Link>
-      <Link href={`/live/${eventId}`} target="_blank" className="control-btn">
-        Public Leaderboard →
-      </Link>
-      <Link href={`/admin/events/${eventId}`} className="control-btn">
-        Event Setup (Admin) →
-      </Link>
     </div>
+  );
+}
+
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="text-xs tracking-widest text-muted-foreground uppercase">
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-bold">{children}</p>
+      </CardContent>
+    </Card>
   );
 }

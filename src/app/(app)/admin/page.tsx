@@ -1,9 +1,29 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { CalendarDays, ImageOff } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
 import { bootstrapOrganization } from "@/lib/actions/org";
 import { createEvent, uploadEventCoverPhoto, removeEventCoverPhoto } from "@/lib/actions/events";
 import { DeleteEventButton } from "@/app/(app)/admin/DeleteEventButton";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NONE } from "@/lib/validation/none";
+
+export const metadata: Metadata = { title: "Events" };
 
 function formatDateRange(startsOn: string | null, endsOn: string | null) {
   if (!startsOn) return "Date TBD";
@@ -22,21 +42,19 @@ export default async function AdminHomePage() {
 
   if (!ctx?.organizationId) {
     return (
-      <div className="mx-auto max-w-md">
-        <h1 className="mb-2 text-2xl font-bold">Set up your organization</h1>
-        <p className="mb-6 text-sm text-black/60">
-          This is a one-time step for a brand new RepOne Platform account.
-        </p>
+      <div className="mx-auto flex max-w-md flex-col gap-6">
+        <PageHeader
+          title="Set up your organization"
+          description="This is a one-time step for a brand new RepOne Platform account."
+        />
         <form action={bootstrapOrganization} className="flex flex-col gap-3">
-          <input
-            name="name"
-            required
-            placeholder="Organization name (e.g. RepOneLive)"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-          <button className="control-btn control-btn-red w-fit px-6 py-3 text-base">
-            Create Organization
-          </button>
+          <div className="grid gap-2">
+            <Label htmlFor="org-name">Organization name</Label>
+            <Input id="org-name" name="name" required placeholder="e.g. RepOneLive" />
+          </div>
+          <Button type="submit" size="lg" className="w-fit">
+            Create organization
+          </Button>
         </form>
       </div>
     );
@@ -59,143 +77,148 @@ export default async function AdminHomePage() {
   const circuitById = new Map((circuits ?? []).map((c) => [c.id, c.name]));
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Events</h1>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Events"
+        description="Every competition your organization runs. Open one to set up divisions, heats, staff and payments."
+      />
 
-      <form
-        action={createEvent}
-        className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border border-black/10 p-4"
-      >
-        <label className="flex flex-col gap-1 text-sm">
-          Event name
-          <input
-            name="name"
-            required
-            className="rounded-md border border-black/20 px-3 py-2"
-            placeholder="Aprieta Entry Level"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Starts
-          <input
-            name="starts_on"
-            type="date"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Ends
-          <input
-            name="ends_on"
-            type="date"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Single Event or Circuit?
-          <select
-            name="circuit_choice"
-            defaultValue=""
-            className="rounded-md border border-black/20 px-3 py-2"
-          >
-            <option value="">Single Event (standalone)</option>
-            <option value="new">Start a new circuit…</option>
-            {(circuits ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                Add to circuit: {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          New circuit name
-          <input
-            name="new_circuit_name"
-            placeholder="only if 'Start a new circuit' above"
-            className="rounded-md border border-black/20 px-3 py-2"
-          />
-        </label>
-        <button className="control-btn control-btn-red px-6 py-3 text-base">New Event</button>
-      </form>
-
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {(events ?? []).map((e) => (
-          <div
-            key={e.id}
-            className="overflow-hidden rounded-lg border border-black/10 hover:border-repone-red"
-          >
-            <Link href={`/admin/events/${e.id}`} className="block">
-              <div className="relative aspect-video w-full bg-repone-black">
-                {e.cover_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset
-                  <img
-                    src={e.cover_image_url}
-                    alt={e.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <span className="px-4 text-center text-sm font-semibold uppercase tracking-wide text-white/30">
-                      No Cover Photo
-                    </span>
-                  </div>
-                )}
-                <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                  {e.status}
-                </span>
-                {e.circuit_id && circuitById.has(e.circuit_id) && (
-                  <span className="absolute right-2 top-2 rounded-full bg-repone-red px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                    {circuitById.get(e.circuit_id)}
-                  </span>
-                )}
-              </div>
-              <div className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-black/50">
-                  {formatDateRange(e.starts_on, e.ends_on)}
-                </p>
-                <p className="mt-0.5 text-lg font-bold">{e.name}</p>
-              </div>
-            </Link>
-
-            <div className="flex items-center justify-between gap-2 border-t border-black/5 px-4 py-2.5">
-              <details className="text-sm">
-                <summary className="cursor-pointer font-semibold text-repone-red">
-                  {e.cover_image_url ? "Change Photo" : "Upload Photo"}
-                </summary>
-                <form
-                  action={uploadEventCoverPhoto.bind(null, e.id)}
-                  className="mt-2 flex flex-wrap items-center gap-2"
-                >
-                  <input
-                    type="file"
-                    name="cover_photo"
-                    accept="image/*"
-                    required
-                    className="max-w-[180px] text-xs"
-                  />
-                  <button className="control-btn control-btn-red px-3 py-1.5 text-xs">Save</button>
-                </form>
-                {e.cover_image_url && (
-                  <form action={removeEventCoverPhoto.bind(null, e.id)} className="mt-2">
-                    <button className="text-xs text-black/40 hover:text-repone-red">
-                      Remove photo
-                    </button>
-                  </form>
-                )}
-              </details>
-              <DeleteEventButton eventId={e.id} eventName={e.name} />
+      <Card>
+        <CardContent>
+          <form action={createEvent} className="flex flex-wrap items-end gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="event-name">Event name</Label>
+              <Input id="event-name" name="name" required placeholder="Aprieta Entry Level" />
             </div>
-          </div>
-        ))}
-        {events?.length === 0 && <p className="text-black/50">No events yet — create one above.</p>}
-      </div>
+            <div className="grid gap-2">
+              <Label htmlFor="event-starts">Starts</Label>
+              <Input id="event-starts" name="starts_on" type="date" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="event-ends">Ends</Label>
+              <Input id="event-ends" name="ends_on" type="date" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="event-circuit">Single event or circuit?</Label>
+              <Select name="circuit_choice" defaultValue={NONE}>
+                <SelectTrigger id="event-circuit" className="min-w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Single event (standalone)</SelectItem>
+                  <SelectItem value="new">Start a new circuit…</SelectItem>
+                  {(circuits ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      Add to circuit: {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="event-new-circuit">New circuit name</Label>
+              <Input
+                id="event-new-circuit"
+                name="new_circuit_name"
+                placeholder="Only for a new circuit"
+              />
+            </div>
+            <Button type="submit">New event</Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <p className="mt-8 text-sm text-black/50">
+      {events?.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title="No events yet"
+          description="Create your first event with the form above."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {(events ?? []).map((e) => (
+            <Card key={e.id} className="gap-0 overflow-hidden py-0 hover:ring-primary/60">
+              <Link
+                href={`/admin/events/${e.id}`}
+                className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+              >
+                <div className="relative aspect-video w-full bg-muted">
+                  {e.cover_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset
+                    <img
+                      src={e.cover_image_url}
+                      alt={e.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <ImageOff aria-hidden className="size-6" />
+                      <span className="text-xs font-semibold uppercase tracking-wide">
+                        No cover photo
+                      </span>
+                    </div>
+                  )}
+                  <Badge variant="secondary" className="absolute left-2 top-2 uppercase">
+                    {e.status}
+                  </Badge>
+                  {e.circuit_id && circuitById.has(e.circuit_id) && (
+                    <Badge className="absolute right-2 top-2 uppercase">
+                      {circuitById.get(e.circuit_id)}
+                    </Badge>
+                  )}
+                </div>
+                <div className="p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {formatDateRange(e.starts_on, e.ends_on)}
+                  </p>
+                  <p className="mt-0.5 text-lg font-bold">{e.name}</p>
+                </div>
+              </Link>
+
+              <div className="flex items-start justify-between gap-2 border-t border-border px-4 py-2.5">
+                <details className="text-sm">
+                  <summary className="cursor-pointer py-1.5 font-semibold text-brand-text">
+                    {e.cover_image_url ? "Change photo" : "Upload photo"}
+                  </summary>
+                  <form
+                    action={uploadEventCoverPhoto.bind(null, e.id)}
+                    className="mt-2 flex flex-wrap items-center gap-2"
+                  >
+                    <Input
+                      type="file"
+                      name="cover_photo"
+                      accept="image/*"
+                      required
+                      aria-label={`Cover photo for ${e.name}`}
+                      className="max-w-[200px]"
+                    />
+                    <Button type="submit" size="sm">
+                      Save
+                    </Button>
+                  </form>
+                  {e.cover_image_url && (
+                    <div className="mt-2">
+                      <ConfirmAction
+                        trigger="Remove photo"
+                        title={`Remove the cover photo from ${e.name}?`}
+                        description="The event card and event page go back to having no cover photo. You can upload a new one any time."
+                        confirmLabel="Remove photo"
+                        onConfirm={removeEventCoverPhoto.bind(null, e.id)}
+                      />
+                    </div>
+                  )}
+                </details>
+                <DeleteEventButton eventId={e.id} eventName={e.name} />
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <p className="text-sm text-muted-foreground">
         Running a season across multiple events?{" "}
-        <Link href="/admin/circuits" className="text-repone-red hover:underline">
-          Manage circuits and cross-event standings →
+        <Link href="/admin/circuits" className="text-brand-text hover:underline">
+          Manage circuits and cross-event standings
         </Link>
       </p>
     </div>

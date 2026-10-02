@@ -1,7 +1,20 @@
 "use client";
 
-import { type FormEvent, startTransition, useActionState } from "react";
+import { type FormEvent, startTransition, useActionState, useId } from "react";
+import { toast } from "sonner";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { FormResult } from "@/lib/actions/inviteResult";
+import { NONE } from "@/lib/validation/none";
 
 type FormAction = (previous: FormResult, formData: FormData) => Promise<FormResult>;
 type ButtonAction = (previous: FormResult) => Promise<FormResult>;
@@ -9,17 +22,17 @@ type ButtonAction = (previous: FormResult) => Promise<FormResult>;
 function Message({ state }: { state: FormResult }) {
   if (!state) return null;
   return (
-    <p role="status" className={`text-sm ${state.ok ? "text-green-700" : "text-repone-red"}`}>
+    <p role="status" className={`text-sm ${state.ok ? "text-success-text" : "text-destructive"}`}>
       {state.message}
     </p>
   );
 }
 
 /**
- * Invite by email (the Team page, an event's staff sections), with the result
- * shown inline. Submitted through the action by hand rather than as <form
- * action>: React resets a form's uncontrolled fields after its action runs,
- * which would wipe what was typed when the action returns an error.
+ * Invite by email (the Members page, an event's staff sections), with the
+ * result shown inline. Submitted through the action by hand rather than as
+ * <form action>: React resets a form's uncontrolled fields after its action
+ * runs, which would wipe what was typed when the action returns an error.
  */
 export function InviteByEmailForm({
   action,
@@ -27,12 +40,13 @@ export function InviteByEmailForm({
   showRoleLabel = false,
 }: {
   action: FormAction;
-  /** Org roles to choose from (the Team page); omitted for an event section. */
+  /** Org roles to choose from (the Members page); omitted for an event section. */
   roles?: { value: string; label: string }[];
   /** The commentator's on-air role. */
   showRoleLabel?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const id = useId();
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,74 +57,111 @@ export function InviteByEmailForm({
   return (
     <div className="flex flex-col gap-2">
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          Email
-          <input
+        <div className="grid gap-2">
+          <Label htmlFor={`${id}-email`}>Email</Label>
+          <Input
+            id={`${id}-email`}
             type="email"
             name="email"
             required
             placeholder="name@example.com"
-            className="rounded-md border border-black/20 px-3 py-2"
+            className="w-64"
           />
-        </label>
+        </div>
         {roles && (
-          <label className="flex flex-col gap-1 text-sm">
-            Role
-            <select name="role" required className="rounded-md border border-black/20 px-3 py-2">
-              {roles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="grid gap-2">
+            <Label htmlFor={`${id}-role`}>Role</Label>
+            <Select name="role" required defaultValue={roles[0]?.value}>
+              <SelectTrigger id={`${id}-role`} className="min-w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
         {showRoleLabel && (
-          <label className="flex flex-col gap-1 text-sm">
-            Role label (optional)
-            <select name="roleLabel" className="rounded-md border border-black/20 px-3 py-2">
-              <option value="">—</option>
-              <option value="main_commentator">Main Commentator</option>
-              <option value="co_commentator">Co-Commentator</option>
-              <option value="sideline_reporter">Sideline Reporter</option>
-              <option value="interviewer">Interviewer</option>
-            </select>
-          </label>
+          <div className="grid gap-2">
+            <Label htmlFor={`${id}-role-label`}>Role label (optional)</Label>
+            <Select name="roleLabel" defaultValue={NONE}>
+              <SelectTrigger id={`${id}-role-label`} className="min-w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>None</SelectItem>
+                <SelectItem value="main_commentator">Main Commentator</SelectItem>
+                <SelectItem value="co_commentator">Co-Commentator</SelectItem>
+                <SelectItem value="sideline_reporter">Sideline Reporter</SelectItem>
+                <SelectItem value="interviewer">Interviewer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         )}
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-repone-red px-4 py-2 font-semibold text-white disabled:opacity-60"
-        >
+        <Button type="submit" disabled={pending}>
           {pending ? "Inviting…" : "Invite"}
-        </button>
+        </Button>
       </form>
       <Message state={state} />
     </div>
   );
 }
 
-/** A one-click action (Resend, remove a role) with its result shown beside it. */
+/** A one-click, harmless action (Resend) with its result shown beside it. */
 export function InlineActionButton({
   action,
   label,
   ariaLabel,
-  className = "text-sm text-repone-red hover:underline",
 }: {
   action: ButtonAction;
   label: string;
   ariaLabel?: string;
-  className?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
     <span className="inline-flex items-center gap-2">
       <form action={formAction} className="inline">
-        <button type="submit" disabled={pending} aria-label={ariaLabel} className={className}>
+        <Button type="submit" variant="link" size="sm" disabled={pending} aria-label={ariaLabel}>
           {label}
-        </button>
+        </Button>
       </form>
       <Message state={state} />
     </span>
+  );
+}
+
+/**
+ * A removal that returns a FormResult (remove a member's role), behind the
+ * confirm dialog: a refusal stays in the dialog as an error, success toasts.
+ */
+export function ConfirmFormResultAction({
+  action,
+  trigger,
+  title,
+  description,
+  confirmLabel,
+}: {
+  action: ButtonAction;
+  trigger: React.ReactNode;
+  title: string;
+  description: string;
+  confirmLabel: string;
+}) {
+  return (
+    <ConfirmAction
+      trigger={trigger}
+      title={title}
+      description={description}
+      confirmLabel={confirmLabel}
+      onConfirm={async () => {
+        const result = await action(undefined);
+        if (result && !result.ok) throw new Error(result.message);
+        if (result?.message) toast.success(result.message);
+      }}
+    />
   );
 }

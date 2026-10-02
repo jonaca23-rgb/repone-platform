@@ -1,18 +1,46 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight, PencilLine } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { saveHeatResults } from "@/lib/actions/results";
 import { formatClock } from "@/lib/timer/compute";
 import { compareHeatsForRunningOrder } from "@/lib/scoring/divisionOrder";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getAdminEvent, requireAdminEvent } from "../../adminEvent";
 import { LaneAssignmentForm } from "./LaneAssignmentForm";
 
-export default async function HeatDetailPage({
-  params,
-}: {
-  params: Promise<{ eventId: string; heatId: string }>;
-}) {
+type Props = { params: Promise<{ eventId: string; heatId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId, heatId } = await params;
   const supabase = await createClient();
+  const [event, { data }] = await Promise.all([
+    getAdminEvent(eventId),
+    supabase.from("heats").select("heat_number, wods(name)").eq("id", heatId).maybeSingle(),
+  ]);
+  const heat = data as unknown as { heat_number: number; wods: { name: string } | null } | null;
+  const page = heat ? `${heat.wods?.name ?? "WOD"} Heat ${heat.heat_number}` : "Heat";
+  return { title: event ? `${page} · ${event.name}` : page };
+}
+
+export default async function HeatDetailPage({ params }: Props) {
+  const { eventId, heatId } = await params;
+  const supabase = await createClient();
+  const event = await requireAdminEvent(eventId);
 
   const { data: heatRaw } = await supabase
     .from("heats")
@@ -165,64 +193,66 @@ export default async function HeatDetailPage({
     .filter((l) => l.athlete_id)
     .map((l) => l.athlete_id as string);
 
+  const title = `${heat.wods?.name} — Heat ${heat.heat_number}${heat.heat_count ? ` / ${heat.heat_count}` : ""}`;
+  const fieldClass = "w-28";
+
   return (
-    <div>
-      <Link
-        href={`/admin/events/${eventId}/heats`}
-        className="mb-4 inline-block text-sm text-black/50 hover:text-repone-red"
-      >
-        ← All heats
-      </Link>
-      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-2xl font-bold">
-          {heat.wods?.name} — Heat {heat.heat_number}
-          {heat.heat_count ? ` / ${heat.heat_count}` : ""}
-        </h1>
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          {prevHeat ? (
-            <Link
-              href={`/admin/events/${eventId}/heats/${prevHeat.id}`}
-              className="rounded-md border border-black/20 px-3 py-1.5 hover:border-repone-red hover:text-repone-red"
-              title={`${prevHeat.wods?.name ?? "WOD"} — Heat ${prevHeat.heat_number}`}
-            >
-              ← Previous Heat
-            </Link>
-          ) : (
-            <span className="cursor-not-allowed rounded-md border border-black/10 px-3 py-1.5 text-black/30">
-              ← Previous Heat
-            </span>
-          )}
-          {nextHeat ? (
-            <Link
-              href={`/admin/events/${eventId}/heats/${nextHeat.id}`}
-              className="rounded-md border border-black/20 px-3 py-1.5 hover:border-repone-red hover:text-repone-red"
-              title={`${nextHeat.wods?.name ?? "WOD"} — Heat ${nextHeat.heat_number}`}
-            >
-              Next Heat →
-            </Link>
-          ) : (
-            <span className="cursor-not-allowed rounded-md border border-black/10 px-3 py-1.5 text-black/30">
-              Next Heat →
-            </span>
-          )}
-        </div>
-      </div>
-      <p className="mb-6 text-sm uppercase tracking-wide text-black/50">
-        {heat.divisions?.name} · {heat.floors?.name} · {scoringType.replace("_", " ")}
-        {heat.wods?.time_cap_seconds ? ` · ${heat.wods.time_cap_seconds / 60} min cap` : ""}
-      </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={title}
+        description={`${heat.divisions?.name} · ${heat.floors?.name} · ${scoringType.replace("_", " ")}${heat.wods?.time_cap_seconds ? ` · ${heat.wods.time_cap_seconds / 60} min cap` : ""}`}
+        breadcrumb={
+          <AdminBreadcrumb
+            items={eventCrumbs(
+              event,
+              { label: "Heats", href: `/admin/events/${eventId}/heats` },
+              { label: `${heat.wods?.name ?? "WOD"} Heat ${heat.heat_number}` },
+            )}
+          />
+        }
+        actions={
+          <>
+            {prevHeat ? (
+              <Button asChild variant="outline">
+                <Link
+                  href={`/admin/events/${eventId}/heats/${prevHeat.id}`}
+                  title={`${prevHeat.wods?.name ?? "WOD"} — Heat ${prevHeat.heat_number}`}
+                >
+                  <ChevronLeft aria-hidden />
+                  Previous heat
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                <ChevronLeft aria-hidden />
+                Previous heat
+              </Button>
+            )}
+            {nextHeat ? (
+              <Button asChild variant="outline">
+                <Link
+                  href={`/admin/events/${eventId}/heats/${nextHeat.id}`}
+                  title={`${nextHeat.wods?.name ?? "WOD"} — Heat ${nextHeat.heat_number}`}
+                >
+                  Next heat
+                  <ChevronRight aria-hidden />
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                Next heat
+                <ChevronRight aria-hidden />
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold uppercase tracking-wide text-black/60">Lane Assignment</h2>
-            <Link
-              href={`/admin/events/${eventId}/heats`}
-              className="text-xs font-semibold text-black/40 hover:text-repone-red"
-            >
-              ← Back to Heats &amp; Lanes
-            </Link>
-          </div>
+          <h2 className="mb-3 font-semibold uppercase tracking-wide text-muted-foreground">
+            Lane assignment
+          </h2>
           <div className="flex flex-col gap-2">
             {(lanes ?? []).map((lane) => (
               <LaneAssignmentForm
@@ -242,11 +272,11 @@ export default async function HeatDetailPage({
         </section>
 
         <section>
-          <h2 className="mb-3 font-semibold uppercase tracking-wide text-black/60">
-            Results Entry
+          <h2 className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">
+            Results entry
           </h2>
-          <p className="mb-3 -mt-2 text-xs text-black/40">
-            For backup/manual entry only — this saves scores but no longer finishes the heat. The
+          <p className="mb-3 text-sm text-muted-foreground">
+            For backup or manual entry only: this saves scores but doesn&apos;t finish the heat. The
             heat is marked Completed from the Score Keeper screen once every lane&apos;s result is
             entered there.
           </p>
@@ -268,23 +298,28 @@ export default async function HeatDetailPage({
                 .map((lane) => {
                   const existing = resultByAthlete.get(lane.athlete_id);
                   const id = lane.athlete_id as string;
+                  const f = (name: string) => `result-${lane.id}-${name}`;
                   return (
-                    <div key={lane.id} className="rounded-lg border border-black/10 p-3">
+                    <div key={lane.id} className="rounded-lg border border-border bg-card p-3">
                       <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
                         Lane {lane.lane_number} — {lane.athletes?.first_name}{" "}
                         {lane.athletes?.last_name}
                         {existing?.manually_adjusted && (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
-                            ✎ Adjusted
-                          </span>
+                          <Badge className="border-warning/40 bg-warning/10 text-warning-text uppercase">
+                            <PencilLine aria-hidden />
+                            Adjusted
+                          </Badge>
                         )}
                       </p>
-                      <div className="flex flex-wrap items-end gap-2">
+                      <div className="flex flex-wrap items-end gap-3">
                         {scoringType === "for_time" && (
                           <>
-                            <label className="flex flex-col text-xs">
-                              Time (mm:ss)
-                              <input
+                            <div className="grid gap-1.5">
+                              <Label htmlFor={f("time")} className="text-xs">
+                                Time (mm:ss)
+                              </Label>
+                              <Input
+                                id={f("time")}
                                 name={`time_seconds__${id}`}
                                 type="text"
                                 inputMode="decimal"
@@ -295,127 +330,152 @@ export default async function HeatDetailPage({
                                     ? formatClock(existing.time_seconds)
                                     : ""
                                 }
-                                className="w-28 rounded-md border border-black/20 px-2 py-1"
+                                className={fieldClass}
                               />
-                            </label>
-                            <label className="flex items-center gap-1 text-xs">
-                              <input
+                            </div>
+                            <div className="flex h-9 items-center gap-2">
+                              <Checkbox
+                                id={f("capped")}
                                 name={`capped__${id}`}
-                                type="checkbox"
                                 defaultChecked={existing?.capped ?? false}
                               />
-                              Capped
-                            </label>
-                            <label className="flex flex-col text-xs">
-                              Reps (if capped)
-                              <input
+                              <Label htmlFor={f("capped")} className="text-xs">
+                                Capped
+                              </Label>
+                            </div>
+                            <div className="grid gap-1.5">
+                              <Label htmlFor={f("reps")} className="text-xs">
+                                Reps (if capped)
+                              </Label>
+                              <Input
+                                id={f("reps")}
                                 name={`reps__${id}`}
                                 type="number"
                                 defaultValue={existing?.reps ?? ""}
-                                className="w-24 rounded-md border border-black/20 px-2 py-1"
+                                className={fieldClass}
                               />
-                            </label>
+                            </div>
                           </>
                         )}
                         {scoringType === "amrap" && (
-                          <label className="flex flex-col text-xs">
-                            Total reps
-                            <input
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={f("reps")} className="text-xs">
+                              Total reps
+                            </Label>
+                            <Input
+                              id={f("reps")}
                               name={`reps__${id}`}
                               type="number"
                               defaultValue={existing?.reps ?? ""}
-                              className="w-24 rounded-md border border-black/20 px-2 py-1"
+                              className={fieldClass}
                             />
-                          </label>
+                          </div>
                         )}
                         {scoringType === "max_load" && (
-                          <label className="flex flex-col text-xs">
-                            Load
-                            <input
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={f("load")} className="text-xs">
+                              Load
+                            </Label>
+                            <Input
+                              id={f("load")}
                               name={`load__${id}`}
                               type="number"
                               step="0.5"
                               defaultValue={existing?.load ?? ""}
-                              className="w-24 rounded-md border border-black/20 px-2 py-1"
+                              className={fieldClass}
                             />
-                          </label>
+                          </div>
                         )}
                         {(scoringType === "points" || scoringType === "other") && (
-                          <label className="flex flex-col text-xs">
-                            Points
-                            <input
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={f("points")} className="text-xs">
+                              Points
+                            </Label>
+                            <Input
+                              id={f("points")}
                               name={`points__${id}`}
                               type="number"
                               step="0.01"
                               defaultValue={existing?.points ?? ""}
-                              className="w-24 rounded-md border border-black/20 px-2 py-1"
+                              className={fieldClass}
                             />
-                          </label>
+                          </div>
                         )}
-                        <label className="flex flex-col text-xs">
-                          Tie-break
-                          <input
+                        <div className="grid gap-1.5">
+                          <Label htmlFor={f("tiebreak")} className="text-xs">
+                            Tie-break
+                          </Label>
+                          <Input
+                            id={f("tiebreak")}
                             name={`tiebreak_value__${id}`}
                             type="number"
                             step="0.01"
                             defaultValue={existing?.tiebreak_value ?? ""}
-                            className="w-24 rounded-md border border-black/20 px-2 py-1"
+                            className={fieldClass}
                           />
-                        </label>
-                        <label className="flex flex-col text-xs">
-                          Status
-                          <select
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor={f("status")} className="text-xs">
+                            Status
+                          </Label>
+                          <Select
                             name={`status__${id}`}
                             defaultValue={existing?.status ?? "completed"}
-                            className="rounded-md border border-black/20 px-2 py-1"
                           >
-                            <option value="completed">Completed</option>
-                            <option value="dnf">DNF</option>
-                            <option value="dns">DNS</option>
-                            <option value="dq">DQ</option>
-                          </select>
-                        </label>
-                        <label
-                          className="flex items-center gap-1 text-xs text-amber-800"
-                          title="Check this when correcting a result after the fact (e.g. a claim/protest resolved after the heat) — the record will be marked as manually adjusted."
+                            <SelectTrigger id={f("status")} className="min-w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="dnf">DNF</SelectItem>
+                              <SelectItem value="dns">DNS</SelectItem>
+                              <SelectItem value="dq">DQ</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div
+                          className="flex h-9 items-center gap-2"
+                          title="Check this when correcting a result after the fact (e.g. a claim or protest resolved after the heat). The record is marked as manually adjusted."
                         >
-                          <input
+                          <Checkbox
+                            id={f("manual")}
                             name={`manual_adjustment__${id}`}
-                            type="checkbox"
                             defaultChecked={existing?.manually_adjusted ?? false}
                           />
-                          Manual Adjustment
-                        </label>
+                          <Label htmlFor={f("manual")} className="text-xs text-warning-text">
+                            Manual adjustment
+                          </Label>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               {(lanes ?? []).filter((l) => l.athlete_id).length === 0 && (
-                <p className="text-sm text-black/50">Assign athletes to lanes first.</p>
+                <p className="text-sm text-muted-foreground">Assign athletes to lanes first.</p>
               )}
             </div>
             {laneAthleteIds.length > 0 && (
-              <button className="control-btn control-btn-red mt-4 w-full px-4 py-3 text-sm">
-                Save All
-              </button>
+              <Button type="submit" size="lg" className="mt-4 w-full">
+                Save all
+              </Button>
             )}
           </form>
         </section>
       </div>
 
       {standings && standings.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 font-semibold uppercase tracking-wide text-black/60">
-            Live Standings — {heat.wods?.name} ({heat.divisions?.name})
+        <section>
+          <h2 className="mb-3 font-semibold uppercase tracking-wide text-muted-foreground">
+            Live standings — {heat.wods?.name} ({heat.divisions?.name})
           </h2>
           <div className="flex flex-col gap-1">
             {standings.map((s, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-2 text-sm"
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-2 text-sm"
               >
                 <span>
-                  <span className="mr-3 font-bold text-repone-red">{s.placement ?? "—"}</span>
+                  <span className="mr-3 font-bold text-brand-text">{s.placement ?? "—"}</span>
                   {s.athletes?.first_name} {s.athletes?.last_name}
                 </span>
                 <span className="font-semibold">{s.points ?? "—"} pts</span>

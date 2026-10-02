@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
+    // Unmatched URLs get src/app/global-not-found.tsx: with three root layouts
+    // there is no single layout for Next's default 404 to render in.
+    globalNotFound: true,
     serverActions: {
       // Next.js defaults Server Action request bodies to 1MB, which is well
       // under the app's own 8MB image-upload cap (athlete photos, event

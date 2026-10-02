@@ -1,10 +1,22 @@
 "use client";
 
+import { ListOrdered, Timer } from "lucide-react";
 import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
 import { useStandings } from "@/lib/realtime/useStandings";
 import { TimerDisplay } from "@/components/graphics/TimerDisplay";
+import { EmptyState } from "@/components/app/EmptyState";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { EventLiveFloor } from "@/lib/db/queries";
+import { cn } from "@/lib/utils";
 
 // Public, read-only leaderboard for spectators/athletes — no login, no
 // controls. Reuses the exact same Realtime hooks the OBS overlays and
@@ -21,23 +33,41 @@ export function LiveEventClient({
 }) {
   return (
     <div className="flex flex-col gap-10">
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">Now Competing</h2>
+      <section aria-labelledby="now-competing" className="flex flex-col gap-4">
+        <h2
+          id="now-competing"
+          className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
+        >
+          Now Competing
+        </h2>
         {floors.map((floor) => (
           <FloorNowCompeting key={floor.floorId} floor={floor} />
         ))}
         {floors.length === 0 && (
-          <p className="text-white/50">No floors set up for this event yet.</p>
+          <EmptyState
+            icon={Timer}
+            title="No floors set up yet"
+            description="The current heat shows here once the organizer sets up the floors."
+          />
         )}
       </section>
 
-      <section className="flex flex-col gap-8">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">Leaderboard</h2>
+      <section aria-labelledby="leaderboard" className="flex flex-col gap-8">
+        <h2
+          id="leaderboard"
+          className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
+        >
+          Leaderboard
+        </h2>
         {divisions.map((division) => (
           <DivisionLeaderboard key={division.id} division={division} />
         ))}
         {divisions.length === 0 && (
-          <p className="text-white/50">No divisions set up for this event yet.</p>
+          <EmptyState
+            icon={ListOrdered}
+            title="No divisions set up yet"
+            description="Standings show here once the organizer adds divisions."
+          />
         )}
       </section>
     </div>
@@ -59,45 +89,58 @@ function FloorNowCompeting({ floor }: { floor: EventLiveFloor }) {
   });
 
   return (
-    <div className="rounded-xl bg-repone-gray p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs uppercase tracking-widest text-white/50">
-          {floor.venueName} — {floor.floorName}
-        </p>
-        <span
-          className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
-          title={connected ? "Live" : "Reconnecting…"}
-        />
-      </div>
+    <Card size="sm">
+      <CardHeader className="flex items-center justify-between gap-3">
+        <CardTitle className="text-sm tracking-widest text-muted-foreground uppercase">
+          {floor.venueName}: {floor.floorName}
+        </CardTitle>
+        <span aria-live="polite" className="flex shrink-0 items-center gap-2 text-sm font-medium">
+          <span
+            aria-hidden
+            className={cn(
+              "size-2.5 rounded-full",
+              connected ? "bg-success" : "animate-pulse bg-primary",
+            )}
+          />
+          <span className={connected ? "text-success-text" : "text-muted-foreground"}>
+            {connected ? "Live" : "Reconnecting…"}
+          </span>
+        </span>
+      </CardHeader>
 
-      {!currentHeat ? (
-        <p className="text-white/50">Competition hasn&apos;t started on this floor yet.</p>
-      ) : (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-wide">
-              {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
-              {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
-            </p>
-            <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">
-              {currentHeat.division.name}
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-3">
-              {currentHeat.lanes
-                .filter((l) => l.name)
-                .map((l) => (
-                  <span key={l.laneNumber} className="text-sm text-white/70">
-                    <span className="text-white/40">{l.laneNumber}.</span> {l.name}
-                  </span>
-                ))}
+      <CardContent>
+        {!currentHeat ? (
+          <p className="text-muted-foreground">
+            Competition hasn&apos;t started on this floor yet.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-display text-2xl font-bold tracking-wide uppercase">
+                {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
+                {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
+              </p>
+              <p className="text-sm font-semibold tracking-wide text-brand-text uppercase">
+                {currentHeat.division.name}
+              </p>
+              <ul className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-3">
+                {currentHeat.lanes
+                  .filter((l) => l.name)
+                  .map((l) => (
+                    <li key={l.laneNumber} className="text-sm">
+                      <span className="text-muted-foreground tabular-nums">{l.laneNumber}.</span>{" "}
+                      {l.name}
+                    </li>
+                  ))}
+              </ul>
             </div>
+            {state && state.timer_status !== "idle" && (
+              <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} />
+            )}
           </div>
-          {state && state.timer_status !== "idle" && (
-            <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} />
-          )}
-        </div>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -105,34 +148,36 @@ function DivisionLeaderboard({ division }: { division: { id: string; name: strin
   const rows = useStandings(division.id);
 
   return (
-    <div>
-      <h3 className="mb-2 font-semibold uppercase tracking-wide text-repone-red">
-        {division.name}
-      </h3>
+    <div className="flex flex-col gap-2">
+      <h3 className="font-semibold tracking-wide text-brand-text uppercase">{division.name}</h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-white/40">
-          No scored results yet — standings fill in as heats are finished.
+        <p className="text-sm text-muted-foreground">
+          No scored results yet. Standings fill in as heats are finished.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-max border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/40">
-                <th className="py-2 pr-4">Place</th>
-                <th className="py-2 pr-4">Athlete</th>
-                <th className="py-2 pr-4">Points</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+          <Table className="[&_tr]:border-border">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16 text-muted-foreground">Place</TableHead>
+                <TableHead className="text-muted-foreground">Athlete</TableHead>
+                <TableHead className="text-right text-muted-foreground">Points</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r, i) => (
-                <tr key={i} className="border-b border-white/5">
-                  <td className="py-2 pr-4 font-bold text-repone-red">{r.placement ?? "—"}</td>
-                  <td className="py-2 pr-4">{r.name}</td>
-                  <td className="py-2 pr-4 font-semibold">{r.points ?? "—"}</td>
-                </tr>
+                <TableRow key={i}>
+                  <TableCell className="font-bold text-brand-text tabular-nums">
+                    {r.placement ?? "—"}
+                  </TableCell>
+                  <TableCell>{r.name}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {r.points ?? "—"}
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

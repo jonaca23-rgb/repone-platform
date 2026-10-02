@@ -103,7 +103,7 @@ export function ProgramOverlayClient({
         />
       )}
       {graphic === "leaderboard" && currentHeat && (
-        <div className="flex h-screen w-screen items-center justify-center bg-repone-black">
+        <div className="flex h-screen w-screen items-center justify-center bg-broadcast-bg">
           <Leaderboard
             title={`${currentHeat.division.name} — Overall`}
             rows={standings.map((s) => ({

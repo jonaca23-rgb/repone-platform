@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { getAuthSession } from "@/lib/auth/session";
 import { ResendButton } from "./ResendButton";
+
+export const metadata: Metadata = { title: "Confirm your email" };
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -15,13 +18,16 @@ export default async function VerifyEmailPage({
 
   return (
     <AuthCard title="Confirm your email">
-      <p className="text-sm text-white/80">
+      <p className="text-sm">
         {email ? `We sent an email to ${email}.` : "We sent you an email."} Open the link in it to
         finish.
       </p>
       {email ? <ResendButton email={email} /> : null}
-      <p className="mt-6 text-sm text-white/50">
-        <Link href="/login" className="text-repone-red underline">
+      <p className="mt-6 text-sm">
+        <Link
+          href="/login"
+          className="rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        >
           Back to sign in
         </Link>
       </p>

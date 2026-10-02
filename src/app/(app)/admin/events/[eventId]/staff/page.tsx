@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getSessionContext, orgCan } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
@@ -11,6 +12,18 @@ import {
   removeEventProducer,
   removeEventCommentator,
 } from "@/lib/actions/eventStaff";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAdminEvent } from "../adminEvent";
+
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getAdminEvent((await params).eventId);
+  return { title: event ? `Staff · ${event.name}` : "Staff" };
+}
 
 interface AssignmentRow {
   id: string;
@@ -28,7 +41,7 @@ interface AssignmentRow {
  * and told so. See lib/auth/invite.ts. Rows whose person has never signed in
  * show as pending, with Resend.
  */
-export default async function EventStaffPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function EventStaffPage({ params }: Props) {
   const { eventId } = await params;
   const ctx = await getSessionContext();
   // The page reads staff emails over the owner connection (invite.ts), so it
@@ -115,11 +128,12 @@ export default async function EventStaffPage({ params }: { params: Promise<{ eve
   ] as const;
 
   return (
-    <div className="flex flex-col gap-8">
-      <p className="text-sm text-black/50">
-        Invite people by email to <strong>{event.name}</strong>. Each role only gets access to this
-        event.
-      </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Staff"
+        description={`Invite people by email to ${event.name}. Each role only gets access to this event.`}
+        breadcrumb={<AdminBreadcrumb items={eventCrumbs(event, { label: "Staff" })} />}
+      />
 
       {sections.map((s) => (
         <StaffRoleSection
@@ -132,6 +146,7 @@ export default async function EventStaffPage({ params }: { params: Promise<{ eve
           inviteAction={inviteEventStaff.bind(null, s.role, eventId)}
           resendAction={(userId) => resendEventInvite.bind(null, eventId, userId)}
           removeAction={s.removeAction}
+          eventName={event.name}
           showRoleLabel={"showRoleLabel" in s && s.showRoleLabel}
         />
       ))}
@@ -148,6 +163,7 @@ function StaffRoleSection({
   inviteAction,
   resendAction,
   removeAction,
+  eventName,
   showRoleLabel = false,
 }: {
   title: string;
@@ -158,46 +174,57 @@ function StaffRoleSection({
   inviteAction: Parameters<typeof InviteByEmailForm>[0]["action"];
   resendAction: (userId: string) => Parameters<typeof InlineActionButton>[0]["action"];
   removeAction: (assignmentId: string) => Promise<void>;
+  eventName: string;
   showRoleLabel?: boolean;
 }) {
   return (
-    <section className="rounded-xl border border-black/10 p-5">
-      <h2 className="text-lg font-bold">{title}</h2>
-      <p className="mb-4 text-sm text-black/50">{description}</p>
-
-      <div className="mb-4 flex flex-col gap-2">
-        {rows.map((r) => (
-          <div
-            key={r.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/5 px-4 py-2"
-          >
-            <span className="font-semibold">
-              {nameById.get(r.user_id) ?? "Unknown"}
-              {showRoleLabel && r.role_label ? (
-                <span className="ml-2 text-xs font-normal uppercase tracking-wide text-black/40">
-                  {r.role_label.replace(/_/g, " ")}
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          {rows.map((r) => {
+            const name = nameById.get(r.user_id) ?? "Unknown";
+            return (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-4 py-2"
+              >
+                <span className="font-semibold">
+                  {name}
+                  {showRoleLabel && r.role_label ? (
+                    <span className="ml-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
+                      {r.role_label.replace(/_/g, " ")}
+                    </span>
+                  ) : null}
                 </span>
-              ) : null}
-            </span>
-            <span className="flex items-center gap-4">
-              {pending.has(r.user_id) && (
-                <span className="flex items-center gap-2 text-sm text-black/50">
-                  Pending ·
-                  <InlineActionButton action={resendAction(r.user_id)} label="Resend" />
+                <span className="flex items-center gap-2">
+                  {pending.has(r.user_id) && (
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                      Pending ·
+                      <InlineActionButton action={resendAction(r.user_id)} label="Resend" />
+                    </span>
+                  )}
+                  <ConfirmAction
+                    trigger="Remove"
+                    title={`Remove ${name} from ${eventName}?`}
+                    description={`${name} loses ${title.toLowerCase().replace(/s$/, "")} access to this event. You can invite them again later.`}
+                    confirmLabel="Remove"
+                    onConfirm={removeAction.bind(null, r.id)}
+                  />
                 </span>
-              )}
-              <form action={removeAction.bind(null, r.id)}>
-                <button type="submit" className="text-sm text-repone-red hover:underline">
-                  Remove
-                </button>
-              </form>
-            </span>
-          </div>
-        ))}
-        {rows.length === 0 && <p className="text-sm text-black/40">Nobody assigned yet.</p>}
-      </div>
+              </div>
+            );
+          })}
+          {rows.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nobody assigned yet.</p>
+          )}
+        </div>
 
-      <InviteByEmailForm action={inviteAction} showRoleLabel={showRoleLabel} />
-    </section>
+        <InviteByEmailForm action={inviteAction} showRoleLabel={showRoleLabel} />
+      </CardContent>
+    </Card>
   );
 }

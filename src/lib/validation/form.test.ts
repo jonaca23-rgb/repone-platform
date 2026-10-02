@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { field, imageUpload, parseForm, ValidationError } from "./form";
+import { NONE } from "./none";
 
 const form = (entries: Record<string, string>) => {
   const fd = new FormData();
@@ -63,6 +64,29 @@ describe("parseForm", () => {
     const run = () => parseForm(schema, form(clean as Record<string, string>));
     expect(run).toThrow(ValidationError);
     expect(run).toThrow(message);
+  });
+
+  it('reads a Select\'s "__none" item as a blank field', () => {
+    const s = z.object({
+      circuit: field.optionalId("Circuit"),
+      gender: field.optionalOneOf(["male", "female"] as const, "gender"),
+      label: field.optionalChoice({ label: "Role label" }),
+    });
+    expect(parseForm(s, form({ circuit: NONE, gender: NONE, label: NONE }))).toEqual({
+      circuit: null,
+      gender: null,
+      label: null,
+    });
+    expect(parseForm(s, form({ circuit: "", gender: "female", label: "co_commentator" }))).toEqual({
+      circuit: null,
+      gender: "female",
+      label: "co_commentator",
+    });
+  });
+
+  it('keeps "__none" typed into a free-text field', () => {
+    const s = z.object({ name: field.text("Name"), note: field.optionalText() });
+    expect(parseForm(s, form({ name: NONE, note: NONE }))).toEqual({ name: NONE, note: NONE });
   });
 
   it("caps text length", () => {

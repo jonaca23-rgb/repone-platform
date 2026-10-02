@@ -12,12 +12,7 @@ const FeeScheduleForm = z.object({
   description: field.optionalText({ max: 500, label: "Description" }),
   division_id: field.optionalId("Division"),
   // Blank means "any entry type".
-  entry_type: z
-    .preprocess(
-      (v) => (v === "" ? undefined : v),
-      field.oneOf(Constants.public.Enums.competitor_entry_type, "entry type").optional(),
-    )
-    .transform((v) => v ?? null),
+  entry_type: field.optionalOneOf(Constants.public.Enums.competitor_entry_type, "entry type"),
   is_addon: field.checkbox(),
   amount_dollars: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
