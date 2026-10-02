@@ -54,11 +54,18 @@ export async function ensureUser(email: string): Promise<{ userId: string; creat
   return { userId: created.id, created: true };
 }
 
-/** Sends the invitation (new account) or the access notice; false if it didn't go out. */
+/**
+ * Sends the invitation or the access notice; false if it didn't go out.
+ *
+ * Anyone who has never signed in gets the invitation (a password link), not
+ * just a new account: a re-invite after the email failed, an event invite for
+ * someone whose team invitation is still pending, or an account left behind
+ * when granting the role failed all have no way in without it.
+ */
 async function deliver(created: boolean, userId: string, email: string, what: string): Promise<boolean> {
   const address = normalizeEmail(email);
   try {
-    if (created) await sendPasswordLink(userId, address);
+    if (created || (await pendingEmail(userId)) !== null) await sendPasswordLink(userId, address);
     else
       await sendEmail(
         roleGrantedEmail({ to: address, what, loginUrl: `${process.env.BETTER_AUTH_URL}/login` }),

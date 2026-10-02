@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/db/database.types";
 import { requireLocal } from "./env";
 import { auth } from "../src/lib/auth/auth";
-import { inviteToEvent, inviteToOrg, normalizeEmail } from "../src/lib/auth/invite";
+import { inviteToEvent, inviteToOrg, normalizeEmail, resendInvitation } from "../src/lib/auth/invite";
 
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
 const EVENT_ID = "00000000-0000-0000-0000-000000000010";
@@ -67,7 +67,8 @@ async function main() {
     expect("one account for that email", count === 1, count);
     expect("normalizeEmail", normalizeEmail("  A@B.Co ") === "a@b.co");
 
-    // Existing account → event assignment only, notice email.
+    // Existing account that has signed in → event assignment only, notice email.
+    await signInAs("athlete@repone.test");
     const r3 = await inviteToEvent({ email: "athlete@repone.test", kind: "scorekeeper", eventId: EVENT_ID, eventName: "Seed Event", invitedBy: admin.userId, db: admin.db });
     assignedId = r3.userId;
     expect("existing account is not re-created", !r3.created && r3.emailSent, r3);
@@ -83,6 +84,10 @@ async function main() {
     const outsider = `x+${Date.now()}@example.test`;
     const denied = await inviteToOrg({ email: outsider, role: "admin", organizationId: ORG_ID, orgName: "RepOneLive", headers: (await signInAs("commentator@repone.test")).headers }).catch((e: unknown) => e);
     expect("event_director cannot grant admin", denied instanceof Error, denied);
+    const { data: directorEmails, error: directorEmailsError } = await director.db.rpc("org_member_emails", { p_organization_id: ORG_ID });
+    expect("org_member_emails gives an event_director no rows", !directorEmailsError && (directorEmails ?? []).length === 0, directorEmails ?? directorEmailsError);
+    const { data: adminEmails } = await admin.db.rpc("org_member_emails", { p_organization_id: ORG_ID });
+    expect("org_member_emails gives the owner the team", (adminEmails ?? []).some((e) => e.user_id === r1.userId), adminEmails?.length);
     const { count: outsiderCount } = await service.from("user").select("id", { count: "exact", head: true }).eq("email", outsider);
     expect("…and no account was created for it", outsiderCount === 0, outsiderCount);
 
@@ -108,6 +113,19 @@ async function main() {
     expect("mail down reports emailSent=false", r4.created && !r4.emailSent, r4);
     const { data: m4 } = await service.from("member").select("role").eq("user_id", r4.userId).single();
     expect("…but the account and role exist for Resend", m4?.role === "commentator", m4);
+
+    // …and once mail works again, Resend sends the invitation (/invite)…
+    await clearMailbox();
+    await resendInvitation(r4.userId, down);
+    const resent = await latestEmailTo(down);
+    expect("Resend after the outage sends the /invite link", !!resent?.links.some((l) => l.includes("callbackURL=%2Finvite")), resent);
+
+    // …and so does inviting them again: they have never signed in, so a login
+    // notice would leave them without a way in.
+    await clearMailbox();
+    const r5 = await inviteToOrg({ email: down, role: "commentator", organizationId: ORG_ID, orgName: "RepOneLive", headers: admin.headers });
+    const again = await latestEmailTo(down);
+    expect("re-inviting a pending person sends the /invite link, not a login notice", !r5.created && r5.emailSent && !!again?.links.some((l) => l.includes("callbackURL=%2Finvite")), { r5, again });
 
     // BetterAuth's own invitation route is closed: invitations go through the Team page.
     const probe = await fetch(`${APP}/api/supabase-token`, { cache: "no-store" }).catch(() => null);
