@@ -20,6 +20,9 @@ import { Button } from "@/components/ui/button";
  * The only way to run a destructive or hard-to-undo action: it names what is
  * affected and what happens, and runs the action once, after the person
  * confirms. Failures surface as a toast; the dialog stays open to retry.
+ *
+ * Without a `trigger`, pass `open` and `onOpenChange` to raise it from code
+ * (e.g. a heat picker asking before it discards unsaved lanes).
  */
 export function ConfirmAction({
   trigger,
@@ -31,19 +34,29 @@ export function ConfirmAction({
   triggerVariant = "ghost",
   triggerSize = "sm",
   triggerClassName,
+  open: openProp,
+  onOpenChange,
 }: {
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
   title: string;
   description: string;
   confirmLabel: string;
   onConfirm: () => Promise<unknown>;
   variant?: "destructive" | "default";
-  triggerVariant?: "destructive" | "ghost" | "outline" | "secondary" | "link";
+  triggerVariant?: "default" | "destructive" | "ghost" | "outline" | "secondary" | "link";
   triggerSize?: "sm" | "default" | "touch";
   /** Layout or size on the trigger, e.g. min-h-16 on a live control. */
   triggerClassName?: string;
+  /** Controlled mode, for a dialog with no trigger of its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = openProp ?? innerOpen;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setInnerOpen(next);
+    onOpenChange?.(next);
+  };
   const [pending, start] = useTransition();
   const inFlight = useRef(false);
 
@@ -67,16 +80,18 @@ export function ConfirmAction({
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
-      <AlertDialogTrigger asChild>
-        <Button
-          type="button"
-          variant={triggerVariant}
-          size={triggerSize}
-          className={triggerClassName}
-        >
-          {trigger}
-        </Button>
-      </AlertDialogTrigger>
+      {trigger !== undefined ? (
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant={triggerVariant}
+            size={triggerSize}
+            className={triggerClassName}
+          >
+            {trigger}
+          </Button>
+        </AlertDialogTrigger>
+      ) : null}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

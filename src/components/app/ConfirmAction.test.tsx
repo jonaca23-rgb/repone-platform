@@ -2,7 +2,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Component, type ReactNode } from "react";
+import { Component, type ReactNode, useState } from "react";
 import { ConfirmAction } from "./ConfirmAction";
 
 const toastError = vi.hoisted(() => vi.fn());
@@ -124,5 +124,38 @@ describe("ConfirmAction", () => {
     await user.click(screen.getByRole("button", { name: "Remove" }));
     await user.click(screen.getByRole("button", { name: "Remove heat" }));
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Nope"));
+  });
+  it("opens from code without a trigger, and cancel or confirm close it", async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    function Controlled() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Next heat
+          </button>
+          <p>{open ? "open" : "closed"}</p>
+          <ConfirmAction
+            open={open}
+            onOpenChange={setOpen}
+            title="Leave this heat?"
+            description="d"
+            confirmLabel="Leave heat"
+            onConfirm={onConfirm}
+          />
+        </>
+      );
+    }
+    render(<Controlled />);
+    const user = userEvent.setup();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Next heat" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText("closed")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Next heat" }));
+    await user.dblClick(screen.getByRole("button", { name: "Leave heat" }));
+    await waitFor(() => expect(screen.getByText("closed")).toBeTruthy());
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });

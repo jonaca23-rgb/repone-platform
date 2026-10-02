@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, ListOrdered } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
 import { floorWatches } from "@/lib/realtime/floorWatches";
@@ -166,6 +167,8 @@ export function DashboardClient({
       try {
         await action();
       } catch (e) {
+        // A redirect or notFound is Next's to handle; ConfirmAction rethrows it too.
+        unstable_rethrow(e);
         throw new Error(failureMessage(what, e));
       }
     };
