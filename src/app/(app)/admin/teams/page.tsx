@@ -71,17 +71,11 @@ export default async function TeamsPage() {
           <form action={createTeam} className="flex flex-wrap items-end gap-3">
             <div className="grid gap-2">
               <Label htmlFor="team-name">Team name</Label>
-              <Input
-                id="team-name"
-                name="name"
-                required
-                placeholder="Box Wolves"
-                className="text-base"
-              />
+              <Input id="team-name" name="name" required placeholder="Box Wolves" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="team-affiliate">Box / affiliate</Label>
-              <Input id="team-affiliate" name="affiliate" className="text-base" />
+              <Input id="team-affiliate" name="affiliate" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="team-format">Entry format</Label>
@@ -106,7 +100,7 @@ export default async function TeamsPage() {
                 type="number"
                 min={1}
                 placeholder="e.g. 4"
-                className="w-28 text-base"
+                className="w-28"
               />
             </div>
             <Button type="submit">Add team</Button>

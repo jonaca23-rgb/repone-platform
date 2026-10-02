@@ -50,13 +50,7 @@ export default async function AdminHomePage() {
         <form action={bootstrapOrganization} className="flex flex-col gap-3">
           <div className="grid gap-2">
             <Label htmlFor="org-name">Organization name</Label>
-            <Input
-              id="org-name"
-              name="name"
-              required
-              placeholder="e.g. RepOneLive"
-              className="text-base"
-            />
+            <Input id="org-name" name="name" required placeholder="e.g. RepOneLive" />
           </div>
           <Button type="submit" size="lg" className="w-fit">
             Create organization
@@ -94,21 +88,15 @@ export default async function AdminHomePage() {
           <form action={createEvent} className="flex flex-wrap items-end gap-3">
             <div className="grid gap-2">
               <Label htmlFor="event-name">Event name</Label>
-              <Input
-                id="event-name"
-                name="name"
-                required
-                placeholder="Aprieta Entry Level"
-                className="text-base"
-              />
+              <Input id="event-name" name="name" required placeholder="Aprieta Entry Level" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-starts">Starts</Label>
-              <Input id="event-starts" name="starts_on" type="date" className="text-base" />
+              <Input id="event-starts" name="starts_on" type="date" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-ends">Ends</Label>
-              <Input id="event-ends" name="ends_on" type="date" className="text-base" />
+              <Input id="event-ends" name="ends_on" type="date" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-circuit">Single event or circuit?</Label>
@@ -133,7 +121,6 @@ export default async function AdminHomePage() {
                 id="event-new-circuit"
                 name="new_circuit_name"
                 placeholder="Only for a new circuit"
-                className="text-base"
               />
             </div>
             <Button type="submit">New event</Button>
@@ -203,7 +190,7 @@ export default async function AdminHomePage() {
                       accept="image/*"
                       required
                       aria-label={`Cover photo for ${e.name}`}
-                      className="max-w-[200px] text-base"
+                      className="max-w-[200px]"
                     />
                     <Button type="submit" size="sm">
                       Save

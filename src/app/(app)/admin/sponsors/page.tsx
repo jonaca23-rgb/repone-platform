@@ -60,7 +60,7 @@ export default async function SponsorsPage() {
           <form action={createSponsor} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="grid gap-2">
               <Label htmlFor="sponsor-name">Business name</Label>
-              <Input id="sponsor-name" name="business_name" required className="text-base" />
+              <Input id="sponsor-name" name="business_name" required />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sponsor-tier">Tier</Label>
@@ -95,12 +95,7 @@ export default async function SponsorsPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sponsor-category">Category</Label>
-              <Input
-                id="sponsor-category"
-                name="category"
-                placeholder="Physical Therapy"
-                className="text-base"
-              />
+              <Input id="sponsor-category" name="category" placeholder="Physical Therapy" />
             </div>
             <div className="flex items-center gap-2 self-end pb-2">
               <Checkbox id="sponsor-exclusive" name="category_exclusive" />
@@ -108,7 +103,7 @@ export default async function SponsorsPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sponsor-website">Website</Label>
-              <Input id="sponsor-website" name="website" className="text-base" />
+              <Input id="sponsor-website" name="website" />
             </div>
             <Button type="submit" className="w-fit sm:col-span-3">
               Add sponsor

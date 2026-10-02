@@ -48,25 +48,19 @@ export default async function CircuitsPage() {
           <form action={createCircuit} className="flex flex-wrap items-end gap-3">
             <div className="grid gap-2">
               <Label htmlFor="circuit-name">Circuit name</Label>
-              <Input
-                id="circuit-name"
-                name="name"
-                required
-                placeholder="MSTRS League PR"
-                className="text-base"
-              />
+              <Input id="circuit-name" name="name" required placeholder="MSTRS League PR" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="circuit-description">Description (optional)</Label>
-              <Input id="circuit-description" name="description" className="w-64 text-base" />
+              <Input id="circuit-description" name="description" className="w-64" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="circuit-starts">Season starts</Label>
-              <Input id="circuit-starts" name="starts_on" type="date" className="text-base" />
+              <Input id="circuit-starts" name="starts_on" type="date" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="circuit-ends">Season ends</Label>
-              <Input id="circuit-ends" name="ends_on" type="date" className="text-base" />
+              <Input id="circuit-ends" name="ends_on" type="date" />
             </div>
             <Button type="submit">Create circuit</Button>
           </form>

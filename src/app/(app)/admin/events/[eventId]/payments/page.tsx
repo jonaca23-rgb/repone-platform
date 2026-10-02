@@ -266,7 +266,7 @@ export default async function EventPaymentsPage({ params }: Props) {
                         min={0}
                         step="0.01"
                         placeholder={p ? (p.amount_cents / 100).toFixed(2) : "0.00"}
-                        className="w-28 text-base"
+                        className="w-28"
                       />
                     </div>
                     <div className="grid gap-2">
@@ -304,7 +304,6 @@ export default async function EventPaymentsPage({ params }: Props) {
                         name="notes"
                         defaultValue={p?.notes ?? ""}
                         placeholder="e.g. paid cash at check-in"
-                        className="text-base"
                       />
                     </div>
                     <Button type="submit">Save</Button>

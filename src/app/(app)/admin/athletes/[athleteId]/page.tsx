@@ -262,14 +262,7 @@ export default async function AthleteDetailPage({ params }: Props) {
           >
             <div className="grid gap-2">
               <Label htmlFor="athlete-photo">Upload a photo</Label>
-              <Input
-                id="athlete-photo"
-                type="file"
-                name="photo"
-                accept="image/*"
-                required
-                className="text-base"
-              />
+              <Input id="athlete-photo" type="file" name="photo" accept="image/*" required />
             </div>
             <Button type="submit">Upload</Button>
           </form>
@@ -303,18 +296,11 @@ export default async function AthleteDetailPage({ params }: Props) {
                 name="first_name"
                 required
                 defaultValue={athlete.first_name}
-                className="text-base"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="profile-last">Last name</Label>
-              <Input
-                id="profile-last"
-                name="last_name"
-                required
-                defaultValue={athlete.last_name}
-                className="text-base"
-              />
+              <Input id="profile-last" name="last_name" required defaultValue={athlete.last_name} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="profile-affiliate">Box / affiliate</Label>
@@ -322,7 +308,6 @@ export default async function AthleteDetailPage({ params }: Props) {
                 id="profile-affiliate"
                 name="affiliate"
                 defaultValue={athlete.affiliate ?? ""}
-                className="text-base"
               />
             </div>
             <div className="grid gap-2">
@@ -333,7 +318,6 @@ export default async function AthleteDetailPage({ params }: Props) {
                 name="email"
                 required
                 defaultValue={athlete.email ?? ""}
-                className="text-base"
               />
             </div>
             <div className="grid gap-2">
@@ -343,7 +327,6 @@ export default async function AthleteDetailPage({ params }: Props) {
                 type="tel"
                 name="phone"
                 defaultValue={athlete.phone ?? ""}
-                className="text-base"
               />
             </div>
             <div className="grid gap-2">
@@ -353,7 +336,6 @@ export default async function AthleteDetailPage({ params }: Props) {
                 type="date"
                 name="date_of_birth"
                 defaultValue={athlete.date_of_birth ?? ""}
-                className="text-base"
               />
             </div>
             <div className="grid gap-2">
@@ -403,7 +385,6 @@ export default async function AthleteDetailPage({ params }: Props) {
                       defaultValue={
                         existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
                       }
-                      className="text-base"
                     />
                   ) : (
                     <Input
@@ -413,7 +394,6 @@ export default async function AthleteDetailPage({ params }: Props) {
                       min="0"
                       name={lift}
                       defaultValue={existing?.weight_lbs ?? ""}
-                      className="text-base"
                     />
                   )}
                 </div>
@@ -437,23 +417,11 @@ export default async function AthleteDetailPage({ params }: Props) {
           >
             <div className="grid gap-2">
               <Label htmlFor="benchmark-name">Benchmark</Label>
-              <Input
-                id="benchmark-name"
-                name="name"
-                required
-                placeholder="Fran"
-                className="text-base"
-              />
+              <Input id="benchmark-name" name="name" required placeholder="Fran" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="benchmark-result">Result</Label>
-              <Input
-                id="benchmark-result"
-                name="result_display"
-                required
-                placeholder="3:45"
-                className="text-base"
-              />
+              <Input id="benchmark-result" name="result_display" required placeholder="3:45" />
             </div>
             <Button type="submit">Save</Button>
           </form>

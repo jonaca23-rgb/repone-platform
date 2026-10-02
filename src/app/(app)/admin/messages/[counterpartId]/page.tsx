@@ -72,7 +72,6 @@ export default async function AdminThreadPage({ params }: Props) {
             required
             rows={2}
             placeholder="Write a message…"
-            className="text-base"
           />
         </div>
         <Button type="submit">Send</Button>

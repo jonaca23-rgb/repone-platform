@@ -40,7 +40,7 @@ const STAFF_ROLES = Object.keys(TABLE) as [EventStaffRole, ...EventStaffRole[]];
 const StaffForm = z.object({ email: field.email() });
 
 const CommentatorForm = StaffForm.extend({
-  roleLabel: field.optionalText({ max: 50, label: "Role label" }),
+  roleLabel: field.optionalChoice({ max: 50, label: "Role label" }),
 });
 
 /** Invites `email` as this event's `role`: a new account, or access for an existing one. */

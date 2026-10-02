@@ -37,13 +37,7 @@ export default async function DivisionsPage({ params }: Props) {
       <form action={createDivision.bind(null, eventId)} className="flex flex-wrap items-end gap-3">
         <div className="grid gap-2">
           <Label htmlFor="division-name">Division name</Label>
-          <Input
-            id="division-name"
-            name="name"
-            required
-            placeholder="Intermediate Female"
-            className="text-base"
-          />
+          <Input id="division-name" name="name" required placeholder="Intermediate Female" />
         </div>
         <Button type="submit">Add division</Button>
       </form>

@@ -54,7 +54,6 @@ export default async function CheckInPickerPage({
             name="q"
             defaultValue={query}
             placeholder="e.g. Rivera or CrossFit San Juan"
-            className="text-base"
           />
         </div>
         <Button type="submit" size="touch">

@@ -50,33 +50,27 @@ export default async function AthletesPage() {
           <form action={createAthlete} className="flex flex-wrap items-end gap-3">
             <div className="grid gap-2">
               <Label htmlFor="athlete-first">First name</Label>
-              <Input id="athlete-first" name="first_name" required className="text-base" />
+              <Input id="athlete-first" name="first_name" required />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="athlete-last">Last name</Label>
-              <Input id="athlete-last" name="last_name" required className="text-base" />
+              <Input id="athlete-last" name="last_name" required />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="athlete-affiliate">Box / affiliate</Label>
-              <Input id="athlete-affiliate" name="affiliate" className="text-base" />
+              <Input id="athlete-affiliate" name="affiliate" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="athlete-email">Email</Label>
-              <Input id="athlete-email" type="email" name="email" required className="text-base" />
+              <Input id="athlete-email" type="email" name="email" required />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="athlete-phone">Phone</Label>
-              <Input
-                id="athlete-phone"
-                type="tel"
-                name="phone"
-                placeholder="Optional"
-                className="text-base"
-              />
+              <Input id="athlete-phone" type="tel" name="phone" placeholder="Optional" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="athlete-dob">Date of birth</Label>
-              <Input id="athlete-dob" type="date" name="date_of_birth" className="text-base" />
+              <Input id="athlete-dob" type="date" name="date_of_birth" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="athlete-gender">Gender</Label>

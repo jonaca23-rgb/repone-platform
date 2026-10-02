@@ -76,13 +76,7 @@ export default async function EventFeesPage({ params }: Props) {
           >
             <div className="grid gap-2">
               <Label htmlFor="fee-name">Fee name</Label>
-              <Input
-                id="fee-name"
-                name="name"
-                required
-                placeholder="Individual Registration"
-                className="text-base"
-              />
+              <Input id="fee-name" name="name" required placeholder="Individual Registration" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="fee-amount">Amount (USD)</Label>
@@ -94,7 +88,7 @@ export default async function EventFeesPage({ params }: Props) {
                 step="0.01"
                 required
                 placeholder="75.00"
-                className="w-28 text-base"
+                className="w-28"
               />
             </div>
             <div className="grid gap-2">
@@ -131,12 +125,7 @@ export default async function EventFeesPage({ params }: Props) {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="fee-description">Description</Label>
-              <Input
-                id="fee-description"
-                name="description"
-                placeholder="Optional"
-                className="text-base"
-              />
+              <Input id="fee-description" name="description" placeholder="Optional" />
             </div>
             <div className="flex h-9 items-center gap-2">
               <Checkbox id="fee-addon" name="is_addon" />

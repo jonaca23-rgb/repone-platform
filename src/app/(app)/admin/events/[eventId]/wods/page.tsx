@@ -67,7 +67,6 @@ function WodFields({
           required
           defaultValue={wod?.name}
           placeholder="WOD 2"
-          className="text-base"
         />
       </div>
       <div className="grid gap-2">
@@ -93,7 +92,6 @@ function WodFields({
           type="number"
           min={0}
           defaultValue={wod?.time_cap_seconds ? wod.time_cap_seconds / 60 : ""}
-          className="text-base"
         />
       </div>
       <div className="grid gap-2">
@@ -118,7 +116,6 @@ function WodFields({
           name="description"
           rows={2}
           defaultValue={wod?.description ?? ""}
-          className="text-base"
         />
       </div>
     </>

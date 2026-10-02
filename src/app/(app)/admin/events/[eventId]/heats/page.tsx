@@ -207,17 +207,11 @@ export default async function HeatsPage({ params }: Props) {
                     max={20}
                     defaultValue={lastLanesPerHeat}
                     required
-                    className="text-base"
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="gen-start">First heat start</Label>
-                  <Input
-                    id="gen-start"
-                    name="scheduled_start"
-                    type="datetime-local"
-                    className="text-base"
-                  />
+                  <Input id="gen-start" name="scheduled_start" type="datetime-local" />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="gen-interval">Minutes between heats</Label>
@@ -227,7 +221,6 @@ export default async function HeatsPage({ params }: Props) {
                     type="number"
                     min={0}
                     defaultValue={10}
-                    className="text-base"
                   />
                 </div>
                 <Button type="submit" className="self-end">
@@ -253,24 +246,11 @@ export default async function HeatsPage({ params }: Props) {
               />
               <div className="grid gap-2">
                 <Label htmlFor="add-number">Heat #</Label>
-                <Input
-                  id="add-number"
-                  name="heat_number"
-                  type="number"
-                  min={1}
-                  required
-                  className="text-base"
-                />
+                <Input id="add-number" name="heat_number" type="number" min={1} required />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="add-count">Of (total heats)</Label>
-                <Input
-                  id="add-count"
-                  name="heat_count"
-                  type="number"
-                  min={1}
-                  className="text-base"
-                />
+                <Input id="add-count" name="heat_count" type="number" min={1} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="add-lanes">Lanes</Label>
@@ -281,17 +261,11 @@ export default async function HeatsPage({ params }: Props) {
                   min={1}
                   max={20}
                   defaultValue={6}
-                  className="text-base"
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="add-start">Scheduled start</Label>
-                <Input
-                  id="add-start"
-                  name="scheduled_start"
-                  type="datetime-local"
-                  className="text-base"
-                />
+                <Input id="add-start" name="scheduled_start" type="datetime-local" />
               </div>
               <Button type="submit" className="self-end">
                 Add heat

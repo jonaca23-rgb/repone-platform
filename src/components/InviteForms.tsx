@@ -65,7 +65,7 @@ export function InviteByEmailForm({
             name="email"
             required
             placeholder="name@example.com"
-            className="w-64 text-base"
+            className="w-64"
           />
         </div>
         {roles && (

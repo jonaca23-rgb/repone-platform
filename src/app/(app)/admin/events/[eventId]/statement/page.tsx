@@ -188,7 +188,6 @@ export default async function EventStatementPage({ params }: Props) {
                 name="description"
                 required
                 placeholder="e.g. Venue rental deposit"
-                className="text-base"
               />
             </div>
             <div className="grid gap-2">
@@ -201,16 +200,16 @@ export default async function EventStatementPage({ params }: Props) {
                 step="0.01"
                 required
                 placeholder="250.00"
-                className="w-28 text-base"
+                className="w-28"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="expense-date">Date incurred</Label>
-              <Input id="expense-date" type="date" name="incurred_on" className="text-base" />
+              <Input id="expense-date" type="date" name="incurred_on" />
             </div>
             <div className="grid min-w-48 flex-1 gap-2">
               <Label htmlFor="expense-notes">Notes</Label>
-              <Input id="expense-notes" name="notes" placeholder="Optional" className="text-base" />
+              <Input id="expense-notes" name="notes" placeholder="Optional" />
             </div>
             <Button type="submit">Add expense</Button>
           </form>

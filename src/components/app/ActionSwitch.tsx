@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useOptimistic, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -40,6 +41,7 @@ export function ActionSwitch({
             try {
               await action(next);
             } catch (err) {
+              unstable_rethrow(err);
               toast.error(
                 err instanceof Error ? err.message : "That didn't go through. Try again.",
               );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -52,6 +53,8 @@ export function ConfirmAction({
         await onConfirm();
         setOpen(false);
       } catch (err) {
+        // A redirect (Delete event → /admin) or notFound is Next's to handle, not a failure.
+        unstable_rethrow(err);
         toast.error(err instanceof Error ? err.message : "That didn't go through. Try again.");
       } finally {
         inFlight.current = false;

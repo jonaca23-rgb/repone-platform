@@ -58,13 +58,7 @@ export default async function VenuesPage({ params }: Props) {
               >
                 <div className="grid gap-2">
                   <Label htmlFor={`floor-${v.id}`}>New floor name</Label>
-                  <Input
-                    id={`floor-${v.id}`}
-                    name="name"
-                    required
-                    placeholder="Floor B"
-                    className="text-base"
-                  />
+                  <Input id={`floor-${v.id}`} name="name" required placeholder="Floor B" />
                 </div>
                 <Button type="submit" variant="outline">
                   Add floor

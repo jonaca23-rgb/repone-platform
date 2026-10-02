@@ -18,8 +18,7 @@ export class ValidationError extends Error {
 export function parseForm<S extends z.ZodType>(schema: S, formData: FormData): z.infer<S> {
   const raw: Record<string, FormDataEntryValue> = {};
   for (const [key, value] of formData.entries()) {
-    // A Select's "none" item (see ./none) posts NONE; read it as blank.
-    if (!(key in raw)) raw[key] = value === NONE ? "" : value;
+    if (!(key in raw)) raw[key] = value;
   }
   const result = schema.safeParse(raw);
   if (!result.success) {
@@ -42,6 +41,9 @@ export function parseArg<S extends z.ZodType>(schema: S, value: unknown): z.infe
 
 const blankToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
+/** For fields a Select posts: its "none" item (NONE, see ./none) is blank too. Free text keeps it. */
+const blankOrNoneToUndefined = (v: unknown) => (v === NONE ? undefined : blankToUndefined(v));
+
 export const field = {
   /** Required text, trimmed. */
   text: (label: string, { max = 200 }: { max?: number } = {}) =>
@@ -60,10 +62,10 @@ export const field = {
   /** An id from a select or hidden field. Any UUID shape (seed ids aren't RFC v4). */
   id: (label: string) => z.guid({ error: `${label} is missing or invalid.` }),
 
-  /** Optional id; blank becomes null. */
+  /** Optional id from a select or hidden field; blank or the Select's NONE becomes null. */
   optionalId: (label: string) =>
     z
-      .preprocess(blankToUndefined, z.guid({ error: `${label} is invalid.` }).optional())
+      .preprocess(blankOrNoneToUndefined, z.guid({ error: `${label} is invalid.` }).optional())
       .transform((v) => v ?? null),
 
   /** Required whole number within bounds. */
@@ -86,6 +88,24 @@ export const field = {
 
   /** HTML checkbox: present ("on") is true, absent is false. */
   checkbox: () => z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+
+  /** Optional pick from a fixed set (a Select with a "none" item); blank or NONE becomes null. */
+  optionalOneOf: <const T extends readonly [string, ...string[]]>(values: T, label: string) =>
+    z
+      .preprocess(
+        blankOrNoneToUndefined,
+        z.enum(values, { error: `Choose a valid ${label}.` }).optional(),
+      )
+      .transform((v) => v ?? null),
+
+  /** Optional text chosen from a Select (not typed); blank or NONE becomes null. */
+  optionalChoice: ({ max = 200, label = "Choice" }: { max?: number; label?: string } = {}) =>
+    z
+      .preprocess(
+        blankOrNoneToUndefined,
+        z.string().trim().max(max, `${label} is too long.`).optional(),
+      )
+      .transform((v) => v ?? null),
 
   /** One of a fixed set (pass the generated Constants.public.Enums.* list). */
   oneOf: <const T extends readonly [string, ...string[]]>(values: T, label: string) =>

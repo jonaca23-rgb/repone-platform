@@ -143,7 +143,7 @@ export function RegisterForms({
               />
               <div className="grid gap-2">
                 <Label htmlFor="register-athlete-bib">Bib #</Label>
-                <Input id="register-athlete-bib" name="bib_number" className="w-24 text-base" />
+                <Input id="register-athlete-bib" name="bib_number" className="w-24" />
               </div>
               <Button type="submit" disabled={athletePending}>
                 {athletePending ? "Registering…" : "Register"}
@@ -196,7 +196,7 @@ export function RegisterForms({
               />
               <div className="grid gap-2">
                 <Label htmlFor="register-team-bib">Bib #</Label>
-                <Input id="register-team-bib" name="bib_number" className="w-24 text-base" />
+                <Input id="register-team-bib" name="bib_number" className="w-24" />
               </div>
               <Button type="submit" disabled={teamPending}>
                 {teamPending ? "Registering…" : "Register"}

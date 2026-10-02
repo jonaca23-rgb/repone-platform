@@ -194,7 +194,7 @@ export default async function HeatDetailPage({ params }: Props) {
     .map((l) => l.athlete_id as string);
 
   const title = `${heat.wods?.name} — Heat ${heat.heat_number}${heat.heat_count ? ` / ${heat.heat_count}` : ""}`;
-  const fieldClass = "w-28 text-base";
+  const fieldClass = "w-28";
 
   return (
     <div className="flex flex-col gap-6">

@@ -19,13 +19,8 @@ const AthleteForm = z.object({
   last_name: field.text("Last name", { max: 100 }),
   affiliate: field.optionalText({ max: 200, label: "Affiliate" }),
   date_of_birth: field.optionalDate("Date of birth"),
-  // "" (the "—" option) means not set.
-  gender: z
-    .preprocess(
-      (v) => (v === "" ? undefined : v),
-      field.oneOf(Constants.public.Enums.athlete_gender, "gender").optional(),
-    )
-    .transform((v) => v ?? null),
+  // Blank or the Select's "Not set" item means not set.
+  gender: field.optionalOneOf(Constants.public.Enums.athlete_gender, "gender"),
   email: field.email(),
   phone: field.optionalText({ max: 40, label: "Phone" }),
 });
