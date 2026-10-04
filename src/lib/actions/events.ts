@@ -78,7 +78,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ hr
       .select("id")
       .single();
     if (venueError)
-      throw new Error(`Event created, but its default venue wasn't: ${venueError.message}`);
+      return fail(`Event created, but its default venue wasn't: ${venueError.message}`);
 
     const { data: floor, error: floorError } = await supabase
       .from("floors")
@@ -86,13 +86,13 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ hr
       .select("id")
       .single();
     if (floorError)
-      throw new Error(`Event created, but its default floor wasn't: ${floorError.message}`);
+      return fail(`Event created, but its default floor wasn't: ${floorError.message}`);
 
     const { error: broadcastError } = await supabase
       .from("broadcast_state")
       .insert({ floor_id: floor.id });
     if (broadcastError) {
-      throw new Error(
+      return fail(
         `Event created, but its floor's broadcast state wasn't: ${broadcastError.message}`,
       );
     }
