@@ -47,6 +47,23 @@ describe("createEvent", () => {
   });
 });
 
+describe("createEvent when its setup half-fails", () => {
+  it("still opens the new event and says what is missing, so nobody creates it twice", async () => {
+    db.current = fakeSupabase({
+      events: [{ data: { id: "ev-9" } }],
+      venues: [{ error: { message: "venue insert refused" } }],
+    }).client;
+    expect(await createEvent(form({ name: "Open", circuit_choice: "" }))).toEqual({
+      ok: true,
+      data: {
+        href: "/admin/events/ev-9",
+        warning:
+          "Event created, but its default venue wasn't: venue insert refused. Add one from the event's Venues page.",
+      },
+    });
+  });
+});
+
 describe("deleteEvent", () => {
   it("sends the person back to the events list", async () => {
     db.current = fakeSupabase({ events: [{ data: [{ id: "ev-9", circuit_id: null }] }] }).client;

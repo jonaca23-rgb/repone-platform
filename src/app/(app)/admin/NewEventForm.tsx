@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createEvent } from "@/lib/actions/events";
 import { fieldErrorsOf, useServerAction } from "@/lib/use-server-action";
 import { NONE } from "@/lib/validation/none";
@@ -22,10 +23,13 @@ export function NewEventForm({ circuits }: { circuits: { id: string; name: strin
   const router = useRouter();
   const [choice, setChoice] = useState<string>(NONE);
   const create = useServerAction(createEvent, {
-    success: "Event created",
+    success: (data) => (data.warning ? "" : "Event created"),
     toastErrors: false,
     refresh: false,
-    onSuccess: (data) => router.push(data.href),
+    onSuccess: (data) => {
+      if (data.warning) toast.warning(data.warning);
+      router.push(data.href);
+    },
   });
   const errors = fieldErrorsOf(create.error);
 

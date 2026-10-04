@@ -19,7 +19,9 @@ const EventForm = z.object({
   new_circuit_name: field.optionalText({ max: 200, label: "Circuit name" }),
 });
 
-export async function createEvent(formData: FormData): Promise<ActionResult<{ href: string }>> {
+export async function createEvent(
+  formData: FormData,
+): Promise<ActionResult<{ href: string; warning?: string }>> {
   return safeAction(async () => {
     const { organizationId } = await requireOrgManager();
     const f = parseForm(EventForm, formData);
@@ -69,6 +71,21 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ hr
 
     if (error) throw new Error(error.message);
 
+    // From here the event exists. Whatever happens next, the person is taken
+    // to it (with a warning if its setup is incomplete) rather than left in a
+    // dialog that invites creating it a second time.
+    const href = `/admin/events/${data.id}`;
+    const created = (warning?: string) => {
+      revalidatePath("/admin");
+      if (circuit_id) revalidatePath(`/admin/circuits/${circuit_id}`);
+      revalidatePath("/admin/circuits");
+      return ok(warning ? { href, warning } : { href });
+    };
+    const setupFailed = (what: string, message: string) =>
+      created(
+        `Event created, but its ${what} wasn't: ${message}. Add one from the event's Venues page.`,
+      );
+
     // A fresh event needs at least one venue + floor before heats can be created
     // (floors are the unit heats/broadcast_state attach to). Create sensible
     // defaults so the operator isn't forced through extra setup screens first.
@@ -77,30 +94,21 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ hr
       .insert({ event_id: data.id, name: "Main Venue" })
       .select("id")
       .single();
-    if (venueError)
-      return fail(`Event created, but its default venue wasn't: ${venueError.message}`);
+    if (venueError) return setupFailed("default venue", venueError.message);
 
     const { data: floor, error: floorError } = await supabase
       .from("floors")
       .insert({ venue_id: venue.id, name: "Floor A", sort_order: 0 })
       .select("id")
       .single();
-    if (floorError)
-      return fail(`Event created, but its default floor wasn't: ${floorError.message}`);
+    if (floorError) return setupFailed("default floor", floorError.message);
 
     const { error: broadcastError } = await supabase
       .from("broadcast_state")
       .insert({ floor_id: floor.id });
-    if (broadcastError) {
-      return fail(
-        `Event created, but its floor's broadcast state wasn't: ${broadcastError.message}`,
-      );
-    }
+    if (broadcastError) return setupFailed("floor's broadcast state", broadcastError.message);
 
-    revalidatePath("/admin");
-    if (circuit_id) revalidatePath(`/admin/circuits/${circuit_id}`);
-    revalidatePath("/admin/circuits");
-    return ok({ href: `/admin/events/${data.id}` });
+    return created();
   });
 }
 
