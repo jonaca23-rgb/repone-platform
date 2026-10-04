@@ -16,8 +16,8 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 // Results are entered by an org manager or by scorekeepers/producers assigned
 // to the heat's event (requireHeatAccess). The event, WOD, division and floor
 // all come from the heat row on the server, and the scoring type from the
-// WOD row: the eventId/wodId/divisionId/scoringType/floorId arguments these
-// actions still accept (the pages bind them) are ignored.
+// WOD row: the eventId/wodId/divisionId/scoringType/floorId arguments
+// saveHeatResults still accepts (the page binds them) are ignored.
 
 const status = z.preprocess(
   (v) => (v === undefined || v === "" ? "completed" : v),
@@ -47,18 +47,20 @@ const EnterResultForm = ScoreFields.extend({
 
 type Scorecard = z.infer<typeof ScoreFields>;
 
+const NO_WOD = "This heat's WOD no longer exists.";
+
+/** The heat's WOD scoring type, or null when the WOD is gone. */
 async function wodScoringType(
   supabase: SupabaseServerClient,
   wodId: string,
-): Promise<ScoringTypeDb> {
+): Promise<ScoringTypeDb | null> {
   const { data, error } = await supabase
     .from("wods")
     .select("scoring_type")
     .eq("id", wodId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("This heat's WOD no longer exists.");
-  return data.scoring_type;
+  return data?.scoring_type ?? null;
 }
 
 /**
@@ -126,50 +128,47 @@ function resultRow(
 /**
  * Enters/updates the RAW result for one competitor in one heat, matching the
  * WOD's scoring type — never a single generic "score" field — then rebuilds
- * standings for that WOD+division so the leaderboard stays in sync.
+ * standings for that WOD+division so the leaderboard stays in sync. Used by
+ * the score drawer on the Score Keeper screen and the admin heat's Results tab.
  */
-export async function enterResult(
-  _eventId: string,
-  heatId: string,
-  _wodId: string,
-  _divisionId: string,
-  _scoringType: ScoringTypeDb,
-  _floorId: string | null,
-  formData: FormData,
-) {
-  const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
-  const form = parseForm(EnterResultForm, formData);
+export async function enterResult(heatId: string, formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+    const form = parseForm(EnterResultForm, formData);
 
-  const supabase = await createClient();
-  const [scoringType, eligible] = await Promise.all([
-    wodScoringType(supabase, heat.wod_id),
-    eligibleCompetitors(supabase, heat),
-  ]);
-  const isAthlete = form.competitor_type === "athlete";
-  if (!(isAthlete ? eligible.athletes : eligible.teams).has(form.competitor_id)) {
-    throw new NotAuthorizedError("That competitor isn't in this heat.");
-  }
+    const supabase = await createClient();
+    const [scoringType, eligible] = await Promise.all([
+      wodScoringType(supabase, heat.wod_id),
+      eligibleCompetitors(supabase, heat),
+    ]);
+    if (!scoringType) return fail(NO_WOD);
+    const isAthlete = form.competitor_type === "athlete";
+    if (!(isAthlete ? eligible.athletes : eligible.teams).has(form.competitor_id)) {
+      throw new NotAuthorizedError("That competitor isn't in this heat.");
+    }
 
-  const row = resultRow(
-    form,
-    scoringType,
-    {
-      heat_id: heat.id,
-      wod_id: heat.wod_id,
-      athlete_id: isAthlete ? form.competitor_id : null,
-      team_id: isAthlete ? null : form.competitor_id,
-    },
-    ctx.userId,
-  );
-  const conflictTarget = isAthlete ? "heat_id,athlete_id" : "heat_id,team_id";
-  const { error } = await supabase.from("results").upsert(row, { onConflict: conflictTarget });
-  if (error) throw new Error(error.message);
+    const row = resultRow(
+      form,
+      scoringType,
+      {
+        heat_id: heat.id,
+        wod_id: heat.wod_id,
+        athlete_id: isAthlete ? form.competitor_id : null,
+        team_id: isAthlete ? null : form.competitor_id,
+      },
+      ctx.userId,
+    );
+    const conflictTarget = isAthlete ? "heat_id,athlete_id" : "heat_id,team_id";
+    const { error } = await supabase.from("results").upsert(row, { onConflict: conflictTarget });
+    if (error) throw new Error(error.message);
 
-  await recomputeWodStandings(heat.wod_id, heat.division_id, supabase);
+    await recomputeWodStandings(heat.wod_id, heat.division_id, supabase);
 
-  revalidatePath(`/admin/events/${eventId}/heats/${heat.id}`);
-  revalidatePath(`/overlay`);
-  if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
+    revalidatePath(`/admin/events/${eventId}/heats/${heat.id}`);
+    revalidatePath(`/overlay`);
+    if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
+    return ok();
+  });
 }
 
 /** The `name__<athleteId>` fields of one lane, re-keyed without the suffix. */
@@ -218,6 +217,7 @@ export async function saveHeatResults(
         wodScoringType(supabase, heat.wod_id),
         eligibleCompetitors(supabase, heat),
       ]);
+      if (!scoringType) return fail(NO_WOD);
       if (ids.some((id) => !eligible.athletes.has(id))) {
         throw new NotAuthorizedError("One of those athletes isn't in this heat.");
       }

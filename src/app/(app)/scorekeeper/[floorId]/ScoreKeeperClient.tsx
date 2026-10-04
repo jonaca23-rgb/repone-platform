@@ -581,15 +581,10 @@ export function ScoreKeeperClient({
               scoringType={scoringType}
               isUnsaved={unsaved.has(laneKey)}
               error={laneErrors[laneKey]}
-              save={enterResult.bind(
-                null,
-                eventId,
-                heat.id,
-                heat.wod.id,
-                heat.division.id,
-                scoringType,
-                floorId,
-              )}
+              save={async (fd) => {
+                const r = await enterResult(heat.id, fd);
+                if (!r.ok) throw new Error(r.message);
+              }}
               onEdit={() => markLane(laneKey, true)}
               onSaved={() => {
                 markLane(laneKey, false);
@@ -650,7 +645,7 @@ export function ScoreKeeperClient({
                     : ""
                 }`}
                 confirmLabel="Finish heat"
-                onConfirm={() => finishHeat(eventId, heat.id, floorId)}
+                onConfirm={() => finishHeat(heat.id)}
               />
             )}
           </CardContent>
