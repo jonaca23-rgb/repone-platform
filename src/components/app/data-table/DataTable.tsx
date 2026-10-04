@@ -218,7 +218,9 @@ export function DataTable<TData extends object>({
                       <TableCell
                         key={cell.id}
                         className={cn(
-                          "align-middle",
+                          // shadcn cells never wrap; on a phone they must, or the
+                          // last columns (the switch, the actions) fall off-screen.
+                          "align-middle max-md:whitespace-normal",
                           meta?.priority === "low" && "max-md:hidden",
                           meta?.rowActions ? ROW_ACTIONS_CELL : PHONE_CELL,
                           meta?.className,

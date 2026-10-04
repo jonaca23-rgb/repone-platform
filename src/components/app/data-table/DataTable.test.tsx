@@ -80,6 +80,17 @@ describe("DataTable", () => {
     expect(within(bodyRows()[0]).getByText("Sponsor 29")).toBeTruthy();
   });
 
+  it("shows each filter's current choice", () => {
+    setup();
+    expect(screen.getByRole("combobox", { name: "Tier" }).textContent).toContain("All tiers");
+  });
+
+  it("lets cells wrap on a phone so every column fits", () => {
+    setup();
+    const cell = screen.getByText("Hoka").closest("td");
+    expect(cell?.className).toContain("max-md:whitespace-normal");
+  });
+
   it("hides low-priority columns below md", () => {
     setup();
     const tierHeader = screen.getByRole("columnheader", { name: /Tier/ });

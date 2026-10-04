@@ -56,7 +56,8 @@ export function ActionSwitch({
       />
       <Label
         htmlFor={id}
-        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        // On a phone the switch alone shows the state, so a table row keeps its width.
+        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground max-md:sr-only"
       >
         {optimistic ? onLabel : offLabel}
       </Label>

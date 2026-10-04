@@ -16,7 +16,7 @@ export interface GuardViolation {
  * failure is `return fail("…")`: a thrown message is redacted in production.
  * Each migration appends its file.
  */
-export const ACTION_RESULT_FILES: readonly string[] = [];
+export const ACTION_RESULT_FILES: readonly string[] = ["src/lib/actions/sponsors.ts"];
 
 type GuardRule = {
   id: string;
