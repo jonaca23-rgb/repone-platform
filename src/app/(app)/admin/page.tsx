@@ -22,20 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { NONE } from "@/lib/validation/none";
+import { formatDayRange } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Events" };
-
-function formatDateRange(startsOn: string | null, endsOn: string | null) {
-  if (!startsOn) return "Date TBD";
-  const fmt = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  if (!endsOn || endsOn === startsOn) return fmt(startsOn);
-  return `${fmt(startsOn)} — ${fmt(endsOn)}`;
-}
 
 export default async function AdminHomePage() {
   const ctx = await getSessionContext();
@@ -169,7 +158,7 @@ export default async function AdminHomePage() {
                 </div>
                 <div className="p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {formatDateRange(e.starts_on, e.ends_on)}
+                    {formatDayRange(e.starts_on, e.ends_on)}
                   </p>
                   <p className="mt-0.5 text-lg font-bold">{e.name}</p>
                 </div>

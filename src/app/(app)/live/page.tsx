@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/db/server";
+import { formatDayRange } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Live Competitions" };
 
@@ -32,18 +33,6 @@ export default async function LiveEventsPage() {
     ? await supabase.from("circuits").select("id, name").in("id", circuitIds)
     : { data: [] as { id: string; name: string }[] };
   const circuitNameById = new Map((circuits ?? []).map((c) => [c.id, c.name]));
-
-  const fmt = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  const dateRange = (startsOn: string | null, endsOn: string | null) => {
-    if (!startsOn) return "Date TBD";
-    if (!endsOn || endsOn === startsOn) return fmt(startsOn);
-    return `${fmt(startsOn)} – ${fmt(endsOn)}`;
-  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -78,7 +67,7 @@ export default async function LiveEventsPage() {
                   </div>
                   <div className="flex flex-col gap-1 p-4">
                     <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      {dateRange(e.starts_on, e.ends_on)}
+                      {formatDayRange(e.starts_on, e.ends_on, " – ")}
                     </p>
                     <p className="text-lg font-bold">{e.name}</p>
                     {e.circuit_id && (

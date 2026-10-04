@@ -7,6 +7,11 @@ import { ConfirmAction } from "./ConfirmAction";
 
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", async (orig) => ({
+  ...(await orig<typeof import("next/navigation")>()),
+  useRouter: () => ({ push, refresh: vi.fn() }),
+}));
 
 /** Stands in for Next's redirect boundary, which catches the rethrown redirect. */
 class Boundary extends Component<{ children: ReactNode }, { caught: unknown }> {
@@ -39,6 +44,41 @@ afterEach(() => {
 });
 
 describe("ConfirmAction", () => {
+  it("treats a returned failure like a thrown one", async () => {
+    const onConfirm = vi
+      .fn()
+      .mockResolvedValue({ ok: false, message: "That person isn't on this team." });
+    render(
+      <ConfirmAction
+        trigger="Remove"
+        title="Remove?"
+        description="d"
+        confirmLabel="Remove it"
+        onConfirm={onConfirm}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove it" }));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("That person isn't on this team."));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+  });
+  it("goes where a successful result says", async () => {
+    const onConfirm = vi.fn().mockResolvedValue({ ok: true, data: { href: "/admin" } });
+    render(
+      <ConfirmAction
+        trigger="Delete"
+        title="Delete?"
+        description="d"
+        confirmLabel="Delete it"
+        onConfirm={onConfirm}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete it" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/admin"));
+  });
   it("does nothing until confirmed", async () => {
     const { onConfirm, user } = setup();
     await user.click(screen.getByRole("button", { name: "Remove" }));

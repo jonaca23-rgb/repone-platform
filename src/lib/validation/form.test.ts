@@ -141,3 +141,18 @@ describe("imageUpload", () => {
     expect(() => imageUpload(value)).toThrow(message);
   });
 });
+
+describe("parseForm field errors", () => {
+  it("names every invalid field, first message first", () => {
+    const twoFields = z.object({ name: field.text("Name"), email: field.text("Email") });
+    try {
+      parseForm(twoFields, form({ name: "", email: "" }));
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      const v = err as ValidationError;
+      expect(v.message).toBe("Name is required.");
+      expect(v.fieldErrors).toEqual({ name: ["Name is required."], email: ["Email is required."] });
+    }
+  });
+});

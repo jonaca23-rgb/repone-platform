@@ -59,3 +59,6 @@ next-env.d.ts
 
 # local Supabase JWT signing key
 /supabase/signing_keys.json
+
+# brainstorming mockups (superpowers visual companion)
+/.superpowers/

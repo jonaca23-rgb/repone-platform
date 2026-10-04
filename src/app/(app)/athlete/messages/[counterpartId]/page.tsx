@@ -9,6 +9,7 @@ import { sendMessage } from "@/lib/actions/messages";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateTime } from "@/lib/time";
 
 // Read once per request: the page and its title share them.
 const sessionContext = cache(getAthleteSessionContext);
@@ -80,7 +81,7 @@ export default async function AthleteThreadPage({
               className={`mt-1 text-xs ${m.fromMe ? "text-primary-foreground" : "text-muted-foreground"}`}
             >
               <span className="sr-only">{m.fromMe ? "You, " : `${counterpart.name}, `}</span>
-              {new Date(m.createdAt).toLocaleString()}
+              {formatDateTime(m.createdAt)}
             </p>
           </li>
         ))}

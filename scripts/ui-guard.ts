@@ -4,7 +4,9 @@ import { join, relative, resolve, sep } from "node:path";
 import { checkSource, GUARD_RULES } from "../src/lib/design/uiGuard";
 
 const SKIP = ["src/components/ui", "src/components/graphics", "src/app/(overlay)"];
-const roots = process.argv.slice(2).length ? process.argv.slice(2) : ["src/app", "src/components"];
+const roots = process.argv.slice(2).length
+  ? process.argv.slice(2)
+  : ["src/app", "src/components", "src/lib/actions"];
 
 function* files(p: string): Generator<string> {
   const rel = relative(process.cwd(), resolve(p)).split(sep).join("/");
@@ -14,7 +16,9 @@ function* files(p: string): Generator<string> {
 }
 
 const violations = roots.flatMap((r) =>
-  [...files(r)].flatMap((f) => checkSource(f, readFileSync(f, "utf8"))),
+  [...files(r)].flatMap((f) =>
+    checkSource(relative(process.cwd(), resolve(f)).split(sep).join("/"), readFileSync(f, "utf8")),
+  ),
 );
 const message = Object.fromEntries(GUARD_RULES.map((r) => [r.id, r.message]));
 for (const v of violations)

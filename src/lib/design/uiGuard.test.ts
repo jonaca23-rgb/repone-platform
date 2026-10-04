@@ -4,6 +4,19 @@ import { checkSource } from "./uiGuard";
 const rules = (src: string) => checkSource("x.tsx", src).map((v) => v.rule);
 
 describe("ui guard", () => {
+  it("rejects a user-facing throw in a migrated action file", () => {
+    const file = "src/lib/actions/example.ts";
+    expect(checkSource(file, 'throw new Error("Nope.");', [file]).map((v) => v.rule)).toEqual([
+      "action-throw",
+    ]);
+    expect(checkSource(file, "throw new Error(error.message);", [file])).toEqual([]);
+    expect(checkSource("src/lib/actions/other.ts", 'throw new Error("Nope.");', [file])).toEqual(
+      [],
+    );
+  });
+  it("rejects vaul", () => {
+    expect(rules('import { Drawer } from "vaul";')).toEqual(["vaul"]);
+  });
   it("flags the old button and confirm patterns", () => {
     expect(rules(`<button className="control-btn control-btn-red">`)).toContain("control-btn");
     expect(rules(`if (!window.confirm("Delete?")) return;`)).toContain("confirm");

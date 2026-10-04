@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatDateTime } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Athlete" };
 
@@ -236,7 +237,7 @@ export default async function AthleteDashboardPage() {
                           : `sent you a message: "${item.description}"`}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(item.createdAt).toLocaleString()}
+                        {formatDateTime(item.createdAt)}
                       </p>
                     </div>
                   </li>
