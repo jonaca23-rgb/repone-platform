@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "./button";
@@ -57,5 +57,31 @@ describe("ResponsiveDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(document.querySelector('[data-slot="drawer-popup"]')).toBeTruthy();
     expect(screen.getByText("Add sponsor")).toBeTruthy();
+  });
+
+  it("keeps its form when the phone rotates while it's open", async () => {
+    let width = 390;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      get matches() {
+        return query === "(max-width: 639px)" ? width <= 639 : false;
+      },
+      media: query,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    }));
+    const rotate = (to: number) =>
+      act(() => {
+        width = to;
+        for (const fn of listeners) fn();
+      });
+
+    render(<Example />);
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(document.querySelector('[data-slot="drawer-popup"]')).toBeTruthy();
+
+    rotate(844);
+    expect(document.querySelector('[data-slot="drawer-popup"]')).toBeTruthy();
+    expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull();
   });
 });

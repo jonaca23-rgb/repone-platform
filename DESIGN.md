@@ -312,6 +312,10 @@ Cards are for summaries and links (an event's section counts, a statement's tota
 - Forms open as a bottom drawer below 640px; check every new form at **390×400** (a phone with the keyboard up): focus the last field, and the submit button must be visible and tappable.
 - Controls are at least 44px; a table must fit 390px without the page scrolling sideways.
 
+### Entering scores
+
+A result is typed in one place: `ScoreDrawer` (`src/components/scoring/`). A page that only enters results renders `LaneScoring` (the lane list plus the drawer). A page with more around it, such as the Score Keeper floor, composes `LaneList` and `ScoreDrawer` itself. A for-time score is minutes and seconds in two numeric fields, joined by `joinClock`; never a single `mm:ss` text field, because a phone's numeric keypad has no colon. Don't build a second entry form.
+
 ### Checklist for a new admin screen
 
 1. Write the action's failing tests (pattern: `src/lib/actions/sponsors.test.ts` with `fakeSupabase`), then make the action return `ActionResult` and add it to `ACTION_RESULT_FILES`.

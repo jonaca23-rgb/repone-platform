@@ -6,11 +6,8 @@ import { getFloorContext } from "@/lib/db/queries";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { OperatorShell } from "@/components/shells/OperatorShell";
-import {
-  ScoreKeeperClient,
-  type ScoreKeeperResult,
-  type ScoreKeeperStanding,
-} from "./ScoreKeeperClient";
+import type { LaneResult } from "@/lib/scoring/format";
+import { ScoreKeeperClient, type ScoreKeeperStanding } from "./ScoreKeeperClient";
 
 type Props = { params: Promise<{ floorId: string }> };
 
@@ -73,10 +70,10 @@ export default async function ScoreKeeperPage({ params }: Props) {
     ),
   ]);
 
-  const resultsByHeatId: Record<string, ScoreKeeperResult[]> = {};
+  const resultsByHeatId: Record<string, LaneResult[]> = {};
   (resultsRaw ?? []).forEach((r) => {
     const heatId = r.heat_id as string;
-    (resultsByHeatId[heatId] ??= []).push(r as unknown as ScoreKeeperResult);
+    (resultsByHeatId[heatId] ??= []).push(r as unknown as LaneResult);
   });
 
   // See lib/db/queries.ts header comment: cast the many-to-one embed back to a single object.
@@ -108,7 +105,6 @@ export default async function ScoreKeeperPage({ params }: Props) {
     <OperatorShell module="scorekeeper" moduleLabel="Scorekeeper" eventName={context.eventName}>
       <ScoreKeeperClient
         floorId={floorId}
-        eventId={context.eventId}
         heats={context.heats}
         initialBroadcastState={broadcastState ?? null}
         resultsByHeatId={resultsByHeatId}

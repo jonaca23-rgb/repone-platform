@@ -1,29 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, PencilLine } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
-import { formatClock } from "@/lib/timer/compute";
 import { compareHeatsForRunningOrder } from "@/lib/scoring/divisionOrder";
 import { DetailHeader } from "@/components/app/DetailHeader";
 import { LinkTabs } from "@/components/app/LinkTabs";
 import { pickTab } from "@/lib/tabs";
 import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { getAdminEvent, requireAdminEvent } from "../../adminEvent";
 import { LaneAssignmentForm } from "./LaneAssignmentForm";
-import { ResultsForm } from "./ResultsForm";
+import { LaneScoring } from "@/components/scoring/LaneScoring";
+import type { LaneResult, ScoringLane, ScoringType } from "@/lib/scoring/format";
 
 type Props = {
   params: Promise<{ eventId: string; heatId: string }>;
@@ -198,15 +187,18 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
     athletes: { first_name: string; last_name: string } | null;
   }> | null;
 
-  const resultByAthlete = new Map((results ?? []).map((r) => [r.athlete_id, r]));
   const scoringType = heat.wods!.scoring_type;
-  const laneAthleteIds = (lanes ?? [])
+  const scoringLanes: ScoringLane[] = (lanes ?? [])
     .filter((l) => l.athlete_id)
-    .map((l) => l.athlete_id as string);
+    .map((l) => ({
+      laneNumber: l.lane_number,
+      athleteId: l.athlete_id as string,
+      name: `${l.athletes?.first_name ?? ""} ${l.athletes?.last_name ?? ""}`.trim(),
+      affiliate: l.athletes?.affiliate ?? null,
+    }));
 
   const tab = pickTab(TABS, (await searchParams).tab);
   const title = `${heat.wods?.name} — Heat ${heat.heat_number}${heat.heat_count ? ` / ${heat.heat_count}` : ""}`;
-  const fieldClass = "w-28";
 
   return (
     <div className="flex flex-col gap-6">
@@ -281,184 +273,22 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
             </div>
           </section>
         ) : tab === "results" ? (
-          <section>
-            <p className="mb-3 text-sm text-muted-foreground">
-              For backup or manual entry only: this saves scores but doesn&apos;t finish the heat.
-              The heat is marked Completed from the Score Keeper screen once every lane&apos;s
-              result is entered there.
+          <section className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              Saving here doesn&apos;t finish the heat. The heat is marked Completed from the Score
+              Keeper screen.
             </p>
-            <ResultsForm
-              eventId={eventId}
-              heatId={heatId}
-              wodId={heat.wod_id}
-              divisionId={heat.division_id}
-              scoringType={scoringType}
-              floorId={heat.floor_id}
-              athleteIds={laneAthleteIds}
-            >
-              <div className="flex flex-col gap-3">
-                {(lanes ?? [])
-                  .filter((l) => l.athlete_id)
-                  .map((lane) => {
-                    const existing = resultByAthlete.get(lane.athlete_id);
-                    const id = lane.athlete_id as string;
-                    const f = (name: string) => `result-${lane.id}-${name}`;
-                    return (
-                      <div key={lane.id} className="rounded-lg border border-border bg-card p-3">
-                        <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                          Lane {lane.lane_number} — {lane.athletes?.first_name}{" "}
-                          {lane.athletes?.last_name}
-                          {existing?.manually_adjusted && (
-                            <Badge className="border-warning/40 bg-warning/10 text-warning-text uppercase">
-                              <PencilLine aria-hidden />
-                              Adjusted
-                            </Badge>
-                          )}
-                        </p>
-                        <div className="flex flex-wrap items-end gap-3">
-                          {scoringType === "for_time" && (
-                            <>
-                              <div className="grid gap-1.5">
-                                <Label htmlFor={f("time")} className="text-xs">
-                                  Time (mm:ss)
-                                </Label>
-                                <Input
-                                  id={f("time")}
-                                  name={`time_seconds__${id}`}
-                                  type="text"
-                                  inputMode="text"
-                                  pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
-                                  placeholder="3:45"
-                                  defaultValue={
-                                    existing?.time_seconds != null
-                                      ? formatClock(existing.time_seconds)
-                                      : ""
-                                  }
-                                  className={fieldClass}
-                                />
-                              </div>
-                              <div className="flex h-9 items-center gap-2">
-                                <Checkbox
-                                  id={f("capped")}
-                                  name={`capped__${id}`}
-                                  defaultChecked={existing?.capped ?? false}
-                                />
-                                <Label htmlFor={f("capped")} className="text-xs">
-                                  Capped
-                                </Label>
-                              </div>
-                              <div className="grid gap-1.5">
-                                <Label htmlFor={f("reps")} className="text-xs">
-                                  Reps (if capped)
-                                </Label>
-                                <Input
-                                  id={f("reps")}
-                                  name={`reps__${id}`}
-                                  type="number"
-                                  defaultValue={existing?.reps ?? ""}
-                                  className={fieldClass}
-                                />
-                              </div>
-                            </>
-                          )}
-                          {scoringType === "amrap" && (
-                            <div className="grid gap-1.5">
-                              <Label htmlFor={f("reps")} className="text-xs">
-                                Total reps
-                              </Label>
-                              <Input
-                                id={f("reps")}
-                                name={`reps__${id}`}
-                                type="number"
-                                defaultValue={existing?.reps ?? ""}
-                                className={fieldClass}
-                              />
-                            </div>
-                          )}
-                          {scoringType === "max_load" && (
-                            <div className="grid gap-1.5">
-                              <Label htmlFor={f("load")} className="text-xs">
-                                Load
-                              </Label>
-                              <Input
-                                id={f("load")}
-                                name={`load__${id}`}
-                                type="number"
-                                step="0.5"
-                                defaultValue={existing?.load ?? ""}
-                                className={fieldClass}
-                              />
-                            </div>
-                          )}
-                          {(scoringType === "points" || scoringType === "other") && (
-                            <div className="grid gap-1.5">
-                              <Label htmlFor={f("points")} className="text-xs">
-                                Points
-                              </Label>
-                              <Input
-                                id={f("points")}
-                                name={`points__${id}`}
-                                type="number"
-                                step="0.01"
-                                defaultValue={existing?.points ?? ""}
-                                className={fieldClass}
-                              />
-                            </div>
-                          )}
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={f("tiebreak")} className="text-xs">
-                              Tie-break
-                            </Label>
-                            <Input
-                              id={f("tiebreak")}
-                              name={`tiebreak_value__${id}`}
-                              type="number"
-                              step="0.01"
-                              defaultValue={existing?.tiebreak_value ?? ""}
-                              className={fieldClass}
-                            />
-                          </div>
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={f("status")} className="text-xs">
-                              Status
-                            </Label>
-                            <Select
-                              name={`status__${id}`}
-                              defaultValue={existing?.status ?? "completed"}
-                            >
-                              <SelectTrigger id={f("status")} className="min-w-32">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="completed">Completed</SelectItem>
-                                <SelectItem value="dnf">DNF</SelectItem>
-                                <SelectItem value="dns">DNS</SelectItem>
-                                <SelectItem value="dq">DQ</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div
-                            className="flex h-9 items-center gap-2"
-                            title="Check this when correcting a result after the fact (e.g. a claim or protest resolved after the heat). The record is marked as manually adjusted."
-                          >
-                            <Checkbox
-                              id={f("manual")}
-                              name={`manual_adjustment__${id}`}
-                              defaultChecked={existing?.manually_adjusted ?? false}
-                            />
-                            <Label htmlFor={f("manual")} className="text-xs text-warning-text">
-                              Manual adjustment
-                            </Label>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                {(lanes ?? []).filter((l) => l.athlete_id).length === 0 && (
-                  <p className="text-sm text-muted-foreground">Assign athletes to lanes first.</p>
-                )}
-              </div>
-            </ResultsForm>
+            {scoringLanes.length > 0 ? (
+              <LaneScoring
+                heatId={heatId}
+                lanes={scoringLanes}
+                results={(results ?? []) as unknown as LaneResult[]}
+                scoringType={scoringType as ScoringType}
+                subtitle={`${heat.wods?.name ?? "WOD"} · ${heat.divisions?.name ?? ""}`}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Assign athletes to lanes first.</p>
+            )}
           </section>
         ) : standings && standings.length > 0 ? (
           <section>

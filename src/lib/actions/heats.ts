@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { type ActionResult, fail, ok } from "@/lib/action-result";
+import { type ActionResult, fail, ok, okMessage } from "@/lib/action-result";
 import {
   expectChanged,
   NotAuthorizedError,
@@ -141,38 +141,37 @@ export async function deleteHeat(eventId: string, heatId: string): Promise<Actio
 }
 
 /**
- * Marks a heat as finished — the Score Keeper's own "Save all & Finish
- * Heat" button, clicked once every lane's result for this heat has been
- * entered there (via enterResult, saved one lane at a time as the WOD
- * finishes). This is what flips the heat to "✓ Completed" back on the
- * Heats & Lanes list and moves its "Next Up" highlight along. The Heats &
- * Lanes heat detail page's own "Save All" button (saveHeatResults, in
- * actions/results.ts) is a separate backup/manual-entry path and no longer
- * finishes a heat on its own — only this does.
+ * Marks a heat as finished — the Score Keeper's "Finish heat" button, once
+ * every lane's result for this heat has been entered (via enterResult, one
+ * lane at a time). This is what flips the heat to "✓ Completed" back on the
+ * Heats & Lanes list and moves its "Next Up" highlight along. Saving a
+ * result (enterResult) never finishes a heat; only this does.
  *
- * The event and floor come from the heat itself; the eventId/floorId
- * arguments the page binds are ignored.
+ * The event and floor come from the heat itself.
  */
-export async function finishHeat(_eventId: string, heatId: string, _floorId: string | null) {
-  const { eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
-  const supabase = await createClient();
-  expectChanged(
-    await supabase
-      .from("heats")
-      .update({ ended_at: new Date().toISOString() })
-      .eq("id", heat.id)
-      .eq("event_id", eventId)
-      .select("id"),
-    "finish the heat",
-  );
+export async function finishHeat(heatId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+    const supabase = await createClient();
+    const [finished] = expectChanged(
+      await supabase
+        .from("heats")
+        .update({ ended_at: new Date().toISOString() })
+        .eq("id", heat.id)
+        .eq("event_id", eventId)
+        .select("id, heat_number"),
+      "finish the heat",
+    );
 
-  // The last heat finishing completes the WOD for this division, which is
-  // when competitors with no result start counting as last overall.
-  await recomputeOverallStandings(heat.division_id, supabase);
+    // The last heat finishing completes the WOD for this division, which is
+    // when competitors with no result start counting as last overall.
+    await recomputeOverallStandings(heat.division_id, supabase);
 
-  revalidatePath(`/admin/events/${eventId}/heats`);
-  revalidatePath(`/overlay`);
-  if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
+    revalidatePath(`/admin/events/${eventId}/heats`);
+    revalidatePath(`/overlay`);
+    if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
+    return okMessage(`Heat ${finished.heat_number} finished.`);
+  });
 }
 
 /**
