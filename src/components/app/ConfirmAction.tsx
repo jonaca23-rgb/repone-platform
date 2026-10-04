@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { unstable_rethrow } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { hrefOf, isFailure } from "@/lib/action-result";
 
 /**
  * The only way to run a destructive or hard-to-undo action: it names what is
@@ -59,6 +60,7 @@ export function ConfirmAction({
   };
   const [pending, start] = useTransition();
   const inFlight = useRef(false);
+  const router = useRouter();
 
   function handleConfirm(e: React.MouseEvent) {
     e.preventDefault(); // keep the dialog open until the action settles
@@ -66,8 +68,14 @@ export function ConfirmAction({
     inFlight.current = true;
     start(async () => {
       try {
-        await onConfirm();
+        const result = await onConfirm();
+        if (isFailure(result)) {
+          toast.error(result.message);
+          return; // stays open to retry
+        }
         setOpen(false);
+        const href = hrefOf(result);
+        if (href) router.push(href);
       } catch (err) {
         // A redirect (Delete event → /admin) or notFound is Next's to handle, not a failure.
         unstable_rethrow(err);

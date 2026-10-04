@@ -29,3 +29,16 @@ export function okMessage(message: string): ActionResult {
 export function fail(message: string, fieldErrors?: FieldErrors): ActionFailure {
   return fieldErrors ? { ok: false, message, fieldErrors } : { ok: false, message };
 }
+
+/** True for a resolved `{ ok: false }`: code that takes any promise treats it like a throw. */
+export function isFailure(value: unknown): value is ActionFailure {
+  return typeof value === "object" && value !== null && (value as { ok?: unknown }).ok === false;
+}
+
+/** Where a successful result says to go next (`ok({ href })`), if anywhere. */
+export function hrefOf(value: unknown): string | undefined {
+  const result = value as { ok?: unknown; data?: { href?: unknown } } | null | undefined;
+  return result?.ok === true && typeof result.data?.href === "string"
+    ? result.data.href
+    : undefined;
+}

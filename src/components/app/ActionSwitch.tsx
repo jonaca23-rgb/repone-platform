@@ -5,6 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { isFailure } from "@/lib/action-result";
 
 /**
  * An on/off setting saved as soon as it flips (sponsor active, fee active).
@@ -39,7 +40,11 @@ export function ActionSwitch({
           start(async () => {
             setOptimistic(next);
             try {
-              await action(next);
+              const result = await action(next);
+              if (isFailure(result)) {
+                toast.error(result.message);
+                setOptimistic(checked);
+              }
             } catch (err) {
               unstable_rethrow(err);
               toast.error(
