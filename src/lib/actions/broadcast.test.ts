@@ -61,4 +61,15 @@ describe("broadcast actions", () => {
     const result = await startTimer(FLOOR, "count_down", 1.5);
     expect(result).toEqual({ ok: false, message: "Timer duration must be whole seconds." });
   });
+
+  it("says so when the timer's floor has no broadcast state for this account", async () => {
+    db.current = {
+      ...fakeSupabase({}).client,
+      rpc: async () => ({ error: { message: `Floor ${FLOOR} has no broadcast state` } }),
+    };
+    expect(await startTimer(FLOOR, "count_down", 600)).toEqual({
+      ok: false,
+      message: "This floor's broadcast controls aren't available to your account.",
+    });
+  });
 });

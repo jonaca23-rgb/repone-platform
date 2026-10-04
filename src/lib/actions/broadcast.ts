@@ -233,6 +233,10 @@ async function timerCommand(
     p_command: command,
     ...args,
   });
+  // timer_command() runs as the caller, so a floor whose broadcast state is
+  // missing or hidden by RLS raises this — the same case as an update that
+  // matches no row.
+  if (error?.message.includes("has no broadcast state")) return fail(NOT_AVAILABLE);
   if (error) throw new Error(error.message);
   await logAction(supabase, ctx.userId, eventId, floorId, `timer_${command}`, args);
   return ok();
