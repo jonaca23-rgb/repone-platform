@@ -18,7 +18,6 @@ vi.mock("@/lib/auth/guards", async (orig) => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { assignLane } from "./lanes";
-import { saveHeatResults } from "./results";
 
 const ATHLETE = "00000000-0000-4000-8000-000000000066";
 
@@ -55,21 +54,5 @@ describe("assignLane", () => {
   it("clears a lane", async () => {
     db.current = fakeSupabase({ lanes: [{ data: [{ id: "l-3" }] }] }).client;
     expect(await assignLane("ev-1", "h-1", "l-3", form({ athlete_id: "" }))).toEqual({ ok: true });
-  });
-});
-
-describe("saveHeatResults", () => {
-  it("refuses a bad athlete list", async () => {
-    db.current = fakeSupabase({}).client;
-    expect(
-      await saveHeatResults("ev-1", "h-1", "w-1", "d-1", "for_time", "f-1", ["nope"], form({})),
-    ).toEqual({ ok: false, message: "The list of athletes isn't valid." });
-  });
-
-  it("goes back to the heats list after saving", async () => {
-    db.current = fakeSupabase({}).client;
-    expect(
-      await saveHeatResults("ev-1", "h-1", "w-1", "d-1", "for_time", "f-1", [], form({})),
-    ).toEqual({ ok: true, data: { href: "/admin/events/ev-1/heats" } });
   });
 });
