@@ -5,6 +5,14 @@ import { createClient } from "@/lib/db/server";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { producerEventTitle } from "../producerEvent";
 
 type Props = { params: Promise<{ eventId: string }> };
@@ -46,19 +54,30 @@ export default async function ProducerEventSponsorsPage({ params }: Props) {
         tab.
       </p>
       {rows.length > 0 ? (
-        <ul className="flex flex-col gap-1.5">
-          {rows.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5"
-            >
-              <span className="font-semibold">{s.business_name}</span>
-              <Badge variant="outline" className="uppercase">
-                {s.tier.replace(/_/g, " ")}
-              </Badge>
-            </li>
-          ))}
-        </ul>
+        <div className="rounded-xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sponsor</TableHead>
+                <TableHead>Tier</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell className="font-semibold whitespace-normal">
+                    {s.business_name}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="uppercase">
+                      {s.tier.replace(/_/g, " ")}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       ) : (
         <EmptyState icon={Megaphone} title="No active sponsors for this event" />
       )}
