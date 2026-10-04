@@ -1,45 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Info, Wallet } from "lucide-react";
+import { Info } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
-import { updateRegistrationPayment, markPaymentStatus } from "@/lib/actions/payments";
 import type { PaymentStatus } from "@/lib/db/database.types";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
-import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { NONE } from "@/lib/validation/none";
+import { formatCents } from "@/lib/money";
 import { getAdminEvent, requireAdminEvent } from "../adminEvent";
-
-const STATUS_STYLES: Record<PaymentStatus, string> = {
-  unpaid: "border-warning/40 bg-warning/10 text-warning-text",
-  paid: "border-success/40 bg-success/10 text-success-text",
-  waived: "border-border bg-secondary text-secondary-foreground",
-  refunded: "border-destructive/40 bg-destructive/10 text-destructive",
-};
+import { type PaymentRow, PaymentsTable } from "./PaymentsTable";
 
 type Props = { params: Promise<{ eventId: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await getAdminEvent((await params).eventId);
   return { title: event ? `Payments · ${event.name}` : "Payments" };
-}
-
-function formatMoney(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default async function EventPaymentsPage({ params }: Props) {
@@ -93,7 +69,20 @@ export default async function EventPaymentsPage({ params }: Props) {
     } | null;
   }>;
 
-  const divisionName = (id: string) => divisions?.find((d) => d.id === id)?.name ?? "—";
+  const divisionName = new Map((divisions ?? []).map((d) => [d.id, d.name]));
+  const rows: PaymentRow[] = typedRegistrations.map((r) => ({
+    id: r.id,
+    name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : (r.teams?.name ?? "—"),
+    kind: r.athletes ? "Individual" : (r.teams?.entry_format ?? ""),
+    divisionId: r.division_id,
+    divisionName: divisionName.get(r.division_id) ?? "—",
+    bib: r.bib_number,
+    status: r.payments?.status ?? "unpaid",
+    amountCents: r.payments?.amount_cents ?? null,
+    method: r.payments?.payment_method ?? null,
+    feeId: r.payments?.fee_schedule_id ?? null,
+    notes: r.payments?.notes ?? null,
+  }));
   const accountStatus = paymentAccount?.status ?? "not_connected";
 
   const totals = typedRegistrations.reduce(
@@ -126,23 +115,25 @@ export default async function EventPaymentsPage({ params }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+        {/* ui-guard-ignore: payment summary totals, not a list */}
         <Card size="sm">
           <CardContent>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Collected
             </p>
             <p className="font-display text-3xl font-bold tabular-nums text-success-text">
-              {formatMoney(totals.collectedCents)}
+              {formatCents(totals.collectedCents)}
             </p>
           </CardContent>
         </Card>
+        {/* ui-guard-ignore: payment summary totals, not a list */}
         <Card size="sm">
           <CardContent>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Outstanding
             </p>
             <p className="font-display text-3xl font-bold tabular-nums text-warning-text">
-              {formatMoney(totals.outstandingCents)}
+              {formatCents(totals.outstandingCents)}
             </p>
           </CardContent>
         </Card>
@@ -158,162 +149,16 @@ export default async function EventPaymentsPage({ params }: Props) {
         </p>
       )}
 
-      {typedRegistrations.length === 0 ? (
-        <EmptyState
-          icon={Wallet}
-          title="No registrations yet"
-          description="Register athletes or teams first; their payments show up here."
-          action={
-            <Button asChild variant="outline">
-              <Link href={`/admin/events/${eventId}/athletes`}>Go to Athletes</Link>
-            </Button>
-          }
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {typedRegistrations.map((r) => {
-            const p = r.payments;
-            const status: PaymentStatus = p?.status ?? "unpaid";
-            const name = r.athletes
-              ? `${r.athletes.first_name} ${r.athletes.last_name}`
-              : (r.teams?.name ?? "—");
-            const kind = r.athletes ? "Individual" : (r.teams?.entry_format ?? "");
-            const fid = (field: string) => `pay-${r.id}-${field}`;
-
-            return (
-              <Card key={r.id} size="sm">
-                <CardContent className="flex flex-col gap-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="flex flex-wrap items-center gap-2 font-semibold">
-                        {name}
-                        <Badge variant="secondary" className="uppercase">
-                          {kind}
-                        </Badge>
-                        {r.bib_number ? (
-                          <span className="text-xs text-muted-foreground">#{r.bib_number}</span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {divisionName(r.division_id)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={`uppercase ${STATUS_STYLES[status]}`}>{status}</Badge>
-                      {p?.amount_cents ? (
-                        <span className="text-sm font-semibold tabular-nums">
-                          {formatMoney(p.amount_cents)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <form action={markPaymentStatus.bind(null, eventId, r.id, "paid")}>
-                      <Button type="submit" size="sm" variant="outline">
-                        Mark paid
-                      </Button>
-                    </form>
-                    <form action={markPaymentStatus.bind(null, eventId, r.id, "waived")}>
-                      <Button type="submit" size="sm" variant="outline">
-                        Waive
-                      </Button>
-                    </form>
-                    <ConfirmAction
-                      trigger="Refunded"
-                      triggerVariant="outline"
-                      title={`Mark ${name}'s payment as refunded?`}
-                      description={`The payment is recorded as refunded${p?.amount_cents ? ` and ${formatMoney(p.amount_cents)} leaves the collected total` : ""}. You can change it back later.`}
-                      confirmLabel="Mark refunded"
-                      onConfirm={markPaymentStatus.bind(null, eventId, r.id, "refunded")}
-                    />
-                    <ConfirmAction
-                      trigger="Reset to unpaid"
-                      triggerVariant="outline"
-                      title={`Reset ${name}'s payment to unpaid?`}
-                      description="The payment goes back to unpaid and counts as outstanding again. You can change it back later."
-                      confirmLabel="Reset to unpaid"
-                      onConfirm={markPaymentStatus.bind(null, eventId, r.id, "unpaid")}
-                    />
-                  </div>
-
-                  <form
-                    action={updateRegistrationPayment.bind(null, eventId, r.id)}
-                    className="flex flex-wrap items-end gap-3 border-t border-border pt-3"
-                  >
-                    <div className="grid gap-2">
-                      <Label htmlFor={fid("fee")}>Apply fee</Label>
-                      <Select name="fee_schedule_id" defaultValue={p?.fee_schedule_id ?? NONE}>
-                        <SelectTrigger id={fid("fee")} className="min-w-44">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NONE}>None</SelectItem>
-                          {(feeSchedules ?? []).map((f) => (
-                            <SelectItem key={f.id} value={f.id}>
-                              {f.name} ({formatMoney(f.amount_cents)})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={fid("amount")}>Amount override</Label>
-                      <Input
-                        id={fid("amount")}
-                        name="amount_dollars"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder={p ? (p.amount_cents / 100).toFixed(2) : "0.00"}
-                        className="w-28"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={fid("status")}>Status</Label>
-                      <Select name="status" defaultValue={status}>
-                        <SelectTrigger id={fid("status")} className="min-w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unpaid">Unpaid</SelectItem>
-                          <SelectItem value="paid">Paid</SelectItem>
-                          <SelectItem value="waived">Waived</SelectItem>
-                          <SelectItem value="refunded">Refunded</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={fid("method")}>Method</Label>
-                      <Select name="payment_method" defaultValue={p?.payment_method ?? "unpaid"}>
-                        <SelectTrigger id={fid("method")} className="min-w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unpaid">Not set</SelectItem>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="manual_other">Other (manual)</SelectItem>
-                          <SelectItem value="stripe">Stripe (future)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid min-w-48 flex-1 gap-2">
-                      <Label htmlFor={fid("notes")}>Notes</Label>
-                      <Input
-                        id={fid("notes")}
-                        name="notes"
-                        defaultValue={p?.notes ?? ""}
-                        placeholder="e.g. paid cash at check-in"
-                      />
-                    </div>
-                    <Button type="submit">Save</Button>
-                  </form>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <PaymentsTable
+        eventId={eventId}
+        rows={rows}
+        divisions={divisions ?? []}
+        fees={(feeSchedules ?? []).map((f) => ({
+          id: f.id,
+          name: f.name,
+          amountCents: f.amount_cents,
+        }))}
+      />
     </div>
   );
 }

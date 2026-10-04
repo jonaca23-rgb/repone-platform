@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { type ActionFailure, type ActionResult, fail, ok } from "@/lib/action-result";
 import { requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import type { Insert, PaymentStatus } from "@/lib/db/database.types";
 import { Constants } from "@/lib/db/supabase.types";
-import { field, parseForm, ValidationError } from "@/lib/validation/form";
+import { field, parseForm } from "@/lib/validation/form";
+import { safeAction } from "./safeAction";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -29,11 +31,11 @@ const RegistrationPaymentForm = z.object({
 const StatusArg = field.oneOf(Constants.public.Enums.payment_status, "payment status");
 
 /** `payments` has no event_id: the registration it hangs off must be in this event. */
-async function requireEventRegistration(
+async function registrationFailure(
   supabase: Supabase,
   eventId: string,
   registrationId: string,
-) {
+): Promise<ActionFailure | null> {
   const { data, error } = await supabase
     .from("registrations")
     .select("id")
@@ -41,7 +43,7 @@ async function requireEventRegistration(
     .eq("event_id", eventId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("That registration isn't part of this event.");
+  return data ? null : fail("That registration isn't part of this event.");
 }
 
 /**
@@ -55,42 +57,50 @@ export async function updateRegistrationPayment(
   eventId: string,
   registrationId: string,
   formData: FormData,
-) {
-  const { ctx } = await requireEventAccess(eventId);
-  const f = parseForm(RegistrationPaymentForm, formData);
-  const supabase = await createClient();
-  await requireEventRegistration(supabase, eventId, registrationId);
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx } = await requireEventAccess(eventId);
+    const f = parseForm(RegistrationPaymentForm, formData);
+    const supabase = await createClient();
+    const notHere = await registrationFailure(supabase, eventId, registrationId);
+    if (notHere) return notHere;
 
-  let amount_cents: number | undefined;
-  if (f.fee_schedule_id) {
-    const { data: fee, error } = await supabase
-      .from("fee_schedules")
-      .select("amount_cents")
-      .eq("id", f.fee_schedule_id)
-      .eq("event_id", eventId)
-      .maybeSingle();
+    let amount_cents: number | undefined;
+    if (f.fee_schedule_id) {
+      const { data: fee, error } = await supabase
+        .from("fee_schedules")
+        .select("amount_cents")
+        .eq("id", f.fee_schedule_id)
+        .eq("event_id", eventId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!fee) {
+        return fail("That fee isn't part of this event.", {
+          fee_schedule_id: ["Choose one of this event's fees."],
+        });
+      }
+      amount_cents = fee.amount_cents;
+    }
+    if (f.amount_dollars !== undefined) amount_cents = Math.round(f.amount_dollars * 100);
+
+    const payload: Insert<"payments"> = {
+      registration_id: registrationId,
+      fee_schedule_id: f.fee_schedule_id,
+      status: f.status,
+      payment_method: f.payment_method,
+      notes: f.notes,
+      recorded_by: ctx.userId,
+    };
+    if (amount_cents !== undefined) payload.amount_cents = amount_cents;
+
+    const { error } = await supabase
+      .from("payments")
+      .upsert(payload, { onConflict: "registration_id" });
     if (error) throw new Error(error.message);
-    if (!fee) throw new Error("That fee isn't part of this event.");
-    amount_cents = fee.amount_cents;
-  }
-  if (f.amount_dollars !== undefined) amount_cents = Math.round(f.amount_dollars * 100);
 
-  const payload: Insert<"payments"> = {
-    registration_id: registrationId,
-    fee_schedule_id: f.fee_schedule_id,
-    status: f.status,
-    payment_method: f.payment_method,
-    notes: f.notes,
-    recorded_by: ctx.userId,
-  };
-  if (amount_cents !== undefined) payload.amount_cents = amount_cents;
-
-  const { error } = await supabase
-    .from("payments")
-    .upsert(payload, { onConflict: "registration_id" });
-  if (error) throw new Error(error.message);
-
-  revalidatePath(`/admin/events/${eventId}/payments`);
+    revalidatePath(`/admin/events/${eventId}/payments`);
+    return ok();
+  });
 }
 
 /** Shared by the Payments page and Check-In; callers must have run the event guard. */
@@ -99,13 +109,14 @@ async function setPaymentStatus(
   eventId: string,
   registrationId: string,
   rawStatus: PaymentStatus,
-) {
+): Promise<ActionFailure | null> {
   const parsed = StatusArg.safeParse(rawStatus);
-  if (!parsed.success) throw new ValidationError("Choose a valid payment status.");
+  if (!parsed.success) return fail("Choose a valid payment status.");
   const status = parsed.data;
 
   const supabase = await createClient();
-  await requireEventRegistration(supabase, eventId, registrationId);
+  const notHere = await registrationFailure(supabase, eventId, registrationId);
+  if (notHere) return notHere;
 
   const payload: Insert<"payments"> = {
     registration_id: registrationId,
@@ -129,6 +140,7 @@ async function setPaymentStatus(
     .from("payments")
     .upsert(payload, { onConflict: "registration_id" });
   if (error) throw new Error(error.message);
+  return null;
 }
 
 /** Quick one-click status toggle (mirrors the Sponsors "Active" pill pattern). */
@@ -136,10 +148,14 @@ export async function markPaymentStatus(
   eventId: string,
   registrationId: string,
   status: PaymentStatus,
-) {
-  const { ctx } = await requireEventAccess(eventId);
-  await setPaymentStatus(ctx.userId, eventId, registrationId, status);
-  revalidatePath(`/admin/events/${eventId}/payments`);
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx } = await requireEventAccess(eventId);
+    const failed = await setPaymentStatus(ctx.userId, eventId, registrationId, status);
+    if (failed) return failed;
+    revalidatePath(`/admin/events/${eventId}/payments`);
+    return ok();
+  });
 }
 
 /**
@@ -154,11 +170,15 @@ export async function markPaymentStatusForCheckin(
   eventId: string,
   registrationId: string,
   status: PaymentStatus,
-) {
-  const { ctx } = await requireEventAccess(eventId);
-  const athlete = field.id("Athlete").safeParse(athleteId);
-  if (!athlete.success) throw new ValidationError("Athlete is missing or invalid.");
-  await setPaymentStatus(ctx.userId, eventId, registrationId, status);
-  revalidatePath(`/admin/events/${eventId}/payments`);
-  revalidatePath(`/admin/checkin/${athlete.data}`);
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx } = await requireEventAccess(eventId);
+    const athlete = field.id("Athlete").safeParse(athleteId);
+    if (!athlete.success) return fail("Athlete is missing or invalid.");
+    const failed = await setPaymentStatus(ctx.userId, eventId, registrationId, status);
+    if (failed) return failed;
+    revalidatePath(`/admin/events/${eventId}/payments`);
+    revalidatePath(`/admin/checkin/${athlete.data}`);
+    return ok();
+  });
 }

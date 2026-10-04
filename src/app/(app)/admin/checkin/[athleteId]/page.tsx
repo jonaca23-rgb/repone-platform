@@ -4,13 +4,13 @@ import { CircleCheck, CircleX } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
-import { markPaymentStatusForCheckin } from "@/lib/actions/payments";
 import type { PaymentStatus } from "@/lib/db/database.types";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
 import { Button } from "@/components/ui/button";
+import { CheckinActions } from "./CheckinActions";
+import { formatCents } from "@/lib/money";
 
 // Registration desk screen: scan the athlete's QR code (from their profile)
 // or find them from the /admin/checkin picker, and this shows one big
@@ -29,10 +29,6 @@ type RegistrationRow = {
   divisions: { name: string } | null;
   payments: { status: PaymentStatus; amount_cents: number; payment_method: string } | null;
 };
-
-function formatMoney(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
 
 type Props = { params: Promise<{ athleteId: string }> };
 
@@ -143,52 +139,19 @@ export default async function AthleteCheckInPage({ params }: Props) {
                 </p>
                 {r.payments?.amount_cents ? (
                   <p className="mt-1 text-xs">
-                    {formatMoney(r.payments.amount_cents)} · {status}
+                    {formatCents(r.payments.amount_cents)} · {status}
                   </p>
                 ) : (
                   <p className="mt-1 text-xs uppercase tracking-wide">{status}</p>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-border p-3">
-                <form
-                  action={markPaymentStatusForCheckin.bind(
-                    null,
-                    athleteId,
-                    r.event_id,
-                    r.id,
-                    "paid",
-                  )}
-                >
-                  <Button type="submit" variant="outline" size="touch">
-                    Mark paid
-                  </Button>
-                </form>
-                <form
-                  action={markPaymentStatusForCheckin.bind(
-                    null,
-                    athleteId,
-                    r.event_id,
-                    r.id,
-                    "waived",
-                  )}
-                >
-                  <Button type="submit" variant="outline" size="touch">
-                    Waive
-                  </Button>
-                </form>
-                <ConfirmAction
-                  trigger="Reset to unpaid"
-                  triggerSize="touch"
-                  title={`Reset ${name} to unpaid for ${r.events?.name ?? "this event"}?`}
-                  description="The payment goes back to unpaid and the desk shows Payment missing until it is marked paid or waived again."
-                  confirmLabel="Reset to unpaid"
-                  onConfirm={markPaymentStatusForCheckin.bind(
-                    null,
-                    athleteId,
-                    r.event_id,
-                    r.id,
-                    "unpaid",
-                  )}
+                <CheckinActions
+                  athleteId={athleteId}
+                  eventId={r.event_id}
+                  registrationId={r.id}
+                  athleteName={name}
+                  eventName={r.events?.name ?? "this event"}
                 />
                 <Link
                   href={`/admin/events/${r.event_id}/payments`}
