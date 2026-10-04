@@ -1,14 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
+import { type ActionResult, fail, ok } from "@/lib/action-result";
 import { NotAuthorizedError, requireHeatAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { Constants } from "@/lib/db/supabase.types";
 import { recomputeWodStandings } from "@/lib/scoring/recompute";
 import { field, parseForm, ValidationError } from "@/lib/validation/form";
 import type { Insert, ScoringTypeDb } from "@/lib/db/database.types";
+import { safeAction } from "./safeAction";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -203,48 +204,64 @@ export async function saveHeatResults(
   _floorId: string | null,
   athleteIds: string[],
   formData: FormData,
-) {
-  const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
-  const idsResult = z.array(field.id("Athlete")).max(200).safeParse(athleteIds);
-  if (!idsResult.success) throw new ValidationError("The list of athletes isn't valid.");
-  const ids = Array.from(new Set(idsResult.data));
+): Promise<ActionResult<{ href: string }>> {
+  return safeAction(async () => {
+    const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+    const idsResult = z.array(field.id("Athlete")).max(200).safeParse(athleteIds);
+    if (!idsResult.success) return fail("The list of athletes isn't valid.");
+    const ids = Array.from(new Set(idsResult.data));
 
-  const supabase = await createClient();
+    const supabase = await createClient();
 
-  if (ids.length > 0) {
-    const [scoringType, eligible] = await Promise.all([
-      wodScoringType(supabase, heat.wod_id),
-      eligibleCompetitors(supabase, heat),
-    ]);
-    if (ids.some((id) => !eligible.athletes.has(id))) {
-      throw new NotAuthorizedError("One of those athletes isn't in this heat.");
+    if (ids.length > 0) {
+      const [scoringType, eligible] = await Promise.all([
+        wodScoringType(supabase, heat.wod_id),
+        eligibleCompetitors(supabase, heat),
+      ]);
+      if (ids.some((id) => !eligible.athletes.has(id))) {
+        throw new NotAuthorizedError("One of those athletes isn't in this heat.");
+      }
+
+      const rows = [];
+      for (const athleteId of ids) {
+        let fields: z.infer<typeof ScoreFields>;
+        try {
+          fields = parseForm(ScoreFields, laneFields(formData, athleteId));
+        } catch (err) {
+          if (!(err instanceof ValidationError)) throw err;
+          // The form's inputs are named "<field>__<athleteId>"; put the error under that one.
+          const fieldErrors = Object.fromEntries(
+            Object.entries(err.fieldErrors).map(([k, v]) => [`${k}__${athleteId}`, v]),
+          );
+          return fail(err.message, fieldErrors);
+        }
+        rows.push(
+          resultRow(
+            fields,
+            scoringType,
+            { heat_id: heat.id, wod_id: heat.wod_id, athlete_id: athleteId, team_id: null },
+            ctx.userId,
+          ),
+        );
+      }
+
+      const { error } = await supabase
+        .from("results")
+        .upsert(rows, { onConflict: "heat_id,athlete_id" });
+      if (error) throw new Error(error.message);
+
+      await recomputeWodStandings(heat.wod_id, heat.division_id, supabase);
     }
 
-    const rows = ids.map((athleteId) =>
-      resultRow(
-        parseForm(ScoreFields, laneFields(formData, athleteId)),
-        scoringType,
-        { heat_id: heat.id, wod_id: heat.wod_id, athlete_id: athleteId, team_id: null },
-        ctx.userId,
-      ),
-    );
+    // This used to also close the heat out (set ended_at) — that's now the
+    // ScoreKeeper's own "Finish Heat" button (see finishHeat in
+    // actions/heats.ts), since finishing should happen once the ScoreKeeper
+    // has entered every lane's result, not whenever this admin backup form is
+    // used to save/correct a batch of scores.
+    revalidatePath(`/admin/events/${eventId}/heats`);
+    revalidatePath(`/overlay`);
+    if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
 
-    const { error } = await supabase
-      .from("results")
-      .upsert(rows, { onConflict: "heat_id,athlete_id" });
-    if (error) throw new Error(error.message);
-
-    await recomputeWodStandings(heat.wod_id, heat.division_id, supabase);
-  }
-
-  // This used to also close the heat out (set ended_at) — that's now the
-  // ScoreKeeper's own "Finish Heat" button (see finishHeat in
-  // actions/heats.ts), since finishing should happen once the ScoreKeeper
-  // has entered every lane's result, not whenever this admin backup form is
-  // used to save/correct a batch of scores.
-  revalidatePath(`/admin/events/${eventId}/heats`);
-  revalidatePath(`/overlay`);
-  if (heat.floor_id) revalidatePath(`/scorekeeper/${heat.floor_id}`);
-
-  redirect(`/admin/events/${eventId}/heats`);
+    return ok({ href: `/admin/events/${eventId}/heats` });
+  });
 }

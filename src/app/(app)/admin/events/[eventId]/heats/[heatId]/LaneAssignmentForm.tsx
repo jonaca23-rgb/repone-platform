@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
 import { TriangleAlert } from "lucide-react";
-import { toast } from "sonner";
 import { assignLane } from "@/lib/actions/lanes";
+import { useServerAction } from "@/lib/use-server-action";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,11 +20,10 @@ interface Registration {
 }
 
 /**
- * One lane's "who's in this lane" picker. A Client Component so a
- * duplicate-athlete attempt comes back as a toast and an inline message
- * instead of Next's full-page error overlay — `assignLane` returns
- * `{ error }` instead of throwing. "Empty" posts NONE, which the action reads
- * as blank and clears the lane.
+ * One lane's "who's in this lane" picker, saved on its own. A duplicate
+ * comes back from `assignLane` as a result and shows as a toast plus an
+ * inline message. "Empty" posts NONE, which the action reads as blank and
+ * clears the lane. (One Select per lane, so FormData + zod, not TanStack Form.)
  *
  * `conflictMessage`, when set, is a pre-existing duplicate the parent Server
  * Component already detected on page load (before any save attempt) — shown
@@ -44,26 +42,20 @@ export function LaneAssignmentForm({
   registrations: Registration[];
   conflictMessage?: string;
 }) {
-  const [state, formAction, pending] = useActionState(
-    assignLane.bind(null, eventId, heatId, lane.id),
-    { error: "" },
-  );
-  const lastError = useRef<string>("");
-
-  useEffect(() => {
-    if (state.error && state.error !== lastError.current) {
-      lastError.current = state.error;
-      toast.error(state.error);
-    }
-  }, [state.error]);
-
-  const message = state.error || conflictMessage;
+  const save = useServerAction((fd: FormData) => assignLane(eventId, heatId, lane.id, fd), {
+    success: `Lane ${lane.lane_number} saved`,
+  });
+  const pending = save.isPending;
+  const message = save.error?.message || conflictMessage;
   const selectId = `lane-${lane.id}`;
 
   return (
     <div>
       <form
-        action={formAction}
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(new FormData(e.currentTarget));
+        }}
         className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
           message ? "border-destructive bg-destructive/10" : "border-border bg-card"
         }`}
@@ -93,7 +85,13 @@ export function LaneAssignmentForm({
               ))}
           </SelectContent>
         </Select>
-        <Button type="submit" size="sm" variant="outline" disabled={pending}>
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          className="max-sm:min-h-11"
+        >
           {pending ? "Saving…" : "Save"}
         </Button>
       </form>
