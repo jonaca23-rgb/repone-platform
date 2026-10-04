@@ -83,6 +83,13 @@ export const GUARD_RULES: readonly GuardRule[] = [
     appliesTo: (file, { actionFiles }) => actionFiles.includes(file),
   },
   {
+    id: "admin-card-list",
+    pattern: /<Card\b/,
+    message:
+      "Admin lists are DataTables (docs/superpowers/specs/2026-10-04-admin-data-screens-design.md); mark a deliberate summary card with ui-guard-ignore.",
+    appliesTo: (file) => /^src\/app\/\(app\)\/admin\/.*page\.tsx$/.test(file),
+  },
+  {
     id: "vaul",
     pattern: /from ["']vaul["']/,
     message: "Use the Base UI Drawer in src/components/ui/drawer.tsx.",
