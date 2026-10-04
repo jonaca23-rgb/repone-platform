@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { type ActionFailure, type ActionResult, fail, ok } from "@/lib/action-result";
 import { safeAction } from "./safeAction";
 import { z } from "zod";
-import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
+import { expectChanged, NotAuthorizedError, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { Constants } from "@/lib/db/supabase.types";
 import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
@@ -54,7 +54,7 @@ async function requireOwnedAthlete(
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("That athlete isn't on your organization's roster.");
+  if (!data) throw new NotAuthorizedError("That athlete isn't on your organization's roster.");
   return data.id;
 }
 
@@ -84,22 +84,28 @@ export async function createAthlete(formData: FormData): Promise<ActionResult> {
   });
 }
 
-export async function updateAthleteProfile(athleteId: string, formData: FormData) {
-  const { organizationId } = await requireOrgManager();
-  const f = parseForm(AthleteForm, formData);
+export async function updateAthleteProfile(
+  athleteId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const f = parseForm(AthleteForm, formData);
 
-  const supabase = await createClient();
-  const res = await supabase
-    .from("athletes")
-    .update(f)
-    .eq("id", athleteId)
-    .eq("organization_id", organizationId)
-    .select("id");
-  if (res.error) throw new Error(friendlyAthleteWriteError(res.error));
-  expectChanged(res, "save the athlete");
+    const supabase = await createClient();
+    const res = await supabase
+      .from("athletes")
+      .update(f)
+      .eq("id", athleteId)
+      .eq("organization_id", organizationId)
+      .select("id");
+    if (res.error) return athleteWriteFailure(res.error);
+    expectChanged(res, "save the athlete");
 
-  revalidatePath("/admin/athletes");
-  revalidatePath(`/admin/athletes/${athleteId}`);
+    revalidatePath("/admin/athletes");
+    revalidatePath(`/admin/athletes/${athleteId}`);
+    return ok();
+  });
 }
 
 export async function deleteAthlete(athleteId: string): Promise<ActionResult> {
@@ -126,71 +132,93 @@ export async function deleteAthlete(athleteId: string): Promise<ActionResult> {
  * run benchmarks (400m/1 Mile/5K — see TIME_LIFT_NAMES) are a judge-style
  * mm:ss time instead, parsed the same way the WOD results forms already do.
  */
-export async function saveAthleteLifts(athleteId: string, formData: FormData) {
-  const { organizationId } = await requireOrgManager();
-  const f = parseForm(LiftsForm, formData);
+export async function saveAthleteLifts(
+  athleteId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const f = parseForm(LiftsForm, formData);
 
-  type LiftRow =
-    | { athlete_id: string; lift: LiftName; weight_lbs: number }
-    | { athlete_id: string; lift: LiftName; time_seconds: number };
-  const rows: LiftRow[] = [];
-  for (const lift of LIFT_NAMES) {
-    const raw = f[lift];
-    if (!raw) continue;
-    const label = LIFT_LABELS[lift];
-    if (isTimeLift(lift)) {
-      const time_seconds = parseClockToSeconds(raw);
-      if (time_seconds == null) throw new Error(`${label} must be a time like mm:ss.`);
-      rows.push({ athlete_id: athleteId, lift, time_seconds });
-    } else {
-      const weight_lbs = Number(raw);
-      if (!Number.isFinite(weight_lbs) || weight_lbs < 0 || weight_lbs > MAX_LIFT_LBS) {
-        throw new Error(`${label} must be a weight between 0 and ${MAX_LIFT_LBS} lbs.`);
+    type LiftRow =
+      | { athlete_id: string; lift: LiftName; weight_lbs: number }
+      | { athlete_id: string; lift: LiftName; time_seconds: number };
+    const rows: LiftRow[] = [];
+    for (const lift of LIFT_NAMES) {
+      const raw = f[lift];
+      if (!raw) continue;
+      const label = LIFT_LABELS[lift];
+      if (isTimeLift(lift)) {
+        const time_seconds = parseClockToSeconds(raw);
+        if (time_seconds == null) {
+          const message = `${label} must be a time like mm:ss.`;
+          return fail(message, { [lift]: [message] });
+        }
+        rows.push({ athlete_id: athleteId, lift, time_seconds });
+      } else {
+        const weight_lbs = Number(raw);
+        if (!Number.isFinite(weight_lbs) || weight_lbs < 0 || weight_lbs > MAX_LIFT_LBS) {
+          const message = `${label} must be a weight between 0 and ${MAX_LIFT_LBS} lbs.`;
+          return fail(message, { [lift]: [message] });
+        }
+        rows.push({ athlete_id: athleteId, lift, weight_lbs });
       }
-      rows.push({ athlete_id: athleteId, lift, weight_lbs });
     }
-  }
 
-  if (rows.length === 0) return;
+    if (rows.length === 0) return ok();
 
-  const supabase = await createClient();
-  await requireOwnedAthlete(supabase, athleteId, organizationId);
-  const { error } = await supabase
-    .from("athlete_lifts")
-    .upsert(rows, { onConflict: "athlete_id,lift" });
-  if (error) throw new Error(error.message);
+    const supabase = await createClient();
+    await requireOwnedAthlete(supabase, athleteId, organizationId);
+    const { error } = await supabase
+      .from("athlete_lifts")
+      .upsert(rows, { onConflict: "athlete_id,lift" });
+    if (error) throw new Error(error.message);
 
-  revalidatePath(`/admin/athletes/${athleteId}`);
+    revalidatePath(`/admin/athletes/${athleteId}`);
+    return ok();
+  });
 }
 
-export async function upsertAthleteBenchmark(athleteId: string, formData: FormData) {
-  const { organizationId } = await requireOrgManager();
-  const { name, result_display } = parseForm(BenchmarkForm, formData);
+export async function upsertAthleteBenchmark(
+  athleteId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const { name, result_display } = parseForm(BenchmarkForm, formData);
 
-  const supabase = await createClient();
-  const ownedId = await requireOwnedAthlete(supabase, athleteId, organizationId);
-  const { error } = await supabase
-    .from("athlete_benchmarks")
-    .upsert({ athlete_id: ownedId, name, result_display }, { onConflict: "athlete_id,name" });
-  if (error) throw new Error(error.message);
-
-  revalidatePath(`/admin/athletes/${athleteId}`);
-}
-
-export async function deleteAthleteBenchmark(athleteId: string, benchmarkId: string) {
-  const { organizationId } = await requireOrgManager();
-  const supabase = await createClient();
-  const ownedId = await requireOwnedAthlete(supabase, athleteId, organizationId);
-  expectChanged(
-    await supabase
+    const supabase = await createClient();
+    const ownedId = await requireOwnedAthlete(supabase, athleteId, organizationId);
+    const { error } = await supabase
       .from("athlete_benchmarks")
-      .delete()
-      .eq("id", benchmarkId)
-      .eq("athlete_id", ownedId)
-      .select("id"),
-    "remove the benchmark",
-  );
-  revalidatePath(`/admin/athletes/${athleteId}`);
+      .upsert({ athlete_id: ownedId, name, result_display }, { onConflict: "athlete_id,name" });
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/admin/athletes/${athleteId}`);
+    return ok();
+  });
+}
+
+export async function deleteAthleteBenchmark(
+  athleteId: string,
+  benchmarkId: string,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const supabase = await createClient();
+    const ownedId = await requireOwnedAthlete(supabase, athleteId, organizationId);
+    expectChanged(
+      await supabase
+        .from("athlete_benchmarks")
+        .delete()
+        .eq("id", benchmarkId)
+        .eq("athlete_id", ownedId)
+        .select("id"),
+      "remove the benchmark",
+    );
+    revalidatePath(`/admin/athletes/${athleteId}`);
+    return ok();
+  });
 }
 
 /**
@@ -199,50 +227,59 @@ export async function deleteAthleteBenchmark(athleteId: string, benchmarkId: str
  * This is just the storage/display layer — matching photos against event
  * recordings/IG history for highlight clips is future scope, not built here.
  */
-export async function uploadAthletePhoto(athleteId: string, formData: FormData) {
-  const { organizationId } = await requireOrgManager();
+export async function uploadAthletePhoto(
+  athleteId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
 
-  const { file, ext } = imageUpload(formData.get("photo"));
+    const { file, ext } = imageUpload(formData.get("photo"), "photo");
 
-  const supabase = await createClient();
-  // Check ownership before writing to storage, not just before the row update.
-  const ownedId = await requireOwnedAthlete(supabase, athleteId, organizationId);
-  const path = `${ownedId}/${Date.now()}.${ext}`;
+    const supabase = await createClient();
+    // Check ownership before writing to storage, not just before the row update.
+    const ownedId = await requireOwnedAthlete(supabase, athleteId, organizationId);
+    const path = `${ownedId}/${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from("athlete-photos")
-    .upload(path, file, { contentType: file.type, upsert: true });
-  if (uploadError) throw new Error(uploadError.message);
+    const { error: uploadError } = await supabase.storage
+      .from("athlete-photos")
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if (uploadError) throw new Error(uploadError.message);
 
-  const { data: publicUrlData } = supabase.storage.from("athlete-photos").getPublicUrl(path);
+    const { data: publicUrlData } = supabase.storage.from("athlete-photos").getPublicUrl(path);
 
-  expectChanged(
-    await supabase
-      .from("athletes")
-      .update({ photo_url: publicUrlData.publicUrl })
-      .eq("id", ownedId)
-      .eq("organization_id", organizationId)
-      .select("id"),
-    "save the photo",
-  );
+    expectChanged(
+      await supabase
+        .from("athletes")
+        .update({ photo_url: publicUrlData.publicUrl })
+        .eq("id", ownedId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "save the photo",
+    );
 
-  revalidatePath("/admin/athletes");
-  revalidatePath(`/admin/athletes/${athleteId}`);
+    revalidatePath("/admin/athletes");
+    revalidatePath(`/admin/athletes/${athleteId}`);
+    return ok();
+  });
 }
 
-export async function removeAthletePhoto(athleteId: string) {
-  const { organizationId } = await requireOrgManager();
-  const supabase = await createClient();
-  expectChanged(
-    await supabase
-      .from("athletes")
-      .update({ photo_url: null })
-      .eq("id", athleteId)
-      .eq("organization_id", organizationId)
-      .select("id"),
-    "remove the photo",
-  );
+export async function removeAthletePhoto(athleteId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const supabase = await createClient();
+    expectChanged(
+      await supabase
+        .from("athletes")
+        .update({ photo_url: null })
+        .eq("id", athleteId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "remove the photo",
+    );
 
-  revalidatePath("/admin/athletes");
-  revalidatePath(`/admin/athletes/${athleteId}`);
+    revalidatePath("/admin/athletes");
+    revalidatePath(`/admin/athletes/${athleteId}`);
+    return ok();
+  });
 }

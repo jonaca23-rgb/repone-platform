@@ -179,12 +179,18 @@ export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
  * storage buckets allow (0025_security_hardening.sql), under 8MB; the file
  * extension comes from the checked type, never from the uploaded filename.
  */
-export function imageUpload(value: FormDataEntryValue | null): { file: File; ext: string } {
+/** `field`, when given, is the form field the error belongs under. */
+export function imageUpload(
+  value: FormDataEntryValue | null,
+  field?: string,
+): { file: File; ext: string } {
+  const invalid = (message: string) =>
+    new ValidationError(message, field ? { [field]: [message] } : {});
   if (!(value instanceof File) || value.size === 0) {
-    throw new ValidationError("Choose an image file to upload.");
+    throw invalid("Choose an image file to upload.");
   }
   const ext = IMAGE_EXTENSIONS[value.type];
-  if (!ext) throw new ValidationError("Please upload a JPEG, PNG, WebP, GIF or HEIC image.");
-  if (value.size > MAX_IMAGE_BYTES) throw new ValidationError("Image must be under 8MB.");
+  if (!ext) throw invalid("Please upload a JPEG, PNG, WebP, GIF or HEIC image.");
+  if (value.size > MAX_IMAGE_BYTES) throw invalid("Image must be under 8MB.");
   return { file: value, ext };
 }

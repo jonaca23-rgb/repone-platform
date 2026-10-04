@@ -10,7 +10,16 @@ vi.mock("@/lib/auth/guards", async (orig) => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { createAthlete, deleteAthlete } from "./athletes";
+import {
+  createAthlete,
+  deleteAthlete,
+  deleteAthleteBenchmark,
+  removeAthletePhoto,
+  saveAthleteLifts,
+  updateAthleteProfile,
+  uploadAthletePhoto,
+  upsertAthleteBenchmark,
+} from "./athletes";
 
 function form(values: Record<string, string>) {
   const fd = new FormData();
@@ -69,5 +78,65 @@ describe("deleteAthlete", () => {
   it("removes an athlete", async () => {
     db.current = fakeSupabase({ athletes: [{ data: [{ id: "a-1" }] }] }).client;
     expect(await deleteAthlete("a-1")).toEqual({ ok: true });
+  });
+});
+
+describe("the athlete page's actions", () => {
+  it("puts a bad run time on its own field", async () => {
+    db.current = fakeSupabase({}).client;
+    expect(await saveAthleteLifts("a-1", form({ run_400m: "fast" }))).toEqual({
+      ok: false,
+      message: "400m Run must be a time like mm:ss.",
+      fieldErrors: { run_400m: ["400m Run must be a time like mm:ss."] },
+    });
+  });
+
+  it("saves lifts, and does nothing when every field is blank", async () => {
+    db.current = fakeSupabase({
+      athletes: [{ data: { id: "a-1" } }],
+      athlete_lifts: [{ error: null }],
+    }).client;
+    expect(await saveAthleteLifts("a-1", form({ deadlift: "315" }))).toEqual({ ok: true });
+    expect(await saveAthleteLifts("a-1", form({}))).toEqual({ ok: true });
+  });
+
+  it("refuses an athlete from another roster", async () => {
+    db.current = fakeSupabase({ athletes: [{ data: null }] }).client;
+    expect(
+      await upsertAthleteBenchmark("a-9", form({ name: "Fran", result_display: "3:45" })),
+    ).toEqual({ ok: false, message: "That athlete isn't on your organization's roster." });
+  });
+
+  it("removes a benchmark", async () => {
+    db.current = fakeSupabase({
+      athletes: [{ data: { id: "a-1" } }],
+      athlete_benchmarks: [{ data: [{ id: "b-1" }] }],
+    }).client;
+    expect(await deleteAthleteBenchmark("a-1", "b-1")).toEqual({ ok: true });
+  });
+
+  it("puts a duplicate email on the profile's email field", async () => {
+    db.current = fakeSupabase({
+      athletes: [{ error: { code: "23505", message: "athletes_org_email_unique" } }],
+    }).client;
+    expect(await updateAthleteProfile("a-1", form(MARIA))).toEqual({
+      ok: false,
+      message: "An athlete with this email already exists in your organization.",
+      fieldErrors: { email: ["Already used by another athlete."] },
+    });
+  });
+
+  it("asks for a photo on the photo field", async () => {
+    db.current = fakeSupabase({}).client;
+    expect(await uploadAthletePhoto("a-1", form({}))).toEqual({
+      ok: false,
+      message: "Choose an image file to upload.",
+      fieldErrors: { photo: ["Choose an image file to upload."] },
+    });
+  });
+
+  it("removes the photo", async () => {
+    db.current = fakeSupabase({ athletes: [{ data: [{ id: "a-1" }] }] }).client;
+    expect(await removeAthletePhoto("a-1")).toEqual({ ok: true });
   });
 });
