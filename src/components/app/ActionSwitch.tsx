@@ -36,6 +36,8 @@ export function ActionSwitch({
         checked={optimistic}
         disabled={pending}
         aria-label={label}
+        // The switch is 32×18; this invisible frame makes its tap target 44px tall.
+        className="relative after:absolute after:-inset-x-2 after:-inset-y-[13px] after:content-['']"
         onCheckedChange={(next) =>
           start(async () => {
             setOptimistic(next);

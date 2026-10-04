@@ -80,7 +80,7 @@ export function RowActions({
  * focus order and the accessibility tree, so exactly one is ever reachable.
  */
 function PrimaryButton({ action }: { action: RowAction }) {
-  const { icon: Icon, label, href, onSelect, disabled = false, hint } = action;
+  const { icon: Icon, label, href, onSelect, disabled = false, hint, ariaLabel } = action;
   const content = (
     <>
       {Icon ? <Icon /> : null}
@@ -96,6 +96,7 @@ function PrimaryButton({ action }: { action: RowAction }) {
         onSelect={onSelect}
         disabled={disabled}
         hint={hint}
+        ariaLabel={ariaLabel}
       >
         {content}
       </SizedPrimaryButton>
@@ -106,6 +107,7 @@ function PrimaryButton({ action }: { action: RowAction }) {
         onSelect={onSelect}
         disabled={disabled}
         hint={hint}
+        ariaLabel={ariaLabel}
       >
         {content}
       </SizedPrimaryButton>
@@ -120,8 +122,10 @@ function SizedPrimaryButton({
   onSelect,
   disabled,
   hint,
+  ariaLabel,
   children,
 }: {
+  ariaLabel?: string;
   size: "lg" | "sm";
   className: string;
   href?: string;
@@ -135,7 +139,14 @@ function SizedPrimaryButton({
   // blocked but isn't.
   if (href && !disabled) {
     return (
-      <Button asChild variant="outline" size={size} className={className} title={hint}>
+      <Button
+        asChild
+        variant="outline"
+        size={size}
+        className={className}
+        title={hint}
+        aria-label={ariaLabel}
+      >
         <Link href={href}>{children}</Link>
       </Button>
     );
@@ -149,6 +160,7 @@ function SizedPrimaryButton({
       disabled={disabled}
       onClick={onSelect}
       title={hint}
+      aria-label={ariaLabel}
     >
       {children}
     </Button>

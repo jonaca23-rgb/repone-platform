@@ -72,9 +72,19 @@ const columns = [
     header: "Member",
     cell: ({ row }) => (
       <span className="flex flex-col">
-        <span className="font-semibold">{row.original.name}</span>
+        <span
+          className={
+            row.original.name.includes("@")
+              ? "font-semibold [overflow-wrap:anywhere]"
+              : "font-semibold"
+          }
+        >
+          {row.original.name}
+        </span>
         {row.original.email && row.original.email !== row.original.name ? (
-          <span className="text-xs text-muted-foreground">{row.original.email}</span>
+          <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+            {row.original.email}
+          </span>
         ) : null}
       </span>
     ),

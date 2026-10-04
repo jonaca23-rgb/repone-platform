@@ -54,6 +54,7 @@ function PaymentActions({ r }: { r: PaymentRow }) {
             ? undefined
             : {
                 label: "Mark paid",
+                ariaLabel: `Mark ${r.name} paid`,
                 icon: BadgeCheck,
                 onSelect: () => mark.mutate("paid"),
                 disabled: mark.isPending,

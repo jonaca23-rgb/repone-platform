@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { type ActionResult, ok } from "@/lib/action-result";
+import { type ActionResult, fail, ok } from "@/lib/action-result";
 import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { field, parseForm } from "@/lib/validation/form";
@@ -69,51 +69,63 @@ export async function deleteCircuit(circuitId: string): Promise<ActionResult<{ h
 }
 
 /** Adds an existing (currently standalone) event to a circuit. */
-export async function addEventToCircuit(circuitId: string, formData: FormData) {
-  const { organizationId } = await requireOrgManager();
-  const { event_id } = parseForm(AddEventForm, formData);
+export async function addEventToCircuit(
+  circuitId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const { event_id } = parseForm(AddEventForm, formData);
 
-  const supabase = await createClient();
-  const { data: circuit, error: circuitError } = await supabase
-    .from("circuits")
-    .select("id")
-    .eq("id", circuitId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-  if (circuitError) throw new Error(circuitError.message);
-  if (!circuit) throw new Error("That circuit doesn't belong to your organization.");
-
-  // Scoping the update by organization is the event's ownership check: an
-  // event from another organization matches no rows and expectChanged throws.
-  expectChanged(
-    await supabase
-      .from("events")
-      .update({ circuit_id: circuit.id })
-      .eq("id", event_id)
+    const supabase = await createClient();
+    const { data: circuit, error: circuitError } = await supabase
+      .from("circuits")
+      .select("id")
+      .eq("id", circuitId)
       .eq("organization_id", organizationId)
-      .select("id"),
-    "add the event to this circuit",
-  );
+      .maybeSingle();
+    if (circuitError) throw new Error(circuitError.message);
+    if (!circuit) return fail("That circuit doesn't belong to your organization.");
 
-  revalidatePath(`/admin/circuits/${circuitId}`);
-  revalidatePath("/admin");
+    // Scoping the update by organization is the event's ownership check: an
+    // event from another organization matches no rows and expectChanged throws.
+    expectChanged(
+      await supabase
+        .from("events")
+        .update({ circuit_id: circuit.id })
+        .eq("id", event_id)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "add the event to this circuit",
+    );
+
+    revalidatePath(`/admin/circuits/${circuitId}`);
+    revalidatePath("/admin");
+    return ok();
+  });
 }
 
 /** Removes one event from a circuit — the event itself is untouched, it just goes back to standalone. */
-export async function removeEventFromCircuit(circuitId: string, eventId: string) {
-  const { organizationId } = await requireOrgManager();
-  const supabase = await createClient();
-  expectChanged(
-    await supabase
-      .from("events")
-      .update({ circuit_id: null })
-      .eq("id", eventId)
-      .eq("circuit_id", circuitId)
-      .eq("organization_id", organizationId)
-      .select("id"),
-    "remove the event from this circuit",
-  );
+export async function removeEventFromCircuit(
+  circuitId: string,
+  eventId: string,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const supabase = await createClient();
+    expectChanged(
+      await supabase
+        .from("events")
+        .update({ circuit_id: null })
+        .eq("id", eventId)
+        .eq("circuit_id", circuitId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "remove the event from this circuit",
+    );
 
-  revalidatePath(`/admin/circuits/${circuitId}`);
-  revalidatePath("/admin");
+    revalidatePath(`/admin/circuits/${circuitId}`);
+    revalidatePath("/admin");
+    return ok();
+  });
 }

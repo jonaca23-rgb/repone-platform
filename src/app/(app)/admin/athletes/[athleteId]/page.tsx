@@ -1,40 +1,33 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
-import {
-  deleteAthleteBenchmark,
-  removeAthletePhoto,
-  saveAthleteLifts,
-  updateAthleteProfile,
-  uploadAthletePhoto,
-  upsertAthleteBenchmark,
-} from "@/lib/actions/athletes";
 import { AGE_CATEGORY_LABELS, computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
-import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
+import { LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
-import { PageHeader } from "@/components/app/PageHeader";
+import { DetailHeader } from "@/components/app/DetailHeader";
+import { LinkTabs } from "@/components/app/LinkTabs";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { NONE } from "@/lib/validation/none";
+import { pickTab } from "@/lib/tabs";
+import { formatDay } from "@/lib/time";
+import { AthleteHeaderActions } from "./AthleteHeaderActions";
+import { BenchmarksTable } from "./BenchmarksTable";
+import { CompetitionsTable } from "./CompetitionsTable";
+import { LiftsForm } from "./LiftsForm";
 
-type Props = { params: Promise<{ athleteId: string }> };
+type Props = {
+  params: Promise<{ athleteId: string }>;
+  searchParams: Promise<{ tab?: string }>;
+};
+
+const TABS = [
+  { value: "profile", label: "Profile" },
+  { value: "performance", label: "Performance" },
+  { value: "competitions", label: "Competitions" },
+] as const;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { athleteId } = await params;
@@ -49,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: data ? `${data.first_name} ${data.last_name}` : "Athlete" };
 }
 
-export default async function AthleteDetailPage({ params }: Props) {
+export default async function AthleteDetailPage({ params, searchParams }: Props) {
   const { athleteId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -175,323 +168,134 @@ export default async function AthleteDetailPage({ params }: Props) {
   const checkinQrDataUrl = await QRCode.toDataURL(checkinUrl, { width: 220, margin: 1 });
 
   const name = `${athlete.first_name} ${athlete.last_name}`;
+  const tab = pickTab(TABS, (await searchParams).tab);
+  const liftValues: Partial<Record<LiftName, string>> = {};
+  for (const lift of LIFT_NAMES) {
+    const v = liftByName.get(lift);
+    if (!v) continue;
+    if (isTimeLift(lift)) {
+      if (v.time_seconds !== null) liftValues[lift] = formatClock(v.time_seconds);
+    } else if (v.weight_lbs !== null) {
+      liftValues[lift] = String(v.weight_lbs);
+    }
+  }
+  const gender = athlete.gender as Gender | null;
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <PageHeader
+    <div className="flex flex-col gap-6">
+      <DetailHeader
         title={name}
         breadcrumb={
           <AdminBreadcrumb
             items={[{ label: "Athletes", href: "/admin/athletes" }, { label: name }]}
           />
         }
-      />
-      <div className="flex items-center gap-4">
-        {athlete.photo_url ? (
-          <a
-            href={athlete.photo_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open full-size photo"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset */}
-            <img
-              src={athlete.photo_url}
-              alt={name}
-              className="h-20 w-20 rounded-full border border-border object-cover object-top"
-            />
-          </a>
-        ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-border bg-muted text-xs text-muted-foreground">
-            No photo
-          </div>
-        )}
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-text">
-            {category
-              ? `${AGE_CATEGORY_LABELS[category]} (as of today)`
-              : "No competitive age category (as of today)"}
-          </p>
-          {athlete.auth_user_id ? (
-            <Link
-              href={`/admin/messages/${athlete.auth_user_id}`}
-              className="mt-2 inline-block text-sm font-semibold text-brand-text underline"
+        media={
+          athlete.photo_url ? (
+            <a
+              href={athlete.photo_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open full-size photo"
             >
-              Message {athlete.first_name}
-            </Link>
+              {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage URL, not a local/optimizable asset */}
+              <img
+                src={athlete.photo_url}
+                alt={name}
+                className="size-20 rounded-full border border-border object-cover object-top"
+              />
+            </a>
           ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Hasn&apos;t created a RepOne account yet, so can&apos;t be messaged.
-            </p>
-          )}
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element -- server-generated data: URI PNG, not a static/optimizable asset */}
-          <img
-            src={checkinQrDataUrl}
-            alt="Check-in QR code"
-            className="h-32 w-32 shrink-0 rounded-md border border-border"
+            <div className="flex size-20 items-center justify-center rounded-full border border-border bg-muted text-xs text-muted-foreground">
+              No photo
+            </div>
+          )
+        }
+        subtitle={
+          <>
+            {athlete.affiliate ? `${athlete.affiliate} · ` : ""}
+            <span className="font-semibold uppercase tracking-wide text-brand-text">
+              {category
+                ? `${AGE_CATEGORY_LABELS[category]} (as of today)`
+                : "No competitive age category (as of today)"}
+            </span>
+          </>
+        }
+        actions={
+          <AthleteHeaderActions
+            athleteId={athleteId}
+            firstName={athlete.first_name}
+            name={name}
+            hasPhoto={Boolean(athlete.photo_url)}
+            qrDataUrl={checkinQrDataUrl}
+            messageUserId={athlete.auth_user_id}
+            values={{
+              first_name: athlete.first_name,
+              last_name: athlete.last_name,
+              affiliate: athlete.affiliate,
+              email: athlete.email,
+              phone: athlete.phone,
+              date_of_birth: athlete.date_of_birth,
+              gender,
+            }}
           />
-          <div>
-            <h2 className="font-semibold">Check-In QR code</h2>
-            <p className="mt-1 max-w-md text-sm text-muted-foreground">
-              Scan this at event-day registration to pull up {athlete.first_name}&apos;s payment
-              status.
-            </p>
-            <Link
-              href={`/admin/checkin/${athleteId}`}
-              className="mt-2 inline-block text-sm font-semibold text-brand-text underline"
-            >
-              Open Check-In screen
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        }
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Photo</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <form
-            action={uploadAthletePhoto.bind(null, athleteId)}
-            className="flex flex-wrap items-end gap-3"
-          >
-            <div className="grid gap-2">
-              <Label htmlFor="athlete-photo">Upload a photo</Label>
-              <Input id="athlete-photo" type="file" name="photo" accept="image/*" required />
-            </div>
-            <Button type="submit">Upload</Button>
-          </form>
-          {athlete.photo_url && (
-            <div>
-              <ConfirmAction
-                trigger="Remove current photo"
-                title={`Remove ${name}'s photo?`}
-                description="Their profile goes back to having no photo. You can upload a new one any time."
-                confirmLabel="Remove photo"
-                onConfirm={removeAthletePhoto.bind(null, athleteId)}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            action={updateAthleteProfile.bind(null, athleteId)}
-            className="flex flex-wrap items-end gap-3"
-          >
-            <div className="grid gap-2">
-              <Label htmlFor="profile-first">First name</Label>
-              <Input
-                id="profile-first"
-                name="first_name"
-                required
-                defaultValue={athlete.first_name}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-last">Last name</Label>
-              <Input id="profile-last" name="last_name" required defaultValue={athlete.last_name} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-affiliate">Box / affiliate</Label>
-              <Input
-                id="profile-affiliate"
-                name="affiliate"
-                defaultValue={athlete.affiliate ?? ""}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-email">Email</Label>
-              <Input
-                id="profile-email"
-                type="email"
-                name="email"
-                required
-                defaultValue={athlete.email ?? ""}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-phone">Phone</Label>
-              <Input
-                id="profile-phone"
-                type="tel"
-                name="phone"
-                defaultValue={athlete.phone ?? ""}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-dob">Date of birth</Label>
-              <Input
-                id="profile-dob"
-                type="date"
-                name="date_of_birth"
-                defaultValue={athlete.date_of_birth ?? ""}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-gender">Gender</Label>
-              <Select name="gender" defaultValue={athlete.gender ?? NONE}>
-                <SelectTrigger id="profile-gender" className="min-w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Not set</SelectItem>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit">Save</Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic lifts &amp; run times</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            action={saveAthleteLifts.bind(null, athleteId)}
-            className="grid grid-cols-2 gap-3 sm:grid-cols-3"
-          >
-            {LIFT_NAMES.map((lift) => {
-              const existing = liftByName.get(lift);
-              const timeLift = isTimeLift(lift);
-              const id = `lift-${lift}`;
-              return (
-                <div key={lift} className="grid gap-2">
-                  <Label htmlFor={id}>
-                    {LIFT_LABELS[lift]} {timeLift ? "(mm:ss)" : "(lbs)"}
-                  </Label>
-                  {timeLift ? (
-                    <Input
-                      id={id}
-                      type="text"
-                      inputMode="decimal"
-                      pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
-                      placeholder="21:30"
-                      name={lift}
-                      defaultValue={
-                        existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""
-                      }
-                    />
-                  ) : (
-                    <Input
-                      id={id}
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      name={lift}
-                      defaultValue={existing?.weight_lbs ?? ""}
-                    />
-                  )}
-                </div>
-              );
-            })}
-            <Button type="submit" className="col-span-full mt-2 w-fit">
-              Save lifts
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Benchmark workouts</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <form
-            action={upsertAthleteBenchmark.bind(null, athleteId)}
-            className="flex flex-wrap items-end gap-3"
-          >
-            <div className="grid gap-2">
-              <Label htmlFor="benchmark-name">Benchmark</Label>
-              <Input id="benchmark-name" name="name" required placeholder="Fran" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="benchmark-result">Result</Label>
-              <Input id="benchmark-result" name="result_display" required placeholder="3:45" />
-            </div>
-            <Button type="submit">Save</Button>
-          </form>
-
-          <div className="flex flex-col gap-2">
-            {(benchmarks ?? []).map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border px-4 py-2"
-              >
-                <span>
-                  <span className="font-semibold">{b.name}</span>{" "}
-                  <span className="text-muted-foreground">{b.result_display}</span>
-                </span>
-                <ConfirmAction
-                  trigger="Remove"
-                  title={`Remove ${b.name}?`}
-                  description={`${name}'s ${b.name} time (${b.result_display}) is deleted from their benchmarks.`}
-                  confirmLabel="Remove benchmark"
-                  onConfirm={deleteAthleteBenchmark.bind(null, athleteId, b.id)}
-                />
+      <LinkTabs tabs={TABS} current={tab} label={`${name} sections`}>
+        {tab === "profile" ? (
+          <dl className="grid max-w-2xl gap-x-6 gap-y-4 sm:grid-cols-2">
+            {[
+              ["Email", athlete.email],
+              ["Phone", athlete.phone],
+              ["Date of birth", athlete.date_of_birth ? formatDay(athlete.date_of_birth) : null],
+              ["Gender", gender === "male" ? "Male" : gender === "female" ? "Female" : null],
+              ["Box / affiliate", athlete.affiliate],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </dt>
+                <dd className="mt-1 break-words">{value || "—"}</dd>
               </div>
             ))}
-            {benchmarks?.length === 0 && (
-              <p className="text-muted-foreground">No benchmark times logged yet.</p>
-            )}
+          </dl>
+        ) : tab === "performance" ? (
+          <div className="flex flex-col gap-8">
+            <section className="flex flex-col gap-3">
+              <h2 className="font-display text-xl font-bold uppercase tracking-wide">
+                Basic lifts &amp; run times
+              </h2>
+              <LiftsForm athleteId={athleteId} values={liftValues} />
+            </section>
+            <section className="flex flex-col gap-3">
+              <h2 className="font-display text-xl font-bold uppercase tracking-wide">
+                Benchmark workouts
+              </h2>
+              <BenchmarksTable
+                athleteId={athleteId}
+                athleteName={name}
+                rows={(benchmarks ?? []).map((b) => ({
+                  id: b.id,
+                  name: b.name,
+                  result: b.result_display,
+                }))}
+              />
+            </section>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Competition history</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {history.length === 0 ? (
-            <p className="text-muted-foreground">No competition results recorded yet.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {history.map((h) => (
-                <div key={h.eventId} className="rounded-lg border border-border p-4">
-                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{h.eventName}</p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {h.divisionName}
-                      </p>
-                    </div>
-                    {h.overall && (
-                      <p className="text-sm font-bold text-brand-text">
-                        Overall: {h.overall.placement ? `#${h.overall.placement}` : "—"}
-                        {h.overall.points !== null ? ` (${h.overall.points} pts)` : ""}
-                      </p>
-                    )}
-                  </div>
-                  {h.wods.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {h.wods.map((w) => (
-                        <Badge key={w.wodId} variant="secondary">
-                          {w.name}: {w.placement ? `#${w.placement}` : "—"}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        ) : (
+          <CompetitionsTable
+            rows={history.map((h) => ({
+              eventId: h.eventId,
+              eventName: h.eventName,
+              divisionName: h.divisionName,
+              placement: h.overall?.placement ?? null,
+              points: h.overall?.points ?? null,
+              wods: h.wods.map((w) => ({ wodId: w.wodId, name: w.name, placement: w.placement })),
+            }))}
+          />
+        )}
+      </LinkTabs>
     </div>
   );
 }

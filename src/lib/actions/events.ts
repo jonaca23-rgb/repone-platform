@@ -126,7 +126,7 @@ export async function uploadEventCoverPhoto(
   return safeAction(async () => {
     const { organizationId } = await requireEventAccess(eventId);
 
-    const { file, ext } = imageUpload(formData.get("cover_photo"));
+    const { file, ext } = imageUpload(formData.get("cover_photo"), "cover_photo");
 
     const supabase = await createClient();
     const path = `${eventId}/${Date.now()}.${ext}`;

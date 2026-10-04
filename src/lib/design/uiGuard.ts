@@ -29,6 +29,10 @@ export const ACTION_RESULT_FILES: readonly string[] = [
   "src/lib/actions/eventStaff.ts",
   "src/lib/actions/registrations.ts",
   "src/lib/actions/payments.ts",
+  "src/lib/actions/athletes.ts",
+  "src/lib/actions/circuits.ts",
+  "src/lib/actions/lanes.ts",
+  "src/lib/actions/expenses.ts",
 ];
 
 type GuardRule = {
@@ -77,6 +81,13 @@ export const GUARD_RULES: readonly GuardRule[] = [
     pattern: /\bthrow new (?:Validation)?Error\(\s*["'`]/,
     message: 'Return fail("…") from a migrated action; a thrown message is lost in production.',
     appliesTo: (file, { actionFiles }) => actionFiles.includes(file),
+  },
+  {
+    id: "admin-card-list",
+    pattern: /<Card\b/,
+    message:
+      "Admin lists are DataTables (docs/superpowers/specs/2026-10-04-admin-data-screens-design.md); mark a deliberate summary card with ui-guard-ignore.",
+    appliesTo: (file) => /^src\/app\/\(app\)\/admin\/.+\.tsx$/.test(file),
   },
   {
     id: "vaul",

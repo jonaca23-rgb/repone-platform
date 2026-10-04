@@ -44,7 +44,7 @@ function HeatActions({ h }: { h: HeatRow }) {
     <>
       <RowActions
         label={`Actions for ${h.label}`}
-        primary={{ label: "Open", href: `/admin/events/${eventId}/heats/${h.id}` }}
+        secondary={[{ label: "Open", href: `/admin/events/${eventId}/heats/${h.id}` }]}
         destructive={[{ label: "Remove heat", onSelect: dialogs.show("remove") }]}
       />
       <ConfirmAction

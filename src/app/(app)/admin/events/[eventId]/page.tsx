@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { DeleteEventButton } from "@/app/(app)/admin/DeleteEventButton";
-import { PageHeader } from "@/components/app/PageHeader";
+import { DetailHeader } from "@/components/app/DetailHeader";
+import { Badge } from "@/components/ui/badge";
+import { formatDayRange } from "@/lib/time";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,8 +66,52 @@ export default async function EventHubPage({ params }: Props) {
   // page grid, 0011_event_cover_photo.sql), show it here too as a banner,
   // so the picture they picked is visible on the event's home screen.
   const coverUrl: string | null = event.cover_image_url ?? null;
-  const dates =
-    `${event.starts_on ?? "—"} ${event.ends_on && event.ends_on !== event.starts_on ? `→ ${event.ends_on}` : ""}`.trim();
+  const dates = formatDayRange(event.starts_on, event.ends_on, " → ");
+
+  // One number per section, so the overview says where the event stands.
+  const count = (table: string, column = "event_id") =>
+    supabase
+      .from(table as "divisions")
+      .select("id", { count: "exact", head: true })
+      .eq(column as "event_id", eventId)
+      .then((r) => r.count ?? 0);
+  const activeStaff = (table: string) =>
+    supabase
+      .from(table as "event_producer_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .eq("status", "active")
+      .then((r) => r.count ?? 0);
+  const [venues, divisions, registrations, wods, heats, fees, expenses, sk, pr, cm, settled] =
+    await Promise.all([
+      count("venues"),
+      count("divisions"),
+      count("registrations"),
+      count("wods"),
+      count("heats"),
+      count("fee_schedules"),
+      count("expenses"),
+      activeStaff("event_scorekeeper_assignments"),
+      activeStaff("event_producer_assignments"),
+      activeStaff("event_commentator_assignments"),
+      supabase
+        .from("payments")
+        .select("id, registrations!inner(event_id)", { count: "exact", head: true })
+        .eq("registrations.event_id", eventId)
+        .in("status", ["paid", "waived"])
+        .then((r) => r.count ?? 0),
+    ]);
+  const counts: Record<string, string> = {
+    venues: `${venues}`,
+    divisions: `${divisions}`,
+    athletes: `${registrations} registered`,
+    wods: `${wods}`,
+    heats: `${heats}`,
+    staff: `${sk + pr + cm}`,
+    fees: `${fees}`,
+    payments: `${Math.max(registrations - settled, 0)} unpaid`,
+    statement: `${expenses} expenses`,
+  };
 
   const statusControls = (
     <div className="flex flex-wrap items-center gap-2">
@@ -76,9 +122,9 @@ export default async function EventHubPage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
+      <DetailHeader
         title={event.name}
-        description={dates}
+        subtitle={dates}
         breadcrumb={
           <AdminBreadcrumb items={[{ label: "Events", href: "/admin" }, { label: event.name }]} />
         }
@@ -119,9 +165,15 @@ export default async function EventHubPage({ params }: Props) {
             href={`/admin/events/${eventId}/${s.slug}`}
             className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
           >
+            {/* ui-guard-ignore: overview cards link to the event's sections, not a list */}
             <Card size="sm" className="h-full hover:ring-primary/60">
               <CardHeader>
-                <CardTitle>{s.label}</CardTitle>
+                <CardTitle className="flex items-center justify-between gap-2">
+                  {s.label}
+                  <Badge variant="secondary" className="tabular-nums">
+                    {counts[s.slug]}
+                  </Badge>
+                </CardTitle>
                 <CardDescription>{s.desc}</CardDescription>
               </CardHeader>
             </Card>

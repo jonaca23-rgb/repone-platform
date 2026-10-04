@@ -270,6 +270,56 @@ Square slabs of Broadcast Black (95% opacity in corner graphics, solid when full
 ### Unmatched URLs
 The app has three root layouts (`(app)`, `(auth)`, `(overlay)`), so no layout can host Next's 404 for a URL that matches no route. `src/app/global-not-found.tsx` renders the `(app)` not-found screen on the dark tokens, and `next.config.ts` enables it with the experimental `globalNotFound` flag. Re-check that flag (still needed, renamed, or stable) on every Next upgrade.
 
+## Building an admin screen
+
+Every admin screen is assembled from the same parts. A new feature (sponsor packages, the venue display) follows this section instead of inventing its own. Sponsors is the smallest complete example: `src/app/(app)/admin/sponsors/` and `src/lib/actions/sponsors.ts`.
+
+### Which part for which job
+
+| The screen needs | Use | Lives in |
+|---|---|---|
+| A list of records | `DataTable`: search, select filters, sortable headers, 25 rows a page, the screen's `EmptyState` | `components/app/data-table/` |
+| Create or edit a record | `FormDialog`: a Dialog at ≥ 640px, a Base UI drawer below | `components/app/FormDialog.tsx` |
+| One-field create (a name) | `NameForm` inside a `FormDialog` | `components/app/NameForm.tsx` |
+| What to do to one row | `RowActions`: one visible button, the rest behind "⋯", destructive last | `components/app/RowActions.tsx` |
+| Delete, remove, refund, reset | `ConfirmAction`, opened from the row menu with `useEntityDialogs` | `components/app/ConfirmAction.tsx` |
+| An on/off setting saved as it flips | `ActionSwitch` | `components/app/ActionSwitch.tsx` |
+| A long record (an athlete, a heat) | `DetailHeader` + `LinkTabs` (`?tab=`, picked with `pickTab`) | `components/app/` |
+| Dates and money | `formatDay`, `formatDayRange`, `formatDateTime`, `formatTime`; `formatCents` | `lib/time.ts`, `lib/money.ts` |
+
+Cards are for summaries and links (an event's section counts, a statement's totals), never for lists. `ui:guard` rejects a `<Card>` in any `.tsx` under `src/app/(app)/admin/` unless the line says why with `ui-guard-ignore`. It cannot see a card drawn by hand (`rounded-lg border bg-card` rows in a `.map`), so don't build lists that way either; the few that remain (the Messages inbox, the Check-In picker and verdict, a heat's short standings) are deliberate, not a pattern to copy.
+
+### The action contract
+
+- A server action returns `ActionResult`. Wrap the body in `safeAction`, end with `return ok()`, and report expected failures with `return fail("What went wrong.")`, or `fail(message, { field: ["…"] })` to put it under one field. Next.js hides thrown messages in production, so never `throw new Error("a user-facing message")`. A migrated file goes in `ACTION_RESULT_FILES` and the guard enforces it.
+- Guards (`requireOrgManager`, `requireEventAccess`) and `parseForm` still throw; `safeAction` turns their errors into results, with zod's errors under each field.
+- Never `redirect()` inside an action. Return `ok({ href })`; `ConfirmAction` follows it, and a form navigates in its `onSuccess`.
+- Unexpected failures (a database error) still throw and reach the area's error screen.
+
+### Forms
+
+- The default is native `FormData` plus the action's zod schema: the form posts what the browser has, the server validates, and `FormField` shows `fieldErrors` under each control with `aria-invalid` and `aria-describedby`. `FormAlert` shows a failure that belongs to no field; `SubmitButton` shows the pending state.
+- Run the action with `useServerAction(action, { success, toastErrors: false, onSuccess: close })` inside the dialog. It toasts success, refreshes the page, keeps field errors, ignores a second submit, and still toasts a failure if the form closed mid-save.
+- Use TanStack Form only for a list that grows, fields that depend on each other, or validation that must happen while typing; it takes the same zod schema.
+
+### Tables
+
+- Define columns at module scope, never inside the component: TanStack renders a cell with `createElement`, so a cell function recreated per render remounts and closes any dialog a row has open. Pass what cells need (an event's id) through `createTableContext`.
+- Give every column a filter value equal to its accessor value; give low-value columns `meta: { priority: "low" }` so a phone shows what matters; put the actions column last with `meta: { rowActions: true }`.
+
+### Phones
+
+- Forms open as a bottom drawer below 640px; check every new form at **390×400** (a phone with the keyboard up): focus the last field, and the submit button must be visible and tappable.
+- Controls are at least 44px; a table must fit 390px without the page scrolling sideways.
+
+### Checklist for a new admin screen
+
+1. Write the action's failing tests (pattern: `src/lib/actions/sponsors.test.ts` with `fakeSupabase`), then make the action return `ActionResult` and add it to `ACTION_RESULT_FILES`.
+2. Build `<Screen>Table.tsx` with module-scope columns, filters, toolbar and `EmptyState`.
+3. Put create and edit in `FormDialog`s, and per-row actions in `RowActions` with `ConfirmAction` for anything destructive.
+4. Keep `page.tsx` a server component that loads data and maps it to plain rows.
+5. Run `pnpm check`, then check it in the browser at 1440, 390 and 390×400.
+
 ## Do's and Don'ts
 
 ### Do:

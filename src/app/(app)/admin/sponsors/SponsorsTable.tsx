@@ -32,7 +32,7 @@ const columns = [
       <span className="flex flex-wrap items-center gap-2 font-semibold">
         {row.original.business_name}
         {row.original.category_exclusive ? (
-          <Badge variant="outline" className="whitespace-normal uppercase text-brand-text">
+          <Badge variant="outline" className="h-auto whitespace-normal uppercase text-brand-text">
             Exclusive · {row.original.category}
           </Badge>
         ) : null}
