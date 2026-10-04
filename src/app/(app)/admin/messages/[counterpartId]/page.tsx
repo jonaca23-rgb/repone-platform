@@ -8,6 +8,7 @@ import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateTime } from "@/lib/time";
 
 type Props = { params: Promise<{ counterpartId: string }> };
 
@@ -52,7 +53,7 @@ export default async function AdminThreadPage({ params }: Props) {
             <p
               className={`mt-1 text-xs ${m.fromMe ? "text-primary-foreground" : "text-muted-foreground"}`}
             >
-              {new Date(m.createdAt).toLocaleString()}
+              {formatDateTime(m.createdAt)}
             </p>
           </div>
         ))}
