@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseClockToSeconds } from "../timer/compute";
 import { NONE } from "./none";
+import type { FieldErrors } from "@/lib/action-result";
 
 // Server actions receive FormData straight from the browser, so every field
 // is untrusted text. Each action declares a zod schema built from `field`
@@ -9,10 +10,24 @@ import { NONE } from "./none";
 // bad value stops the action with a message a person can act on.
 
 export class ValidationError extends Error {
-  constructor(message: string) {
+  readonly fieldErrors: FieldErrors;
+  constructor(message: string, fieldErrors: FieldErrors = {}) {
     super(message);
     this.name = "ValidationError";
+    this.fieldErrors = fieldErrors;
   }
+}
+
+/** Every failing field's messages, plus the first message as the summary. */
+function toValidationError(issues: readonly z.core.$ZodIssue[]): ValidationError {
+  const fieldErrors: FieldErrors = {};
+  for (const issue of issues) {
+    const key = String(issue.path[0] ?? "");
+    if (!key) continue;
+    fieldErrors[key] ??= [];
+    fieldErrors[key].push(issue.message);
+  }
+  return new ValidationError(issues[0]?.message ?? "Some of the input isn't valid.", fieldErrors);
 }
 
 export function parseForm<S extends z.ZodType>(schema: S, formData: FormData): z.infer<S> {
@@ -21,9 +36,7 @@ export function parseForm<S extends z.ZodType>(schema: S, formData: FormData): z
     if (!(key in raw)) raw[key] = value;
   }
   const result = schema.safeParse(raw);
-  if (!result.success) {
-    throw new ValidationError(result.error.issues[0]?.message ?? "Some of the input isn't valid.");
-  }
+  if (!result.success) throw toValidationError(result.error.issues);
   return result.data;
 }
 
@@ -33,9 +46,7 @@ export function parseForm<S extends z.ZodType>(schema: S, formData: FormData): z
  */
 export function parseArg<S extends z.ZodType>(schema: S, value: unknown): z.infer<S> {
   const result = schema.safeParse(value);
-  if (!result.success) {
-    throw new ValidationError(result.error.issues[0]?.message ?? "Some of the input isn't valid.");
-  }
+  if (!result.success) throw toValidationError(result.error.issues);
   return result.data;
 }
 

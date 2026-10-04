@@ -1,7 +1,5 @@
-import { APIError } from "better-auth/api";
-import { NotAuthorizedError } from "@/lib/auth/guards";
-import { InviteError, resendInvitation, type InviteOutcome } from "@/lib/auth/invite";
-import { ValidationError } from "@/lib/validation/form";
+import { resendInvitation, type InviteOutcome } from "@/lib/auth/invite";
+import { toFailure } from "./safeAction";
 
 /**
  * What the Team and event staff forms show inline (useActionState). Shared by
@@ -20,29 +18,9 @@ export function inviteMessage(outcome: InviteOutcome): FormResult {
   };
 }
 
-const MUST_KEEP_OWNER = new Set([
-  "YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER",
-  "YOU_CANNOT_LEAVE_THE_ORGANIZATION_WITHOUT_AN_OWNER",
-]);
-
-/**
- * Errors a person can act on become an inline message; anything else is
- * rethrown to the error boundary rather than shown raw.
- */
+/** An expected failure as a FormResult; see safeAction's toFailure. */
 export function failure(error: unknown): FormResult {
-  if (error instanceof APIError) {
-    const code = String(error.body?.code ?? "");
-    if (MUST_KEEP_OWNER.has(code))
-      return { ok: false, message: "The organization must keep an owner." };
-    return { ok: false, message: error.body?.message ?? error.message };
-  }
-  if (
-    error instanceof ValidationError ||
-    error instanceof NotAuthorizedError ||
-    error instanceof InviteError
-  )
-    return { ok: false, message: error.message };
-  throw error;
+  return toFailure(error);
 }
 
 /** Sends a fresh invitation link; a delivery failure is the inviter's message, not a crash. */
