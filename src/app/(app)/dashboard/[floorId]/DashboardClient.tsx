@@ -7,6 +7,8 @@ import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
 import { floorWatches } from "@/lib/realtime/floorWatches";
 import { useRefreshOnChanges } from "@/lib/realtime/useRefreshOnChanges";
+import { formatClock } from "@/lib/timer/compute";
+import type { ActionResult } from "@/lib/action-result";
 import { TimerDisplay } from "@/components/graphics/TimerDisplay";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -20,21 +22,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import {
-  setCurrentHeat,
-  setActiveGraphic,
-  setLowerThird,
-  setActiveSponsor,
-  clearGraphics,
-  startTimer,
-  pauseTimer,
-  resumeTimer,
-  resetTimer,
   adjustTimer,
+  clearGraphics,
+  pauseTimer,
+  resetTimer,
+  resumeTimer,
+  setActiveGraphic,
+  setActiveSponsor,
+  setCurrentHeat,
+  setLowerThird,
+  startTimer,
 } from "@/lib/actions/broadcast";
 import type { ActiveGraphic, Database } from "@/lib/db/database.types";
 import { heatOnAir } from "@/lib/broadcast/heatOnAir";
+import { OnAirBar } from "./OnAirBar";
+import {
+  GRAPHIC_LABEL,
+  heatName,
+  needsHeatSwitchConfirm,
+  needsRestartConfirm,
+  onAirSummary,
+} from "./onAir";
 
 export interface DashboardHeat {
   id: string;
@@ -52,21 +63,14 @@ export interface DashboardHeat {
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
 
-const GRAPHIC_BUTTONS: Array<{ key: ActiveGraphic; label: string }> = [
-  { key: "heat_intro", label: "Heat Intro" },
-  { key: "lanes", label: "Lanes" },
-  { key: "wod", label: "WOD" },
-  { key: "timer", label: "Timer" },
-  { key: "score", label: "Score" },
-  { key: "leaderboard", label: "Leaderboard" },
-];
+const GRAPHICS: ActiveGraphic[] = ["heat_intro", "lanes", "wod", "timer", "score", "leaderboard"];
 
-/** Live controls: 64px tall so they're hard to miss on a tablet mid-broadcast. */
-const LIVE = "min-h-16";
+/** Live controls: 56px — big enough to hit mid-broadcast, small enough that the board fits a tablet. */
+const LIVE = "min-h-14";
 
 /**
- * Production builds hide server error text, so the message names what failed;
- * the detail is added in development.
+ * A thrown error (network, server crash) has no message a production build
+ * shows, so it names what failed; the detail is added in development.
  */
 function failureMessage(what: string, e: unknown): string {
   const detail =
@@ -74,18 +78,10 @@ function failureMessage(what: string, e: unknown): string {
   return `Couldn't ${what}. Check the connection and try again.${detail}`;
 }
 
-function Section({
-  title,
-  children,
-  className,
-}: {
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const id = `section-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
-    <Card size="sm" role="region" aria-labelledby={id} className={className}>
+    <Card size="sm" role="region" aria-labelledby={id}>
       <CardHeader>
         <CardTitle>
           <h2
@@ -96,11 +92,18 @@ function Section({
           </h2>
         </CardTitle>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="flex flex-col gap-3">{children}</CardContent>
     </Card>
   );
 }
 
+/**
+ * The producer's live board for one floor. The On air bar says what the
+ * audience sees; below it, "the floor" (heat and timer) on the left and "the
+ * audience" (graphics, lower third, sponsors) on the right from lg. Only what
+ * would hurt on air asks first: restarting a running clock, switching heats
+ * while it runs, Reset and Clear all.
+ */
 export function DashboardClient({
   floorId,
   eventName,
@@ -122,19 +125,20 @@ export function DashboardClient({
       heats.map((h) => h.id),
     ),
   );
-  const [pending, startTransitionFn] = useTransition();
+  const [pending, startTransition] = useTransition();
   const [failure, setFailure] = useState<string | null>(null);
   const [countDirection, setCountDirection] = useState<"count_up" | "count_down">("count_down");
+  const [lowerThirdAthlete, setLowerThirdAthlete] = useState<string>("");
+  const [switchTo, setSwitchTo] = useState<number | null>(null);
 
   // With nothing on air yet, the first heat is shown with a "put on air"
   // control; see lib/broadcast/heatOnAir.ts.
-  const { index: effectiveIndex, onAir } = useMemo(
+  const { index, onAir } = useMemo(
     () => heatOnAir(heats, state?.current_heat_id ?? null),
     [heats, state?.current_heat_id],
   );
-  const currentHeat = heats[effectiveIndex] ?? null;
-
-  const [lowerThirdAthlete, setLowerThirdAthlete] = useState<string>("");
+  const currentHeat = heats[index] ?? null;
+  const summary = useMemo(() => onAirSummary(state, heats, sponsors), [state, heats, sponsors]);
 
   const timer = useLiveTimer({
     status: state?.timer_status ?? "idle",
@@ -144,42 +148,31 @@ export function DashboardClient({
     anchorTimeMs: state?.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
   });
 
-  // Every one-tap control goes through here: the action is awaited,
-  // "Sending…" shows while it runs, and a failure is shown to the operator
-  // instead of vanishing mid-broadcast.
-  function go(what: string, action: () => Promise<unknown>) {
+  // Every one-tap control goes through here: "Sending…" shows while it runs,
+  // and a failure — the server's own words, or a named one for a crash — stays
+  // on screen until dismissed instead of vanishing mid-broadcast.
+  function go(what: string, action: () => Promise<ActionResult>) {
     setFailure(null);
-    startTransitionFn(async () => {
+    startTransition(async () => {
       try {
         const result = await action();
-        if (result && typeof result === "object" && "ok" in result && !result.ok) {
-          setFailure(String((result as unknown as { message: unknown }).message));
-        }
+        if (!result.ok) setFailure(result.message);
       } catch (e) {
+        unstable_rethrow(e);
         setFailure(failureMessage(what, e));
       }
     });
   }
 
-  // The confirmed controls (Reset, Clear graphics) run inside the dialog,
-  // which stays open and shows the same message as a toast on failure.
-  function confirmed(what: string, action: () => Promise<unknown>) {
-    return async () => {
-      setFailure(null);
-      try {
-        return await action();
-      } catch (e) {
-        // A redirect or notFound is Next's to handle; ConfirmAction rethrows it too.
-        unstable_rethrow(e);
-        throw new Error(failureMessage(what, e));
-      }
-    };
+  function putOnAir(i: number) {
+    const heat = heats[i];
+    if (heat) go(`switch to heat ${heat.heatNumber}`, () => setCurrentHeat(floorId, heat.id));
   }
 
-  function selectHeat(index: number) {
-    const heat = heats[index];
-    if (!heat) return;
-    go(`switch to heat ${heat.heatNumber}`, () => setCurrentHeat(floorId, heat.id));
+  function requestHeat(i: number) {
+    if (!heats[i]) return;
+    if (needsHeatSwitchConfirm(state?.timer_status)) setSwitchTo(i);
+    else putOnAir(i);
   }
 
   if (!currentHeat) {
@@ -194,290 +187,294 @@ export function DashboardClient({
     );
   }
 
-  const paused = state?.timer_status === "paused";
+  const status = state?.timer_status ?? "idle";
+  const paused = status === "paused";
   const athletesInHeat = currentHeat.lanes.filter((l) => l.athleteId);
+  const duration =
+    countDirection === "count_down"
+      ? (currentHeat.wod.time_cap_seconds ?? 600)
+      : (currentHeat.wod.time_cap_seconds ?? 0);
+  const start = () => startTimer(floorId, countDirection, duration);
+  const target = switchTo !== null ? heats[switchTo] : null;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-4 sm:gap-6 sm:py-6">
-      {/* Header */}
-      <Card size="sm">
-        <CardContent className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs tracking-widest text-muted-foreground uppercase">{eventName}</p>
-            <h1 className="font-display text-2xl font-bold tracking-wide uppercase">
-              {currentHeat.wod.name} · Heat {currentHeat.heatNumber}
-              {currentHeat.heatCount ? ` / ${currentHeat.heatCount}` : ""}
-            </h1>
-            <p className="text-sm font-semibold tracking-wide text-brand-text uppercase">
-              {currentHeat.division.name}
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-xs tracking-wide uppercase">
-            <span role="status" aria-live="polite" className="text-muted-foreground">
-              {pending ? "Sending…" : ""}
-            </span>
-            <span
-              role="status"
-              aria-live="polite"
-              className={cn(
-                "flex items-center gap-2 font-semibold",
-                connected ? "text-success-text" : "text-brand-text",
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "size-3 rounded-full",
-                  connected ? "bg-success" : "animate-pulse bg-primary",
-                )}
-              />
-              {connected ? "Live" : "Reconnecting…"}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col">
+      <OnAirBar
+        connected={connected}
+        pending={pending}
+        summary={summary}
+        timerSeconds={timer.displaySeconds}
+        offAirHeatNumber={onAir ? null : currentHeat.heatNumber}
+        onPutOnAir={() => putOnAir(index)}
+        onClear={() => clearGraphics(floorId)}
+      />
 
-      {failure && (
-        <div
-          role="alert"
-          className="flex items-center justify-between gap-3 rounded-xl border border-destructive/50 bg-destructive/10 px-5 py-2 text-sm"
-        >
-          <span>{failure}</span>
-          <Button variant="ghost" className="min-h-11 shrink-0" onClick={() => setFailure(null)}>
-            Dismiss
-          </Button>
-        </div>
-      )}
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4">
+        <h1 className="sr-only">Production — {eventName}</h1>
 
-      {!onAir && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary bg-primary/10 px-5 py-4">
-          <span className="font-semibold">
-            No heat is on air. Overlays show nothing until one is.
-          </span>
-          <Button size="touch" className={LIVE} onClick={() => selectHeat(effectiveIndex)}>
-            Put Heat {currentHeat.heatNumber} on air
-          </Button>
-        </div>
-      )}
-
-      {/* Heat nav */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          size="touch"
-          variant="secondary"
-          className={cn(LIVE, "gap-2")}
-          disabled={effectiveIndex <= 0}
-          onClick={() => selectHeat(Math.max(0, effectiveIndex - 1))}
-        >
-          <ChevronLeft aria-hidden />
-          Previous heat
-        </Button>
-        <Button
-          size="touch"
-          variant="secondary"
-          className={cn(LIVE, "gap-2")}
-          disabled={effectiveIndex >= heats.length - 1}
-          onClick={() => selectHeat(Math.min(heats.length - 1, effectiveIndex + 1))}
-        >
-          Next heat
-          <ChevronRight aria-hidden />
-        </Button>
-      </div>
-
-      {/* Lanes */}
-      <ul aria-label="Lanes" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {currentHeat.lanes.map((lane) => (
-          <li
-            key={lane.laneNumber}
-            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+        {failure && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-xl border border-destructive/50 bg-destructive/10 px-5 py-2 text-sm"
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded bg-primary font-bold text-primary-foreground">
-              {lane.laneNumber}
-            </span>
-            <span className="truncate font-semibold uppercase">{lane.name ?? "—"}</span>
-          </li>
-        ))}
-      </ul>
-
-      <Section title="Timer">
-        <div className="flex justify-center">
-          <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} />
-        </div>
-        <div role="group" aria-label="Timer direction" className="flex justify-center gap-2">
-          {(["count_down", "count_up"] as const).map((d) => (
-            <Button
-              key={d}
-              size="touch"
-              variant={countDirection === d ? "default" : "secondary"}
-              aria-pressed={countDirection === d}
-              onClick={() => setCountDirection(d)}
-            >
-              {d === "count_down" ? "Count down" : "Count up"}
-            </Button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Button
-            size="touch"
-            className={LIVE}
-            onClick={() =>
-              go("start the timer", () =>
-                startTimer(
-                  floorId,
-                  countDirection,
-                  countDirection === "count_down"
-                    ? (currentHeat.wod.time_cap_seconds ?? 600)
-                    : (currentHeat.wod.time_cap_seconds ?? 0),
-                ),
-              )
-            }
-          >
-            Start
-          </Button>
-          <Button
-            size="touch"
-            variant="secondary"
-            className={LIVE}
-            onClick={() =>
-              go(paused ? "resume the timer" : "pause the timer", () =>
-                paused ? resumeTimer(floorId) : pauseTimer(floorId),
-              )
-            }
-          >
-            {paused ? "Resume" : "Pause"}
-          </Button>
-          <ConfirmAction
-            trigger="Reset"
-            title="Reset the timer?"
-            description="The clock goes back to zero and stops, on the dashboard and on air."
-            confirmLabel="Reset timer"
-            variant="default"
-            triggerVariant="secondary"
-            triggerSize="touch"
-            triggerClassName={LIVE}
-            onConfirm={confirmed("reset the timer", () => resetTimer(floorId))}
-          />
-          <div className="flex gap-2">
-            <Button
-              size="touch"
-              variant="secondary"
-              className={cn(LIVE, "flex-1 px-2")}
-              onClick={() => go("adjust the timer", () => adjustTimer(floorId, -10))}
-            >
-              −10s
-            </Button>
-            <Button
-              size="touch"
-              variant="secondary"
-              className={cn(LIVE, "flex-1 px-2")}
-              onClick={() => go("adjust the timer", () => adjustTimer(floorId, 10))}
-            >
-              +10s
+            <span>{failure}</span>
+            <Button variant="ghost" className="min-h-11 shrink-0" onClick={() => setFailure(null)}>
+              Dismiss
             </Button>
           </div>
-        </div>
-      </Section>
+        )}
 
-      <Section title="Graphics">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {GRAPHIC_BUTTONS.map((g) => {
-            const pressed = state?.active_graphic === g.key;
-            return (
-              <Button
-                key={g.key}
-                size="touch"
-                variant={pressed ? "default" : "secondary"}
-                aria-pressed={pressed}
-                className={cn(LIVE, "h-auto px-3 whitespace-normal")}
-                onClick={() =>
-                  go(`show ${g.label.toLowerCase()}`, () => setActiveGraphic(floorId, g.key))
-                }
-              >
-                Show {g.label}
-              </Button>
-            );
-          })}
-          <div className="col-span-2 grid sm:col-span-3">
-            <ConfirmAction
-              trigger="Clear graphics"
-              title="Clear all graphics from air?"
-              description="The graphic, the lower third and the sponsor all come off the program output."
-              confirmLabel="Clear graphics"
-              variant="default"
-              triggerVariant="outline"
-              triggerSize="touch"
-              triggerClassName={LIVE}
-              onConfirm={confirmed("clear the graphics", () => clearGraphics(floorId))}
-            />
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Lower third">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid min-w-56 flex-1 gap-2">
-            <Label htmlFor="lower-third-athlete">Lower third athlete</Label>
-            <Select value={lowerThirdAthlete} onValueChange={setLowerThirdAthlete}>
-              <SelectTrigger id="lower-third-athlete" className="w-full data-[size=default]:h-12">
-                <SelectValue placeholder="Select athlete…" />
-              </SelectTrigger>
-              <SelectContent>
-                {athletesInHeat.map((l) => (
-                  <SelectItem key={l.laneNumber} value={l.athleteId!}>
-                    Lane {l.laneNumber} — {l.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            size="touch"
-            className={LIVE}
-            disabled={!lowerThirdAthlete}
-            onClick={() =>
-              go("show the lower third", () => setLowerThird(floorId, lowerThirdAthlete))
-            }
-          >
-            Show
-          </Button>
-          <Button
-            size="touch"
-            variant="secondary"
-            className={LIVE}
-            onClick={() => go("hide the lower third", () => setLowerThird(floorId, null))}
-          >
-            Hide
-          </Button>
-        </div>
-      </Section>
-
-      <Section title="Sponsors">
-        {sponsors.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {sponsors.map((s) => {
-              const pressed = state?.active_sponsor_id === s.id;
-              return (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          {/* The floor */}
+          <div className="flex flex-col gap-4">
+            <Section title="Heat">
+              <div>
+                <p className="font-display text-xl font-bold tracking-wide uppercase">
+                  {heatName(currentHeat)}
+                </p>
+                <p className="text-sm font-semibold tracking-wide text-brand-text uppercase">
+                  {currentHeat.division.name}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <Button
-                  key={s.id}
                   size="touch"
-                  variant={pressed ? "default" : "secondary"}
-                  aria-pressed={pressed}
-                  className={cn(LIVE, "h-auto px-3 whitespace-normal")}
+                  variant="secondary"
+                  className={cn(LIVE, "gap-2")}
+                  disabled={index <= 0}
+                  onClick={() => requestHeat(index - 1)}
+                >
+                  <ChevronLeft aria-hidden />
+                  Previous heat
+                </Button>
+                <Button
+                  size="touch"
+                  variant="secondary"
+                  className={cn(LIVE, "gap-2")}
+                  disabled={index >= heats.length - 1}
+                  onClick={() => requestHeat(index + 1)}
+                >
+                  Next heat
+                  <ChevronRight aria-hidden />
+                </Button>
+              </div>
+              <ul aria-label="Lanes" className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {currentHeat.lanes.map((lane) => (
+                  <li
+                    key={lane.laneNumber}
+                    className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2 py-1.5 text-sm"
+                  >
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded bg-primary text-xs font-bold text-primary-foreground">
+                      {lane.laneNumber}
+                    </span>
+                    <span className="truncate font-semibold">{lane.name ?? "—"}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+
+            <Section title="Timer">
+              <div className="flex justify-center">
+                <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} size="board" />
+              </div>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="touch"
+                value={countDirection}
+                onValueChange={(v) => v && setCountDirection(v as "count_up" | "count_down")}
+                aria-label="Timer direction"
+                className="w-full"
+              >
+                <ToggleGroupItem
+                  value="count_down"
+                  className="flex-1 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                  Count down
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="count_up"
+                  className="flex-1 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                  Count up
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <div className="grid grid-cols-3 gap-3">
+                {needsRestartConfirm(status) ? (
+                  <ConfirmAction
+                    trigger="Start"
+                    title="Restart the timer?"
+                    description={`The clock is at ${formatClock(timer.displaySeconds)}. Restarting sets it back to the start, on the board and on air.`}
+                    confirmLabel="Restart timer"
+                    variant="default"
+                    triggerVariant="default"
+                    triggerSize="touch"
+                    triggerClassName={LIVE}
+                    onConfirm={start}
+                  />
+                ) : (
+                  <Button
+                    size="touch"
+                    className={LIVE}
+                    onClick={() => go("start the timer", start)}
+                  >
+                    Start
+                  </Button>
+                )}
+                <Button
+                  size="touch"
+                  variant="secondary"
+                  className={LIVE}
                   onClick={() =>
-                    go(`toggle ${s.business_name}`, () =>
-                      setActiveSponsor(floorId, pressed ? null : s.id),
+                    go(paused ? "resume the timer" : "pause the timer", () =>
+                      paused ? resumeTimer(floorId) : pauseTimer(floorId),
                     )
                   }
                 >
-                  {s.business_name}
+                  {paused ? "Resume" : "Pause"}
                 </Button>
-              );
-            })}
+                <ConfirmAction
+                  trigger="Reset"
+                  title="Reset the timer?"
+                  description="The clock goes back to zero and stops, on the dashboard and on air."
+                  confirmLabel="Reset timer"
+                  variant="default"
+                  triggerVariant="secondary"
+                  triggerSize="touch"
+                  triggerClassName={LIVE}
+                  onConfirm={() => resetTimer(floorId)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  size="touch"
+                  variant="secondary"
+                  className={LIVE}
+                  onClick={() => go("adjust the timer", () => adjustTimer(floorId, -10))}
+                >
+                  −10s
+                </Button>
+                <Button
+                  size="touch"
+                  variant="secondary"
+                  className={LIVE}
+                  onClick={() => go("adjust the timer", () => adjustTimer(floorId, 10))}
+                >
+                  +10s
+                </Button>
+              </div>
+            </Section>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No active sponsors for this event.</p>
-        )}
-      </Section>
+
+          {/* The audience */}
+          <div className="flex flex-col gap-4">
+            <Section title="Graphics">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {GRAPHICS.map((g) => {
+                  const pressed = state?.active_graphic === g;
+                  return (
+                    <Button
+                      key={g}
+                      size="touch"
+                      variant={pressed ? "default" : "secondary"}
+                      aria-pressed={pressed}
+                      className={cn(LIVE, "h-auto px-3 whitespace-normal")}
+                      onClick={() =>
+                        go(`show ${GRAPHIC_LABEL[g].toLowerCase()}`, () =>
+                          setActiveGraphic(floorId, g),
+                        )
+                      }
+                    >
+                      Show {GRAPHIC_LABEL[g]}
+                    </Button>
+                  );
+                })}
+              </div>
+            </Section>
+
+            <Section title="Lower third">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="grid min-w-48 flex-1 gap-2">
+                  <Label htmlFor="lower-third-athlete">Lower third athlete</Label>
+                  <Select value={lowerThirdAthlete} onValueChange={setLowerThirdAthlete}>
+                    <SelectTrigger
+                      id="lower-third-athlete"
+                      className="w-full data-[size=default]:h-12"
+                    >
+                      <SelectValue placeholder="Select athlete…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {athletesInHeat.map((l) => (
+                        <SelectItem key={l.laneNumber} value={l.athleteId!}>
+                          Lane {l.laneNumber} — {l.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  size="touch"
+                  className={LIVE}
+                  disabled={!lowerThirdAthlete}
+                  onClick={() =>
+                    go("show the lower third", () => setLowerThird(floorId, lowerThirdAthlete))
+                  }
+                >
+                  Show
+                </Button>
+                <Button
+                  size="touch"
+                  variant="secondary"
+                  className={LIVE}
+                  onClick={() => go("hide the lower third", () => setLowerThird(floorId, null))}
+                >
+                  Hide
+                </Button>
+              </div>
+            </Section>
+
+            <Section title="Sponsors">
+              {sponsors.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {sponsors.map((s) => {
+                    const pressed = state?.active_sponsor_id === s.id;
+                    return (
+                      <Button
+                        key={s.id}
+                        size="touch"
+                        variant={pressed ? "default" : "secondary"}
+                        aria-pressed={pressed}
+                        className={cn(LIVE, "h-auto px-3 whitespace-normal")}
+                        onClick={() =>
+                          go(`toggle ${s.business_name}`, () =>
+                            setActiveSponsor(floorId, pressed ? null : s.id),
+                          )
+                        }
+                      >
+                        {s.business_name}
+                      </Button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No active sponsors for this event.</p>
+              )}
+            </Section>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmAction
+        open={target !== null}
+        onOpenChange={(open) => {
+          if (!open) setSwitchTo(null);
+        }}
+        title={target ? `Switch to Heat ${target.heatNumber}?` : ""}
+        description={`The timer is ${paused ? "paused" : "running"} for Heat ${currentHeat.heatNumber}. Switching heats doesn't stop it.`}
+        confirmLabel="Switch heat"
+        variant="default"
+        onConfirm={async () => (target ? setCurrentHeat(floorId, target.id) : undefined)}
+      />
     </div>
   );
 }
