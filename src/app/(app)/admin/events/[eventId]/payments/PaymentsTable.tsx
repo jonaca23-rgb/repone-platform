@@ -140,6 +140,8 @@ export function PaymentsTable({
       header: "Division",
       enableSorting: false,
       filterFn: "equals",
+      // On a phone the division filter stands in for the column.
+      meta: { priority: "low" },
       cell: ({ row }) => row.original.divisionName,
     }),
     col.accessor("status", {
