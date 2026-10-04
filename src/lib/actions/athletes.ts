@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { type ActionFailure, type ActionResult, fail, ok } from "@/lib/action-result";
+import { safeAction } from "./safeAction";
 import { z } from "zod";
 import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
@@ -56,17 +58,30 @@ async function requireOwnedAthlete(
   return data.id;
 }
 
-export async function createAthlete(formData: FormData) {
-  const { organizationId } = await requireOrgManager();
-  const f = parseForm(AthleteForm, formData);
+/** A failed athletes write as a result, with a duplicate email or phone on its field. */
+function athleteWriteFailure(error: { message: string; code?: string }): ActionFailure {
+  const message = friendlyAthleteWriteError(error);
+  if (error.message.includes("athletes_org_email_unique"))
+    return fail(message, { email: ["Already used by another athlete."] });
+  if (error.message.includes("athletes_org_phone_unique"))
+    return fail(message, { phone: ["Already used by another athlete."] });
+  return fail(message);
+}
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("athletes")
-    .insert({ organization_id: organizationId, ...f });
-  if (error) throw new Error(friendlyAthleteWriteError(error));
+export async function createAthlete(formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const f = parseForm(AthleteForm, formData);
 
-  revalidatePath("/admin/athletes");
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("athletes")
+      .insert({ organization_id: organizationId, ...f });
+    if (error) return athleteWriteFailure(error);
+
+    revalidatePath("/admin/athletes");
+    return ok();
+  });
 }
 
 export async function updateAthleteProfile(athleteId: string, formData: FormData) {
@@ -87,19 +102,22 @@ export async function updateAthleteProfile(athleteId: string, formData: FormData
   revalidatePath(`/admin/athletes/${athleteId}`);
 }
 
-export async function deleteAthlete(athleteId: string) {
-  const { organizationId } = await requireOrgManager();
-  const supabase = await createClient();
-  expectChanged(
-    await supabase
-      .from("athletes")
-      .delete()
-      .eq("id", athleteId)
-      .eq("organization_id", organizationId)
-      .select("id"),
-    "delete the athlete",
-  );
-  revalidatePath("/admin/athletes");
+export async function deleteAthlete(athleteId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const supabase = await createClient();
+    expectChanged(
+      await supabase
+        .from("athletes")
+        .delete()
+        .eq("id", athleteId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "delete the athlete",
+    );
+    revalidatePath("/admin/athletes");
+    return ok();
+  });
 }
 
 /**
