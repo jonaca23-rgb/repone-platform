@@ -68,6 +68,7 @@ const columns = [
   col.accessor("type", {
     header: "Type",
     enableSorting: false,
+    meta: { priority: "low" },
     filterFn: (row, _id, value) =>
       value === "individual"
         ? row.original.type === "individual"

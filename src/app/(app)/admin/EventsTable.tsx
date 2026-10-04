@@ -41,8 +41,8 @@ function EventActions({ e }: { e: EventRow }) {
     <>
       <RowActions
         label={`Actions for ${e.name}`}
-        primary={{ label: "Open", href: `/admin/events/${e.id}` }}
         secondary={[
+          { label: "Open", href: `/admin/events/${e.id}` },
           {
             label: e.coverUrl ? "Change cover photo" : "Upload cover photo",
             onSelect: dialogs.show("cover"),

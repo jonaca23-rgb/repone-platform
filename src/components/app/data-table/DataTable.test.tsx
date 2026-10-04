@@ -120,6 +120,17 @@ describe("DataTable", () => {
     expect(cell?.className).toContain("max-md:whitespace-normal");
   });
 
+  it("folds the filters behind one button on a phone", async () => {
+    const user = setup();
+    const toggle = screen.getByRole("button", { name: /Filters/ });
+    const panel = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(panel?.className).toContain("max-sm:hidden");
+    await user.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(panel?.className).not.toContain("max-sm:hidden");
+  });
+
   it("hides low-priority columns below md", () => {
     setup();
     const tierHeader = screen.getByRole("columnheader", { name: /Tier/ });

@@ -28,7 +28,7 @@ function CircuitActions({ c }: { c: CircuitRow }) {
     <>
       <RowActions
         label={`Actions for ${c.name}`}
-        primary={{ label: "Open", href: `/admin/circuits/${c.id}` }}
+        secondary={[{ label: "Open", href: `/admin/circuits/${c.id}` }]}
         destructive={[{ label: "Delete circuit", onSelect: dialogs.show("delete") }]}
       />
       <ConfirmAction

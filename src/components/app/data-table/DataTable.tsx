@@ -1,7 +1,8 @@
 "use client";
 
+import { useId, useState } from "react";
 import { type ColumnDef, useTable } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -115,6 +116,11 @@ export function DataTable<TData extends object>({
     },
   });
 
+  // On a phone the filters fold behind one button, so the table starts on screen.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersId = useId();
+  const activeFilters = filters.filter((f) => table.getColumn(f.columnId)?.getFilterValue()).length;
+
   const rows = table.getRowModel().rows;
   // With no selector, useTable selects every registered slice onto table.state.
   const state = table.state;
@@ -142,28 +148,52 @@ export function DataTable<TData extends object>({
               className="w-full sm:max-w-xs"
             />
           ) : null}
-          {filters.map((f) => (
-            <Select
-              key={f.columnId}
-              value={(table.getColumn(f.columnId)?.getFilterValue() as string | undefined) ?? ALL}
-              onValueChange={(v) => {
-                table.getColumn(f.columnId)?.setFilterValue(v === ALL ? undefined : v);
-                table.setPageIndex(0);
-              }}
+          {filters.length > 0 ? (
+            <Button
+              variant="outline"
+              className="sm:hidden"
+              aria-expanded={filtersOpen}
+              aria-controls={filtersId}
+              onClick={() => setFiltersOpen((open) => !open)}
             >
-              <SelectTrigger aria-label={f.label} className="w-full sm:w-auto">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>{f.allLabel}</SelectItem>
-                {f.options.map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ))}
+              <SlidersHorizontal aria-hidden />
+              Filters{activeFilters ? ` (${activeFilters})` : ""}
+            </Button>
+          ) : null}
+          {filters.length > 0 ? (
+            <div
+              id={filtersId}
+              className={cn(
+                "flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center",
+                !filtersOpen && "max-sm:hidden",
+              )}
+            >
+              {filters.map((f) => (
+                <Select
+                  key={f.columnId}
+                  value={
+                    (table.getColumn(f.columnId)?.getFilterValue() as string | undefined) ?? ALL
+                  }
+                  onValueChange={(v) => {
+                    table.getColumn(f.columnId)?.setFilterValue(v === ALL ? undefined : v);
+                    table.setPageIndex(0);
+                  }}
+                >
+                  <SelectTrigger aria-label={f.label} className="w-full sm:w-auto">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{f.allLabel}</SelectItem>
+                    {f.options.map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ))}
+            </div>
+          ) : null}
         </TableToolbar>
       ) : null}
 
@@ -229,7 +259,7 @@ export function DataTable<TData extends object>({
                         className={cn(
                           // shadcn cells never wrap; on a phone they must, or the
                           // last columns (the switch, the actions) fall off-screen.
-                          "align-middle max-md:whitespace-normal max-md:[overflow-wrap:anywhere]",
+                          "align-middle max-md:whitespace-normal",
                           meta?.priority === "low" && "max-md:hidden",
                           meta?.rowActions ? ROW_ACTIONS_CELL : PHONE_CELL,
                           meta?.className,

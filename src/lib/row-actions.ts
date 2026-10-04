@@ -6,6 +6,8 @@ import type { LucideIcon } from "lucide-react";
  */
 export type RowAction = {
   label: string;
+  /** The accessible name when the label alone is the same on every row ("Mark Maria Rivera paid"). */
+  ariaLabel?: string;
   icon?: LucideIcon;
   /** A place to go. */
   href?: string;

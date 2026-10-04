@@ -28,7 +28,7 @@ function AthleteActions({ a }: { a: AthleteRow }) {
     <>
       <RowActions
         label={`Actions for ${a.name}`}
-        primary={{ label: "Open", href: `/admin/athletes/${a.id}` }}
+        secondary={[{ label: "Open", href: `/admin/athletes/${a.id}` }]}
         destructive={[{ label: "Remove athlete", onSelect: dialogs.show("remove") }]}
       />
       <ConfirmAction
@@ -62,13 +62,21 @@ const columns = [
         ) : (
           <span className="size-9 shrink-0 rounded-full border border-border bg-muted" />
         )}
-        {row.original.name}
+        <span className="flex flex-col">
+          {row.original.name}
+          {row.original.affiliate ? (
+            <span className="text-xs font-normal text-muted-foreground md:hidden">
+              {row.original.affiliate}
+            </span>
+          ) : null}
+        </span>
       </Link>
     ),
   }),
   col.accessor((r) => r.affiliate ?? "", {
     id: "affiliate",
     header: "Affiliate",
+    meta: { priority: "low" },
     cell: ({ getValue }) => getValue() || "—",
   }),
   col.accessor((r) => r.ageCategory ?? "none", {

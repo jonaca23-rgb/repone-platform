@@ -32,7 +32,7 @@ function CircuitEventActions({ e }: { e: CircuitEventRow }) {
     <>
       <RowActions
         label={`Actions for ${e.name}`}
-        primary={{ label: "Open", href: `/admin/events/${e.id}` }}
+        secondary={[{ label: "Open", href: `/admin/events/${e.id}` }]}
         destructive={[{ label: "Remove from circuit", onSelect: dialogs.show("remove") }]}
       />
       <ConfirmAction
