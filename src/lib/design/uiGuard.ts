@@ -26,6 +26,7 @@ export const ACTION_RESULT_FILES: readonly string[] = [
   "src/lib/actions/venues.ts",
   "src/lib/actions/wods.ts",
   "src/lib/actions/fees.ts",
+  "src/lib/actions/eventStaff.ts",
 ];
 
 type GuardRule = {
