@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { type UseMutationOptions, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -55,6 +55,15 @@ export function useServerAction<TInput, R extends AnyActionResult>(
   const inFlight = useRef(false);
   // The server's own success words ("Invitation sent."), used when the caller sets no `success`.
   const serverMessage = useRef<string | undefined>(undefined);
+  // A form can close mid-save (a drawer swiped down). Its inline error would
+  // then never show, so a failure that lands after unmount is toasted instead.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const mutation = useMutation<Data<R>, ActionError, TInput>({
     ...options,
@@ -75,7 +84,7 @@ export function useServerAction<TInput, R extends AnyActionResult>(
       if (refresh) startTransition(() => router.refresh());
     },
     onError: (error, input, ...rest) => {
-      if (toastErrors) toast.error(error.message);
+      if (toastErrors || !mounted.current) toast.error(error.message);
       return onError?.(error, input, ...rest);
     },
     onSettled: (...args) => {

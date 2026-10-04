@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { dataTableColumns } from "@/lib/data-table";
@@ -50,6 +50,35 @@ describe("DataTable", () => {
     setup();
     expect(bodyRows()).toHaveLength(25);
     expect(screen.getByText("30 results")).toBeTruthy();
+  });
+
+  it("stays on its page when the server sends fresh rows", async () => {
+    const { rerender } = render(
+      <DataTable columns={columns} data={rows} getRowId={(r) => r.id} empty={<p>none</p>} />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Next/ }));
+    expect(screen.getByText("2 / 2")).toBeTruthy();
+    rerender(
+      <DataTable
+        columns={columns}
+        data={rows.map((r) => ({ ...r }))}
+        getRowId={(r) => r.id}
+        empty={<p>none</p>}
+      />,
+    );
+    // TanStack resets the page after it rebuilds the row model, a tick later.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(screen.getByText("2 / 2")).toBeTruthy();
+  });
+
+  it("goes back to page 1 when the search changes", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: /Next/ }));
+    await user.type(screen.getByRole("searchbox", { name: "Search sponsors" }), "sponsor 0");
+    expect(bodyRows()).toHaveLength(9);
   });
 
   it("searches", async () => {

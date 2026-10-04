@@ -85,6 +85,23 @@ describe("useServerAction", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation sent."));
   });
 
+  it("still reports a failure after the form that started it has closed", async () => {
+    let resolve!: (r: ActionResult) => void;
+    const action = () =>
+      new Promise<ActionResult>((r) => {
+        resolve = r;
+      });
+    const { unmount } = renderWith(<Harness toastErrors={false} action={action} />);
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    unmount();
+    resolve({ ok: false, message: "Another active sponsor already holds that category." });
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Another active sponsor already holds that category.",
+      ),
+    );
+  });
+
   it("ignores a second submit while pending", async () => {
     let resolve!: (r: ActionResult) => void;
     const action = vi.fn(

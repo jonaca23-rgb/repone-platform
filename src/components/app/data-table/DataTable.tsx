@@ -105,6 +105,10 @@ export function DataTable<TData extends object>({
     globalFilterFn: "includesString",
     getColumnCanGlobalFilter: (column) =>
       !(column.columnDef.meta as { rowActions?: true } | undefined)?.rowActions,
+    // The server sends a fresh rows array after every save (router.refresh),
+    // which would otherwise send the person back to page 1 mid-task. Search
+    // and filters reset the page themselves, below.
+    autoResetPageIndex: false,
     initialState: {
       pagination: { pageIndex: 0, pageSize },
       sorting: initialSorting,
@@ -118,6 +122,7 @@ export function DataTable<TData extends object>({
   const clear = () => {
     table.setGlobalFilter("");
     table.resetColumnFilters();
+    table.setPageIndex(0);
   };
 
   return (
@@ -130,7 +135,10 @@ export function DataTable<TData extends object>({
               aria-label={search.label}
               placeholder={search.placeholder}
               value={(state.globalFilter as string | undefined) ?? ""}
-              onChange={(e) => table.setGlobalFilter(e.target.value)}
+              onChange={(e) => {
+                table.setGlobalFilter(e.target.value);
+                table.setPageIndex(0);
+              }}
               className="w-full sm:max-w-xs"
             />
           ) : null}
@@ -138,9 +146,10 @@ export function DataTable<TData extends object>({
             <Select
               key={f.columnId}
               value={(table.getColumn(f.columnId)?.getFilterValue() as string | undefined) ?? ALL}
-              onValueChange={(v) =>
-                table.getColumn(f.columnId)?.setFilterValue(v === ALL ? undefined : v)
-              }
+              onValueChange={(v) => {
+                table.getColumn(f.columnId)?.setFilterValue(v === ALL ? undefined : v);
+                table.setPageIndex(0);
+              }}
             >
               <SelectTrigger aria-label={f.label} className="w-full sm:w-auto">
                 <SelectValue />
