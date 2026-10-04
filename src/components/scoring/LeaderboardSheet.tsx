@@ -26,9 +26,10 @@ export function LeaderboardSheet({ title, rows }: { title: string; rows: Leaderb
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button type="button" variant="outline" size="touch" className="gap-2 px-4">
+        <Button type="button" variant="outline" size="touch" className="gap-2 px-3 sm:px-4">
           <ListOrdered aria-hidden />
-          Leaderboard
+          {/* Icon-only on a phone, so Finish heat fits beside it. */}
+          <span className="max-sm:sr-only">Leaderboard</span>
         </Button>
       </SheetTrigger>
       <SheetContent side={compact ? "bottom" : "right"} className="max-h-[85dvh] overflow-y-auto">

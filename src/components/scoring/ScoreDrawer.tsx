@@ -215,7 +215,7 @@ function ScoreForm({
             <ToggleGroupItem
               key={s.value}
               value={s.value}
-              className="min-h-11 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              className="min-h-11 flex-1 px-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {s.label}
             </ToggleGroupItem>
@@ -346,6 +346,7 @@ function ScoreForm({
           </p>
           <div className="flex gap-2">
             <Button
+              autoFocus
               type="button"
               variant="outline"
               size="touch"

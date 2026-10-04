@@ -131,8 +131,9 @@ export function ScoreKeeperClient({
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] max-w-3xl flex-col">
-      {/* Sticky heat header */}
-      <header className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
+      {/* Heat header: sticky unless the screen is short (a phone in landscape),
+          where it would cover most of the lanes. */}
+      <header className="top-[calc(3.5rem+env(safe-area-inset-top))] z-10 [@media(min-height:600px)]:sticky flex flex-col gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-wide uppercase">
