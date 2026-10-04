@@ -10,7 +10,23 @@ export interface GuardViolation {
  * 2026-10-02-design-system-foundation-design.md §4). Overlays and
  * components/graphics are out of scope; components/ui is shadcn's own code.
  */
-export const GUARD_RULES = [
+/**
+ * Server action files moved to ActionResult (docs/superpowers/specs/
+ * 2026-10-04-admin-data-screens-design.md §3). In these a user-facing
+ * failure is `return fail("…")`: a thrown message is redacted in production.
+ * Each migration appends its file.
+ */
+export const ACTION_RESULT_FILES: readonly string[] = [];
+
+type GuardRule = {
+  id: string;
+  pattern: RegExp;
+  message: string;
+  /** Limits a rule to some files; omitted, it is a UI rule and skips src/lib/actions. */
+  appliesTo?: (file: string, ctx: { actionFiles: readonly string[] }) => boolean;
+};
+
+export const GUARD_RULES: readonly GuardRule[] = [
   {
     id: "control-btn",
     pattern: /\bcontrol-btn\b/,
@@ -43,7 +59,18 @@ export const GUARD_RULES = [
     message: "Keep a visible focus style (focus-visible:ring…).",
   },
   { id: "emoji", pattern: /[\u{1F300}-\u{1FAFF}]/u, message: "Use a lucide-react icon." },
-] as const;
+  {
+    id: "action-throw",
+    pattern: /\bthrow new (?:Validation)?Error\(\s*["'`]/,
+    message: 'Return fail("…") from a migrated action; a thrown message is lost in production.',
+    appliesTo: (file, { actionFiles }) => actionFiles.includes(file),
+  },
+  {
+    id: "vaul",
+    pattern: /from ["']vaul["']/,
+    message: "Use the Base UI Drawer in src/components/ui/drawer.tsx.",
+  },
+];
 
 const MARKER = /ui-guard-ignore:\s*\S/;
 const COMMENT_ONLY = /^(?:\/\/|\{\/\*|\/\*)/;
@@ -55,12 +82,21 @@ function isExempt(lines: string[], i: number): boolean {
   return COMMENT_ONLY.test(prev) && MARKER.test(prev);
 }
 
-export function checkSource(file: string, source: string): GuardViolation[] {
+/** `file` is repo-relative ("src/lib/actions/sponsors.ts"); `actionFiles` is overridable for tests. */
+export function checkSource(
+  file: string,
+  source: string,
+  actionFiles: readonly string[] = ACTION_RESULT_FILES,
+): GuardViolation[] {
   const out: GuardViolation[] = [];
+  const isAction = file.startsWith("src/lib/actions/");
+  const rules = GUARD_RULES.filter((r) =>
+    r.appliesTo ? r.appliesTo(file, { actionFiles }) : !isAction,
+  );
   const lines = source.split("\n");
   lines.forEach((text, i) => {
     if (isExempt(lines, i)) return;
-    for (const r of GUARD_RULES)
+    for (const r of rules)
       if (r.pattern.test(text)) out.push({ file, line: i + 1, rule: r.id, text: text.trim() });
   });
   return out;
