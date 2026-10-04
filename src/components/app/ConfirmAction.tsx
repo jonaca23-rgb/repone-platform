@@ -74,6 +74,8 @@ export function ConfirmAction({
           return; // stays open to retry
         }
         setOpen(false);
+        const words = (result as { message?: unknown } | null | undefined)?.message;
+        if (typeof words === "string") toast.success(words);
         const href = hrefOf(result);
         if (href) router.push(href);
       } catch (err) {
