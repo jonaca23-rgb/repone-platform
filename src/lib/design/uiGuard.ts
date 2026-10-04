@@ -19,6 +19,8 @@ export interface GuardViolation {
 export const ACTION_RESULT_FILES: readonly string[] = [
   "src/lib/actions/sponsors.ts",
   "src/lib/actions/team.ts",
+  "src/lib/actions/events.ts",
+  "src/lib/actions/org.ts",
 ];
 
 type GuardRule = {

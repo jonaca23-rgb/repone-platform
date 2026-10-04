@@ -2,17 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
-import { updateEventStatus } from "@/lib/actions/events";
 import { DeleteEventButton } from "@/app/(app)/admin/DeleteEventButton";
-import type { EventStatus } from "@/lib/db/database.types";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminEvent } from "./adminEvent";
-
-const STATUSES: EventStatus[] = ["draft", "scheduled", "live", "completed", "archived"];
+import { EventStatusControl } from "./EventStatusControl";
 
 const SECTIONS = [
   {
@@ -46,21 +42,6 @@ const SECTIONS = [
   },
 ];
 
-// Going live puts the event in front of the public and staff; archiving takes it away.
-const CONFIRMED: Partial<Record<EventStatus, string>> = {
-  live: "The event shows as live on the public leaderboard and to its staff.",
-  archived:
-    "The event is hidden from the active lists. You can set it back to another status later.",
-};
-
-const STATUS_LABEL: Record<EventStatus, string> = {
-  draft: "Draft",
-  scheduled: "Scheduled",
-  live: "Live",
-  completed: "Completed",
-  archived: "Archived",
-};
-
 type Props = { params: Promise<{ eventId: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -88,43 +69,7 @@ export default async function EventHubPage({ params }: Props) {
 
   const statusControls = (
     <div className="flex flex-wrap items-center gap-2">
-      <div role="group" aria-label="Event status" className="flex flex-wrap items-center gap-1">
-        {STATUSES.map((s) => {
-          const current = event.status === s;
-          if (current) {
-            return (
-              <Button
-                key={s}
-                size="sm"
-                aria-pressed="true"
-                disabled
-                className="disabled:opacity-100"
-              >
-                {STATUS_LABEL[s]}
-              </Button>
-            );
-          }
-          const consequence = CONFIRMED[s];
-          return consequence ? (
-            <ConfirmAction
-              key={s}
-              trigger={STATUS_LABEL[s]}
-              triggerVariant="outline"
-              variant="default"
-              title={`Set ${event.name} to ${STATUS_LABEL[s]}?`}
-              description={consequence}
-              confirmLabel={`Set to ${STATUS_LABEL[s]}`}
-              onConfirm={updateEventStatus.bind(null, eventId, s)}
-            />
-          ) : (
-            <form key={s} action={updateEventStatus.bind(null, eventId, s)}>
-              <Button type="submit" size="sm" variant="outline" aria-pressed="false">
-                {STATUS_LABEL[s]}
-              </Button>
-            </form>
-          );
-        })}
-      </div>
+      <EventStatusControl eventId={eventId} eventName={event.name} status={event.status} />
       <DeleteEventButton eventId={eventId} eventName={event.name} />
     </div>
   );
