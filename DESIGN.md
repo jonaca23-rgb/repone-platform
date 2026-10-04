@@ -316,6 +316,10 @@ Cards are for summaries and links (an event's section counts, a statement's tota
 
 A result is typed in one place: `ScoreDrawer` (`src/components/scoring/`). A page that only enters results renders `LaneScoring` (the lane list plus the drawer). A page with more around it, such as the Score Keeper floor, composes `LaneList` and `ScoreDrawer` itself. A for-time score is minutes and seconds in two numeric fields, joined by `joinClock`; never a single `mm:ss` text field, because a phone's numeric keypad has no colon. Don't build a second entry form.
 
+### Live control boards
+
+A board that drives what's on air (the producer's Production tab) opens with an **On air bar** that names what the audience sees: the heat, the clock and its state, the graphic, the lower third, the sponsor. It's sticky on screens at least 600px tall. From `lg` the board is two columns, "the floor" (heat, timer) and "the audience" (graphics, lower third, sponsors). Live controls are at least 56px (`min-h-14`). Confirm only what would hurt on air: restarting a running clock, switching heats while it runs, Reset, Clear all. Everything else is one tap, and its result shows in the bar, not in a toast.
+
 ### Checklist for a new admin screen
 
 1. Write the action's failing tests (pattern: `src/lib/actions/sponsors.test.ts` with `fakeSupabase`), then make the action return `ActionResult` and add it to `ACTION_RESULT_FILES`.
