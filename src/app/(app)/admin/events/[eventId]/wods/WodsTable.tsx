@@ -5,6 +5,7 @@ import { createWod, deleteWod, updateWod } from "@/lib/actions/wods";
 import { dataTableColumns } from "@/lib/data-table";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { DataTable } from "@/components/app/data-table/DataTable";
+import { createTableContext } from "@/components/app/data-table/tableContext";
 import { EmptyState } from "@/components/app/EmptyState";
 import { FormDialog } from "@/components/app/FormDialog";
 import { RowActions, useEntityDialogs } from "@/components/app/RowActions";
@@ -14,7 +15,8 @@ import { SCORING_LABEL, SCORING_TYPES, TIEBREAK_LABEL } from "./wodOptions";
 
 export type WodRow = WodValues & { id: string };
 
-function WodActions({ eventId, w }: { eventId: string; w: WodRow }) {
+function WodActions({ w }: { w: WodRow }) {
+  const { eventId } = useWODs();
   const dialogs = useEntityDialogs<"edit" | "remove">();
   return (
     <>
@@ -46,58 +48,61 @@ function WodActions({ eventId, w }: { eventId: string; w: WodRow }) {
   );
 }
 
+const [WODsProvider, useWODs] = createTableContext<{ eventId: string }>("WODsTable");
+
+const col = dataTableColumns<WodRow>();
+const columns = [
+  col.accessor("name", {
+    header: "WOD",
+    enableSorting: false,
+    cell: ({ getValue }) => <span className="font-semibold">{getValue()}</span>,
+  }),
+  col.accessor("scoring_type", {
+    header: "Scoring",
+    enableSorting: false,
+    filterFn: "equals",
+    cell: ({ getValue }) => SCORING_LABEL[getValue()] ?? getValue(),
+  }),
+  col.accessor((r) => r.time_cap_seconds ?? 0, {
+    id: "cap",
+    header: "Time cap",
+    enableSorting: false,
+    cell: ({ row }) =>
+      row.original.time_cap_seconds ? (
+        <span className="tabular-nums">{row.original.time_cap_seconds / 60} min</span>
+      ) : (
+        "—"
+      ),
+  }),
+  col.accessor("tiebreak_type", {
+    header: "Tie-break",
+    enableSorting: false,
+    meta: { priority: "low" },
+    cell: ({ getValue }) => TIEBREAK_LABEL[getValue()] ?? getValue(),
+  }),
+  col.accessor((r) => r.description ?? "", {
+    id: "description",
+    header: "Description",
+    enableSorting: false,
+    meta: { priority: "low", className: "max-w-xs" },
+    cell: ({ getValue }) =>
+      getValue() ? (
+        <span className="line-clamp-2" title={getValue()}>
+          {getValue()}
+        </span>
+      ) : (
+        "—"
+      ),
+  }),
+  col.display({
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    meta: { rowActions: true },
+    cell: ({ row }) => <WodActions w={row.original} />,
+  }),
+];
+
 export function WodsTable({ eventId, rows }: { eventId: string; rows: WodRow[] }) {
-  const col = dataTableColumns<WodRow>();
-  const columns = [
-    col.accessor("name", {
-      header: "WOD",
-      enableSorting: false,
-      cell: ({ getValue }) => <span className="font-semibold">{getValue()}</span>,
-    }),
-    col.accessor("scoring_type", {
-      header: "Scoring",
-      enableSorting: false,
-      filterFn: "equals",
-      cell: ({ getValue }) => SCORING_LABEL[getValue()] ?? getValue(),
-    }),
-    col.accessor((r) => r.time_cap_seconds ?? 0, {
-      id: "cap",
-      header: "Time cap",
-      enableSorting: false,
-      cell: ({ row }) =>
-        row.original.time_cap_seconds ? (
-          <span className="tabular-nums">{row.original.time_cap_seconds / 60} min</span>
-        ) : (
-          "—"
-        ),
-    }),
-    col.accessor("tiebreak_type", {
-      header: "Tie-break",
-      enableSorting: false,
-      meta: { priority: "low" },
-      cell: ({ getValue }) => TIEBREAK_LABEL[getValue()] ?? getValue(),
-    }),
-    col.accessor((r) => r.description ?? "", {
-      id: "description",
-      header: "Description",
-      enableSorting: false,
-      meta: { priority: "low", className: "max-w-xs" },
-      cell: ({ getValue }) =>
-        getValue() ? (
-          <span className="line-clamp-2" title={getValue()}>
-            {getValue()}
-          </span>
-        ) : (
-          "—"
-        ),
-    }),
-    col.display({
-      id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
-      meta: { rowActions: true },
-      cell: ({ row }) => <WodActions eventId={eventId} w={row.original} />,
-    }),
-  ];
   const add = (
     <FormDialog
       title="Add WOD"
@@ -119,21 +124,23 @@ export function WodsTable({ eventId, rows }: { eventId: string; rows: WodRow[] }
     </FormDialog>
   );
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      getRowId={(r) => r.id}
-      search={{ label: "Search WODs", placeholder: "Search WODs…" }}
-      filters={[
-        {
-          columnId: "scoring_type",
-          label: "Scoring",
-          allLabel: "All scoring types",
-          options: SCORING_TYPES,
-        },
-      ]}
-      toolbar={add}
-      empty={<EmptyState icon={Dumbbell} title="No WODs yet" action={add} />}
-    />
+    <WODsProvider value={{ eventId }}>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(r) => r.id}
+        search={{ label: "Search WODs", placeholder: "Search WODs…" }}
+        filters={[
+          {
+            columnId: "scoring_type",
+            label: "Scoring",
+            allLabel: "All scoring types",
+            options: SCORING_TYPES,
+          },
+        ]}
+        toolbar={add}
+        empty={<EmptyState icon={Dumbbell} title="No WODs yet" action={add} />}
+      />
+    </WODsProvider>
   );
 }

@@ -5,6 +5,7 @@ import { createDivision, deleteDivision } from "@/lib/actions/divisions";
 import { dataTableColumns } from "@/lib/data-table";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { DataTable } from "@/components/app/data-table/DataTable";
+import { createTableContext } from "@/components/app/data-table/tableContext";
 import { EmptyState } from "@/components/app/EmptyState";
 import { FormDialog } from "@/components/app/FormDialog";
 import { NameForm } from "@/components/app/NameForm";
@@ -13,7 +14,8 @@ import { Button } from "@/components/ui/button";
 
 export type DivisionRow = { id: string; name: string };
 
-function DivisionActions({ eventId, d }: { eventId: string; d: DivisionRow }) {
+function DivisionActions({ d }: { d: DivisionRow }) {
+  const { eventId } = useDivisions();
   const dialogs = useEntityDialogs<"remove">();
   return (
     <>
@@ -32,21 +34,24 @@ function DivisionActions({ eventId, d }: { eventId: string; d: DivisionRow }) {
   );
 }
 
+const [DivisionsProvider, useDivisions] = createTableContext<{ eventId: string }>("DivisionsTable");
+
+const col = dataTableColumns<DivisionRow>();
+const columns = [
+  col.accessor("name", {
+    header: "Division",
+    enableSorting: false,
+    cell: ({ getValue }) => <span className="font-semibold">{getValue()}</span>,
+  }),
+  col.display({
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    meta: { rowActions: true },
+    cell: ({ row }) => <DivisionActions d={row.original} />,
+  }),
+];
+
 export function DivisionsTable({ eventId, rows }: { eventId: string; rows: DivisionRow[] }) {
-  const col = dataTableColumns<DivisionRow>();
-  const columns = [
-    col.accessor("name", {
-      header: "Division",
-      enableSorting: false,
-      cell: ({ getValue }) => <span className="font-semibold">{getValue()}</span>,
-    }),
-    col.display({
-      id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
-      meta: { rowActions: true },
-      cell: ({ row }) => <DivisionActions eventId={eventId} d={row.original} />,
-    }),
-  ];
   const add = (
     <FormDialog
       title="Add division"
@@ -70,12 +75,14 @@ export function DivisionsTable({ eventId, rows }: { eventId: string; rows: Divis
     </FormDialog>
   );
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      getRowId={(r) => r.id}
-      toolbar={add}
-      empty={<EmptyState icon={Tags} title="No divisions yet" action={add} />}
-    />
+    <DivisionsProvider value={{ eventId }}>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(r) => r.id}
+        toolbar={add}
+        empty={<EmptyState icon={Tags} title="No divisions yet" action={add} />}
+      />
+    </DivisionsProvider>
   );
 }

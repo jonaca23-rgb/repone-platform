@@ -11,6 +11,7 @@ import { dataTableColumns } from "@/lib/data-table";
 import { useServerAction } from "@/lib/use-server-action";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { DataTable } from "@/components/app/data-table/DataTable";
+import { createTableContext } from "@/components/app/data-table/tableContext";
 import { EmptyState } from "@/components/app/EmptyState";
 import { FormDialog } from "@/components/app/FormDialog";
 import { RowActions, useEntityDialogs } from "@/components/app/RowActions";
@@ -36,15 +37,8 @@ const REMOVE = {
   commentator: removeEventCommentator,
 } as const;
 
-function StaffActions({
-  eventId,
-  eventName,
-  s,
-}: {
-  eventId: string;
-  eventName: string;
-  s: StaffRow;
-}) {
+function StaffActions({ s }: { s: StaffRow }) {
+  const { eventId, eventName } = useStaff();
   const dialogs = useEntityDialogs<"remove">();
   const resend = useServerAction((userId: string) => resendEventInvite(eventId, userId));
   return (
@@ -74,6 +68,59 @@ function StaffActions({
   );
 }
 
+const [StaffProvider, useStaff] = createTableContext<{ eventId: string; eventName: string }>(
+  "StaffTable",
+);
+
+const col = dataTableColumns<StaffRow>();
+const columns = [
+  col.accessor((r) => `${r.name} ${r.email ?? ""}`, {
+    id: "person",
+    header: "Name",
+    cell: ({ row }) => (
+      <span className="flex flex-col">
+        <span className="font-semibold">{row.original.name}</span>
+        {row.original.email && row.original.email !== row.original.name ? (
+          <span className="text-xs text-muted-foreground">{row.original.email}</span>
+        ) : null}
+      </span>
+    ),
+  }),
+  col.accessor("role", {
+    header: "Role",
+    filterFn: "equals",
+    cell: ({ row }) => (
+      <span className="flex flex-col">
+        {STAFF_ROLE_LABEL[row.original.role]}
+        {row.original.roleLabel ? (
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            {row.original.roleLabel.replace(/_/g, " ")}
+          </span>
+        ) : null}
+      </span>
+    ),
+  }),
+  col.accessor((r) => (r.pending ? "pending" : "active"), {
+    id: "status",
+    header: "Status",
+    filterFn: "equals",
+    cell: ({ getValue }) =>
+      getValue() === "pending" ? (
+        <Badge variant="outline" className="text-warning-text">
+          Pending
+        </Badge>
+      ) : (
+        <span className="text-muted-foreground">Active</span>
+      ),
+  }),
+  col.display({
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    meta: { rowActions: true },
+    cell: ({ row }) => <StaffActions s={row.original} />,
+  }),
+];
+
 export function StaffTable({
   eventId,
   eventName,
@@ -83,54 +130,6 @@ export function StaffTable({
   eventName: string;
   rows: StaffRow[];
 }) {
-  const col = dataTableColumns<StaffRow>();
-  const columns = [
-    col.accessor((r) => `${r.name} ${r.email ?? ""}`, {
-      id: "person",
-      header: "Name",
-      cell: ({ row }) => (
-        <span className="flex flex-col">
-          <span className="font-semibold">{row.original.name}</span>
-          {row.original.email && row.original.email !== row.original.name ? (
-            <span className="text-xs text-muted-foreground">{row.original.email}</span>
-          ) : null}
-        </span>
-      ),
-    }),
-    col.accessor("role", {
-      header: "Role",
-      filterFn: "equals",
-      cell: ({ row }) => (
-        <span className="flex flex-col">
-          {STAFF_ROLE_LABEL[row.original.role]}
-          {row.original.roleLabel ? (
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">
-              {row.original.roleLabel.replace(/_/g, " ")}
-            </span>
-          ) : null}
-        </span>
-      ),
-    }),
-    col.accessor((r) => (r.pending ? "pending" : "active"), {
-      id: "status",
-      header: "Status",
-      filterFn: "equals",
-      cell: ({ getValue }) =>
-        getValue() === "pending" ? (
-          <Badge variant="outline" className="text-warning-text">
-            Pending
-          </Badge>
-        ) : (
-          <span className="text-muted-foreground">Active</span>
-        ),
-    }),
-    col.display({
-      id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
-      meta: { rowActions: true },
-      cell: ({ row }) => <StaffActions eventId={eventId} eventName={eventName} s={row.original} />,
-    }),
-  ];
   const invite = (
     <FormDialog
       title="Invite staff"
@@ -145,23 +144,25 @@ export function StaffTable({
     </FormDialog>
   );
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      getRowId={(r) => `${r.role}-${r.id}`}
-      search={{ label: "Search staff", placeholder: "Search by name or email…" }}
-      filters={[
-        { columnId: "role", label: "Role", allLabel: "All roles", options: STAFF_ROLE_OPTIONS },
-      ]}
-      toolbar={invite}
-      empty={
-        <EmptyState
-          icon={UsersRound}
-          title="Nobody assigned yet"
-          description="Invite scorekeepers, producers and commentators for this event."
-          action={invite}
-        />
-      }
-    />
+    <StaffProvider value={{ eventId, eventName }}>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(r) => `${r.role}-${r.id}`}
+        search={{ label: "Search staff", placeholder: "Search by name or email…" }}
+        filters={[
+          { columnId: "role", label: "Role", allLabel: "All roles", options: STAFF_ROLE_OPTIONS },
+        ]}
+        toolbar={invite}
+        empty={
+          <EmptyState
+            icon={UsersRound}
+            title="Nobody assigned yet"
+            description="Invite scorekeepers, producers and commentators for this event."
+            action={invite}
+          />
+        }
+      />
+    </StaffProvider>
   );
 }
