@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
+import { type ActionResult, ok } from "@/lib/action-result";
 import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { field, parseForm } from "@/lib/validation/form";
+import { safeAction } from "./safeAction";
 
 const CircuitForm = z.object({
   name: field.text("Circuit name", { max: 200 }),
@@ -24,20 +25,22 @@ const AddEventForm = z.object({
  * the circuit and assigns the event to it in one step, see
  * createEvent in ./events.ts).
  */
-export async function createCircuit(formData: FormData) {
-  const { organizationId } = await requireOrgManager();
-  const f = parseForm(CircuitForm, formData);
+export async function createCircuit(formData: FormData): Promise<ActionResult<{ href: string }>> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const f = parseForm(CircuitForm, formData);
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("circuits")
-    .insert({ organization_id: organizationId, ...f })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("circuits")
+      .insert({ organization_id: organizationId, ...f })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
 
-  revalidatePath("/admin/circuits");
-  redirect(`/admin/circuits/${data.id}`);
+    revalidatePath("/admin/circuits");
+    return ok({ href: `/admin/circuits/${data.id}` });
+  });
 }
 
 /**
@@ -46,21 +49,23 @@ export async function createCircuit(formData: FormData) {
  * reverts to being a standalone event — nothing about those events'
  * divisions/heats/results/standings is touched.
  */
-export async function deleteCircuit(circuitId: string) {
-  const { organizationId } = await requireOrgManager();
-  const supabase = await createClient();
-  expectChanged(
-    await supabase
-      .from("circuits")
-      .delete()
-      .eq("id", circuitId)
-      .eq("organization_id", organizationId)
-      .select("id"),
-    "delete the circuit",
-  );
+export async function deleteCircuit(circuitId: string): Promise<ActionResult<{ href: string }>> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const supabase = await createClient();
+    expectChanged(
+      await supabase
+        .from("circuits")
+        .delete()
+        .eq("id", circuitId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "delete the circuit",
+    );
 
-  revalidatePath("/admin/circuits");
-  redirect("/admin/circuits");
+    revalidatePath("/admin/circuits");
+    return ok({ href: "/admin/circuits" });
+  });
 }
 
 /** Adds an existing (currently standalone) event to a circuit. */
