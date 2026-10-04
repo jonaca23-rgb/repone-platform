@@ -129,7 +129,9 @@ export function DashboardClient({
   const [failure, setFailure] = useState<string | null>(null);
   const [countDirection, setCountDirection] = useState<"count_up" | "count_down">("count_down");
   const [lowerThirdAthlete, setLowerThirdAthlete] = useState<string>("");
-  const [switchTo, setSwitchTo] = useState<number | null>(null);
+  // The heat a switch confirmation is asking about, by id: a refresh can
+  // reorder the list while the dialog is open.
+  const [switchTo, setSwitchTo] = useState<string | null>(null);
 
   // With nothing on air yet, the first heat is shown with a "put on air"
   // control; see lib/broadcast/heatOnAir.ts.
@@ -171,7 +173,7 @@ export function DashboardClient({
 
   function requestHeat(i: number) {
     if (!heats[i]) return;
-    if (needsHeatSwitchConfirm(state?.timer_status)) setSwitchTo(i);
+    if (needsHeatSwitchConfirm(state?.timer_status)) setSwitchTo(heats[i].id);
     else putOnAir(i);
   }
 
@@ -195,7 +197,7 @@ export function DashboardClient({
       ? (currentHeat.wod.time_cap_seconds ?? 600)
       : (currentHeat.wod.time_cap_seconds ?? 0);
   const start = () => startTimer(floorId, countDirection, duration);
-  const target = switchTo !== null ? heats[switchTo] : null;
+  const target = heats.find((h) => h.id === switchTo) ?? null;
 
   return (
     <div className="flex flex-col">
@@ -215,7 +217,9 @@ export function DashboardClient({
         {failure && (
           <div
             role="alert"
-            className="flex items-center justify-between gap-3 rounded-xl border border-destructive/50 bg-destructive/10 px-5 py-2 text-sm"
+            // Floats over the board instead of pushing it down: a failure is
+            // exactly when the producer needs the timer row where it was.
+            className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-xl border border-destructive bg-card px-5 py-2 text-sm shadow-2xl"
           >
             <span>{failure}</span>
             <Button variant="ghost" className="min-h-11 shrink-0" onClick={() => setFailure(null)}>
@@ -228,7 +232,7 @@ export function DashboardClient({
           {/* The floor */}
           <div className="flex flex-col gap-4">
             <Section title="Heat">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-display text-xl font-bold tracking-wide uppercase">
                     {heatName(currentHeat)}
@@ -237,26 +241,24 @@ export function DashboardClient({
                     {currentHeat.division.name}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-2">
                   <Button
-                    size="touch"
                     variant="secondary"
-                    className={cn(LIVE, "gap-1 px-3")}
+                    className="size-14"
+                    aria-label="Previous heat"
                     disabled={index <= 0}
                     onClick={() => requestHeat(index - 1)}
                   >
-                    <ChevronLeft aria-hidden />
-                    Previous heat
+                    <ChevronLeft aria-hidden className="size-6" />
                   </Button>
                   <Button
-                    size="touch"
                     variant="secondary"
-                    className={cn(LIVE, "gap-1 px-3")}
+                    className="size-14"
+                    aria-label="Next heat"
                     disabled={index >= heats.length - 1}
                     onClick={() => requestHeat(index + 1)}
                   >
-                    Next heat
-                    <ChevronRight aria-hidden />
+                    <ChevronRight aria-hidden className="size-6" />
                   </Button>
                 </div>
               </div>

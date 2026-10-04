@@ -126,4 +126,34 @@ describe("DashboardClient", () => {
       await screen.findByText("This floor's broadcast controls aren't available to your account."),
     ).toBeTruthy();
   });
+
+  it("puts on the heat it asked about, even if the list changes underneath", async () => {
+    const s = state("running");
+    const view = render(
+      <DashboardClient
+        floorId="f"
+        eventId="ev"
+        eventName="Aprieta"
+        heats={HEATS}
+        initialBroadcastState={s}
+        sponsors={[]}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Next heat/ }));
+    expect(screen.getByText("Switch to Heat 2?")).toBeTruthy();
+    view.rerender(
+      <DashboardClient
+        floorId="f"
+        eventId="ev"
+        eventName="Aprieta"
+        heats={[heat(1), heat(3), heat(2)]}
+        initialBroadcastState={s}
+        sponsors={[]}
+      />,
+    );
+    expect(screen.getByText("Switch to Heat 2?")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Switch heat" }));
+    await waitFor(() => expect(actions.setCurrentHeat).toHaveBeenCalledWith("f", "h-2"));
+  });
 });
