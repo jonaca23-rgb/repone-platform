@@ -8,7 +8,6 @@ import { getProducerEvent } from "./producerEvent";
 const TABS = [
   { slug: "dashboard", label: "Overview" },
   { slug: "production", label: "Production" },
-  { slug: "broadcast", label: "Broadcast" },
   { slug: "scores", label: "Scores" },
   { slug: "heats", label: "Heats" },
   { slug: "sponsors", label: "Sponsors" },

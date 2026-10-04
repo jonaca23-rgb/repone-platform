@@ -35,6 +35,7 @@ export const ACTION_RESULT_FILES: readonly string[] = [
   "src/lib/actions/expenses.ts",
   "src/lib/actions/heats.ts",
   "src/lib/actions/results.ts",
+  "src/lib/actions/broadcast.ts",
 ];
 
 type GuardRule = {

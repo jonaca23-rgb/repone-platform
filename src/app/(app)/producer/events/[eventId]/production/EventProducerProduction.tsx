@@ -63,7 +63,10 @@ export function EventProducerProduction({
           })}
         </div>
       )}
+      {/* Keyed by floor: the board holds the floor's broadcast state, lower-third
+          pick and timer direction, none of which may carry over to another floor. */}
       <DashboardClient
+        key={selectedFloor.floorId}
         floorId={selectedFloor.floorId}
         eventId={eventId}
         eventName={eventName}

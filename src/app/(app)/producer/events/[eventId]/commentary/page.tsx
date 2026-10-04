@@ -6,6 +6,14 @@ import { getDisplayNamesByUserId } from "@/lib/db/people";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { producerEventTitle } from "../producerEvent";
 
@@ -55,23 +63,34 @@ export default async function ProducerEventCommentaryPage({ params }: Props) {
         }
       />
       {rows.length > 0 ? (
-        <ul className="flex flex-col gap-1.5">
-          {rows.map((a) => (
-            <li
-              key={a.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5"
-            >
-              <span className="font-semibold">
-                {nameById.get(a.commentator_user_id) ?? "Unknown account"}
-              </span>
-              {a.role_label && (
-                <Badge variant="outline" className="uppercase">
-                  {a.role_label.replace(/_/g, " ")}
-                </Badge>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="rounded-xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Commentator</TableHead>
+                <TableHead>Role</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell className="font-semibold whitespace-normal">
+                    {nameById.get(a.commentator_user_id) ?? "Unknown account"}
+                  </TableCell>
+                  <TableCell>
+                    {a.role_label ? (
+                      <Badge variant="outline" className="uppercase">
+                        {a.role_label.replace(/_/g, " ")}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       ) : (
         <EmptyState
           icon={MicOff}
