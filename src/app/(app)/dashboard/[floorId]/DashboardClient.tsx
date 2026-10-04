@@ -228,35 +228,37 @@ export function DashboardClient({
           {/* The floor */}
           <div className="flex flex-col gap-4">
             <Section title="Heat">
-              <div>
-                <p className="font-display text-xl font-bold tracking-wide uppercase">
-                  {heatName(currentHeat)}
-                </p>
-                <p className="text-sm font-semibold tracking-wide text-brand-text uppercase">
-                  {currentHeat.division.name}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  size="touch"
-                  variant="secondary"
-                  className={cn(LIVE, "gap-2")}
-                  disabled={index <= 0}
-                  onClick={() => requestHeat(index - 1)}
-                >
-                  <ChevronLeft aria-hidden />
-                  Previous heat
-                </Button>
-                <Button
-                  size="touch"
-                  variant="secondary"
-                  className={cn(LIVE, "gap-2")}
-                  disabled={index >= heats.length - 1}
-                  onClick={() => requestHeat(index + 1)}
-                >
-                  Next heat
-                  <ChevronRight aria-hidden />
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-display text-xl font-bold tracking-wide uppercase">
+                    {heatName(currentHeat)}
+                  </p>
+                  <p className="text-sm font-semibold tracking-wide text-brand-text uppercase">
+                    {currentHeat.division.name}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="touch"
+                    variant="secondary"
+                    className={cn(LIVE, "gap-1 px-3")}
+                    disabled={index <= 0}
+                    onClick={() => requestHeat(index - 1)}
+                  >
+                    <ChevronLeft aria-hidden />
+                    Previous heat
+                  </Button>
+                  <Button
+                    size="touch"
+                    variant="secondary"
+                    className={cn(LIVE, "gap-1 px-3")}
+                    disabled={index >= heats.length - 1}
+                    onClick={() => requestHeat(index + 1)}
+                  >
+                    Next heat
+                    <ChevronRight aria-hidden />
+                  </Button>
+                </div>
               </div>
               <ul aria-label="Lanes" className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {currentHeat.lanes.map((lane) => (
@@ -274,32 +276,34 @@ export function DashboardClient({
             </Section>
 
             <Section title="Timer">
-              <div className="flex justify-center">
+              <div className="flex flex-wrap items-center justify-center gap-4">
                 <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} size="board" />
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  size="touch"
+                  value={countDirection}
+                  onValueChange={(v) => v && setCountDirection(v as "count_up" | "count_down")}
+                  orientation="vertical"
+                  spacing={0}
+                  aria-label="Timer direction"
+                  className="w-40"
+                >
+                  <ToggleGroupItem
+                    value="count_down"
+                    className="flex-1 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    Count down
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="count_up"
+                    className="flex-1 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    Count up
+                  </ToggleGroupItem>
+                </ToggleGroup>
               </div>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                size="touch"
-                value={countDirection}
-                onValueChange={(v) => v && setCountDirection(v as "count_up" | "count_down")}
-                aria-label="Timer direction"
-                className="w-full"
-              >
-                <ToggleGroupItem
-                  value="count_down"
-                  className="flex-1 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                >
-                  Count down
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  value="count_up"
-                  className="flex-1 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                >
-                  Count up
-                </ToggleGroupItem>
-              </ToggleGroup>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {needsRestartConfirm(status) ? (
                   <ConfirmAction
                     trigger="Start"
@@ -344,8 +348,6 @@ export function DashboardClient({
                   triggerClassName={LIVE}
                   onConfirm={() => resetTimer(floorId)}
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <Button
                   size="touch"
                   variant="secondary"
