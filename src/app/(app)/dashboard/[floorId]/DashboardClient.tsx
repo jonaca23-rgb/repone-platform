@@ -103,7 +103,6 @@ function Section({
 
 export function DashboardClient({
   floorId,
-  eventId,
   eventName,
   heats,
   initialBroadcastState,
@@ -152,7 +151,10 @@ export function DashboardClient({
     setFailure(null);
     startTransitionFn(async () => {
       try {
-        await action();
+        const result = await action();
+        if (result && typeof result === "object" && "ok" in result && !result.ok) {
+          setFailure(String((result as unknown as { message: unknown }).message));
+        }
       } catch (e) {
         setFailure(failureMessage(what, e));
       }
@@ -165,7 +167,7 @@ export function DashboardClient({
     return async () => {
       setFailure(null);
       try {
-        await action();
+        return await action();
       } catch (e) {
         // A redirect or notFound is Next's to handle; ConfirmAction rethrows it too.
         unstable_rethrow(e);
@@ -177,7 +179,7 @@ export function DashboardClient({
   function selectHeat(index: number) {
     const heat = heats[index];
     if (!heat) return;
-    go(`switch to heat ${heat.heatNumber}`, () => setCurrentHeat(floorId, heat.id, eventId));
+    go(`switch to heat ${heat.heatNumber}`, () => setCurrentHeat(floorId, heat.id));
   }
 
   if (!currentHeat) {
@@ -326,7 +328,6 @@ export function DashboardClient({
                   countDirection === "count_down"
                     ? (currentHeat.wod.time_cap_seconds ?? 600)
                     : (currentHeat.wod.time_cap_seconds ?? 0),
-                  eventId,
                 ),
               )
             }
@@ -339,7 +340,7 @@ export function DashboardClient({
             className={LIVE}
             onClick={() =>
               go(paused ? "resume the timer" : "pause the timer", () =>
-                paused ? resumeTimer(floorId, eventId) : pauseTimer(floorId, eventId),
+                paused ? resumeTimer(floorId) : pauseTimer(floorId),
               )
             }
           >
@@ -354,14 +355,14 @@ export function DashboardClient({
             triggerVariant="secondary"
             triggerSize="touch"
             triggerClassName={LIVE}
-            onConfirm={confirmed("reset the timer", () => resetTimer(floorId, eventId))}
+            onConfirm={confirmed("reset the timer", () => resetTimer(floorId))}
           />
           <div className="flex gap-2">
             <Button
               size="touch"
               variant="secondary"
               className={cn(LIVE, "flex-1 px-2")}
-              onClick={() => go("adjust the timer", () => adjustTimer(floorId, -10, eventId))}
+              onClick={() => go("adjust the timer", () => adjustTimer(floorId, -10))}
             >
               −10s
             </Button>
@@ -369,7 +370,7 @@ export function DashboardClient({
               size="touch"
               variant="secondary"
               className={cn(LIVE, "flex-1 px-2")}
-              onClick={() => go("adjust the timer", () => adjustTimer(floorId, 10, eventId))}
+              onClick={() => go("adjust the timer", () => adjustTimer(floorId, 10))}
             >
               +10s
             </Button>
@@ -389,9 +390,7 @@ export function DashboardClient({
                 aria-pressed={pressed}
                 className={cn(LIVE, "h-auto px-3 whitespace-normal")}
                 onClick={() =>
-                  go(`show ${g.label.toLowerCase()}`, () =>
-                    setActiveGraphic(floorId, g.key, eventId),
-                  )
+                  go(`show ${g.label.toLowerCase()}`, () => setActiveGraphic(floorId, g.key))
                 }
               >
                 Show {g.label}
@@ -408,7 +407,7 @@ export function DashboardClient({
               triggerVariant="outline"
               triggerSize="touch"
               triggerClassName={LIVE}
-              onConfirm={confirmed("clear the graphics", () => clearGraphics(floorId, eventId))}
+              onConfirm={confirmed("clear the graphics", () => clearGraphics(floorId))}
             />
           </div>
         </div>
@@ -436,7 +435,7 @@ export function DashboardClient({
             className={LIVE}
             disabled={!lowerThirdAthlete}
             onClick={() =>
-              go("show the lower third", () => setLowerThird(floorId, lowerThirdAthlete, eventId))
+              go("show the lower third", () => setLowerThird(floorId, lowerThirdAthlete))
             }
           >
             Show
@@ -445,7 +444,7 @@ export function DashboardClient({
             size="touch"
             variant="secondary"
             className={LIVE}
-            onClick={() => go("hide the lower third", () => setLowerThird(floorId, null, eventId))}
+            onClick={() => go("hide the lower third", () => setLowerThird(floorId, null))}
           >
             Hide
           </Button>
@@ -466,7 +465,7 @@ export function DashboardClient({
                   className={cn(LIVE, "h-auto px-3 whitespace-normal")}
                   onClick={() =>
                     go(`toggle ${s.business_name}`, () =>
-                      setActiveSponsor(floorId, pressed ? null : s.id, eventId),
+                      setActiveSponsor(floorId, pressed ? null : s.id),
                     )
                   }
                 >
