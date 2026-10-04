@@ -87,7 +87,7 @@ export const GUARD_RULES: readonly GuardRule[] = [
     pattern: /<Card\b/,
     message:
       "Admin lists are DataTables (docs/superpowers/specs/2026-10-04-admin-data-screens-design.md); mark a deliberate summary card with ui-guard-ignore.",
-    appliesTo: (file) => /^src\/app\/\(app\)\/admin\/.*page\.tsx$/.test(file),
+    appliesTo: (file) => /^src\/app\/\(app\)\/admin\/.+\.tsx$/.test(file),
   },
   {
     id: "vaul",

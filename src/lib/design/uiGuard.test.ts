@@ -20,6 +20,10 @@ describe("ui guard", () => {
     expect(checkSource(page, "{/* ui-guard-ignore: summary */}\n<Card>")).toEqual([]);
     expect(checkSource("src/components/x.tsx", "<Card>")).toEqual([]);
     expect(checkSource("src/app/(app)/athlete/page.tsx", "<Card>")).toEqual([]);
+    // A list moved into a sibling component is caught too.
+    expect(checkSource("src/app/(app)/admin/foo/FooList.tsx", "<Card>").map((v) => v.rule)).toEqual(
+      ["admin-card-list"],
+    );
   });
   it("rejects vaul", () => {
     expect(rules('import { Drawer } from "vaul";')).toEqual(["vaul"]);

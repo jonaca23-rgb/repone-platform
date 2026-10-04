@@ -287,7 +287,7 @@ Every admin screen is assembled from the same parts. A new feature (sponsor pack
 | A long record (an athlete, a heat) | `DetailHeader` + `LinkTabs` (`?tab=`, picked with `pickTab`) | `components/app/` |
 | Dates and money | `formatDay`, `formatDayRange`, `formatDateTime`, `formatTime`; `formatCents` | `lib/time.ts`, `lib/money.ts` |
 
-Cards are for summaries and links (an event's section counts, a statement's totals), never for lists; `ui:guard` rejects a `<Card>` in an admin page unless the line says why with `ui-guard-ignore`.
+Cards are for summaries and links (an event's section counts, a statement's totals), never for lists. `ui:guard` rejects a `<Card>` in any `.tsx` under `src/app/(app)/admin/` unless the line says why with `ui-guard-ignore`. It cannot see a card drawn by hand (`rounded-lg border bg-card` rows in a `.map`), so don't build lists that way either; the few that remain (the Messages inbox, the Check-In picker and verdict, a heat's short standings) are deliberate, not a pattern to copy.
 
 ### The action contract
 
