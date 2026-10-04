@@ -4,19 +4,10 @@ import { getSessionContext, orgCan } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
 import { getDisplayNamesByUserId } from "@/lib/db/people";
 import { emailsByUserId, isPending } from "@/lib/auth/invite";
-import { InlineActionButton, InviteByEmailForm } from "@/components/InviteForms";
-import {
-  inviteEventStaff,
-  resendEventInvite,
-  removeEventScorekeeper,
-  removeEventProducer,
-  removeEventCommentator,
-} from "@/lib/actions/eventStaff";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminEvent } from "../adminEvent";
+import { type StaffRow, StaffTable } from "./StaffTable";
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -101,130 +92,28 @@ export default async function EventStaffPage({ params }: Props) {
     assignedUserIds.map((id) => [id, names.get(id) ?? emails.get(id) ?? "Unknown account"]),
   );
 
-  const sections = [
-    {
-      role: "scorekeeper",
-      title: "Scorekeepers",
-      description: "Can enter/save scores, view heats, lanes, and standings for this event.",
-      rows: scorekeeperRows,
-      removeAction: removeEventScorekeeper.bind(null, eventId),
-    },
-    {
-      role: "producer",
-      title: "Producers",
-      description:
-        "Full production access for this event only — heats, lanes, scores, broadcast control, sponsor triggers.",
-      rows: producerRows,
-      removeAction: removeEventProducer.bind(null, eventId),
-    },
-    {
-      role: "commentator",
-      title: "Commentators",
-      description: "Read-only access to the Commentator Dashboard for this event.",
-      rows: commentatorRows,
-      removeAction: removeEventCommentator.bind(null, eventId),
-      showRoleLabel: true,
-    },
-  ] as const;
+  const rows: StaffRow[] = [
+    ...scorekeeperRows.map((r) => ({ ...r, role: "scorekeeper" as const })),
+    ...producerRows.map((r) => ({ ...r, role: "producer" as const })),
+    ...commentatorRows.map((r) => ({ ...r, role: "commentator" as const })),
+  ].map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    role: r.role,
+    name: nameById.get(r.user_id) ?? "Unknown account",
+    email: emails.get(r.user_id) ?? null,
+    roleLabel: r.role_label ?? null,
+    pending: pending.has(r.user_id),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Staff"
-        description={`Invite people by email to ${event.name}. Each role only gets access to this event.`}
+        description={`Who works ${event.name}, and in which role. Each role only gets access to this event.`}
         breadcrumb={<AdminBreadcrumb items={eventCrumbs(event, { label: "Staff" })} />}
       />
-
-      {sections.map((s) => (
-        <StaffRoleSection
-          key={s.role}
-          title={s.title}
-          description={s.description}
-          rows={s.rows}
-          nameById={nameById}
-          pending={pending}
-          inviteAction={inviteEventStaff.bind(null, s.role, eventId)}
-          resendAction={(userId) => resendEventInvite.bind(null, eventId, userId)}
-          removeAction={s.removeAction}
-          eventName={event.name}
-          showRoleLabel={"showRoleLabel" in s && s.showRoleLabel}
-        />
-      ))}
+      <StaffTable eventId={eventId} eventName={event.name} rows={rows} />
     </div>
-  );
-}
-
-function StaffRoleSection({
-  title,
-  description,
-  rows,
-  nameById,
-  pending,
-  inviteAction,
-  resendAction,
-  removeAction,
-  eventName,
-  showRoleLabel = false,
-}: {
-  title: string;
-  description: string;
-  rows: AssignmentRow[];
-  nameById: Map<string, string>;
-  pending: Set<string>;
-  inviteAction: Parameters<typeof InviteByEmailForm>[0]["action"];
-  resendAction: (userId: string) => Parameters<typeof InlineActionButton>[0]["action"];
-  removeAction: (assignmentId: string) => Promise<void>;
-  eventName: string;
-  showRoleLabel?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          {rows.map((r) => {
-            const name = nameById.get(r.user_id) ?? "Unknown";
-            return (
-              <div
-                key={r.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-4 py-2"
-              >
-                <span className="font-semibold">
-                  {name}
-                  {showRoleLabel && r.role_label ? (
-                    <span className="ml-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
-                      {r.role_label.replace(/_/g, " ")}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="flex items-center gap-2">
-                  {pending.has(r.user_id) && (
-                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                      Pending ·
-                      <InlineActionButton action={resendAction(r.user_id)} label="Resend" />
-                    </span>
-                  )}
-                  <ConfirmAction
-                    trigger="Remove"
-                    title={`Remove ${name} from ${eventName}?`}
-                    description={`${name} loses ${title.toLowerCase().replace(/s$/, "")} access to this event. You can invite them again later.`}
-                    confirmLabel="Remove"
-                    onConfirm={removeAction.bind(null, r.id)}
-                  />
-                </span>
-              </div>
-            );
-          })}
-          {rows.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nobody assigned yet.</p>
-          )}
-        </div>
-
-        <InviteByEmailForm action={inviteAction} showRoleLabel={showRoleLabel} />
-      </CardContent>
-    </Card>
   );
 }

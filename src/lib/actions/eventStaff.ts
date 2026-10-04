@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { expectChanged, NotAuthorizedError, requireEventAccess } from "@/lib/auth/guards";
-import { InviteError, inviteToEvent, pendingEmail } from "@/lib/auth/invite";
+import { inviteToEvent, pendingEmail } from "@/lib/auth/invite";
 import { orgCan } from "@/lib/auth/session";
-import { failure, inviteMessage, resendMessage, type FormResult } from "@/lib/actions/inviteResult";
+import { inviteMessage, resendMessage } from "@/lib/actions/inviteResult";
+import { type ActionResult, fail, ok } from "@/lib/action-result";
+import { safeAction } from "./safeAction";
 import { createClient } from "@/lib/db/server";
 import { field, parseArg, parseForm } from "@/lib/validation/form";
 
@@ -47,10 +49,9 @@ const CommentatorForm = StaffForm.extend({
 export async function inviteEventStaff(
   role: string,
   eventId: string,
-  _previous: FormResult,
   formData: FormData,
-): Promise<FormResult> {
-  try {
+): Promise<ActionResult> {
+  return safeAction(async () => {
     const kind = parseArg(field.oneOf(STAFF_ROLES, "staff role"), role);
     const id = parseArg(field.id("Event"), eventId);
     const { email, roleLabel } =
@@ -72,18 +73,12 @@ export async function inviteEventStaff(
     });
     revalidatePath(`/admin/events/${id}/staff`);
     return inviteMessage(outcome);
-  } catch (error) {
-    return failure(error);
-  }
+  });
 }
 
 /** A fresh invitation link for someone on this event's staff who has never signed in. */
-export async function resendEventInvite(
-  eventId: string,
-  userId: string,
-  _previous: FormResult,
-): Promise<FormResult> {
-  try {
+export async function resendEventInvite(eventId: string, userId: string): Promise<ActionResult> {
+  return safeAction(async () => {
     const id = parseArg(field.id("Event"), eventId);
     const person = parseArg(field.id("Person"), userId);
     await requireEventAdmin(id);
@@ -102,40 +97,50 @@ export async function resendEventInvite(
       ),
     );
     if (!found.some((res) => res.data?.length))
-      throw new InviteError("That person isn't on this event's staff.");
+      return fail("That person isn't on this event's staff.");
     const email = await pendingEmail(person);
-    if (!email) throw new InviteError("They have already signed in; there's nothing to resend.");
+    if (!email) return fail("They have already signed in; there's nothing to resend.");
     return await resendMessage(person, email);
-  } catch (error) {
-    return failure(error);
-  }
+  });
 }
 
-async function remove(role: EventStaffRole, eventId: string, assignmentId: string) {
-  await requireEventAdmin(eventId);
-  const supabase = await createClient();
+function remove(role: EventStaffRole, eventId: string, assignmentId: string) {
+  return safeAction(async () => {
+    await requireEventAdmin(eventId);
+    const supabase = await createClient();
 
-  expectChanged(
-    await supabase
-      .from(TABLE[role])
-      .update({ status: "removed", removed_at: new Date().toISOString() })
-      .eq("id", assignmentId)
-      .eq("event_id", eventId)
-      .select("id"),
-    `remove the ${role}`,
-  );
+    expectChanged(
+      await supabase
+        .from(TABLE[role])
+        .update({ status: "removed", removed_at: new Date().toISOString() })
+        .eq("id", assignmentId)
+        .eq("event_id", eventId)
+        .select("id"),
+      `remove the ${role}`,
+    );
 
-  revalidatePath(`/admin/events/${eventId}/staff`);
+    revalidatePath(`/admin/events/${eventId}/staff`);
+    return ok();
+  });
 }
 
-export async function removeEventScorekeeper(eventId: string, assignmentId: string) {
-  await remove("scorekeeper", eventId, assignmentId);
+export async function removeEventScorekeeper(
+  eventId: string,
+  assignmentId: string,
+): Promise<ActionResult> {
+  return remove("scorekeeper", eventId, assignmentId);
 }
 
-export async function removeEventProducer(eventId: string, assignmentId: string) {
-  await remove("producer", eventId, assignmentId);
+export async function removeEventProducer(
+  eventId: string,
+  assignmentId: string,
+): Promise<ActionResult> {
+  return remove("producer", eventId, assignmentId);
 }
 
-export async function removeEventCommentator(eventId: string, assignmentId: string) {
-  await remove("commentator", eventId, assignmentId);
+export async function removeEventCommentator(
+  eventId: string,
+  assignmentId: string,
+): Promise<ActionResult> {
+  return remove("commentator", eventId, assignmentId);
 }

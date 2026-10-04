@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { type ActionResult, ok } from "@/lib/action-result";
 import { expectChanged, requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { Constants } from "@/lib/db/supabase.types";
 import { field, parseForm } from "@/lib/validation/form";
+import { safeAction } from "./safeAction";
 
 const WodForm = z.object({
   name: field.text("WOD name", { max: 100 }),
@@ -29,36 +31,49 @@ function wodRow(formData: FormData) {
   };
 }
 
-export async function createWod(eventId: string, formData: FormData) {
-  await requireEventAccess(eventId);
-  const row = wodRow(formData);
+export async function createWod(eventId: string, formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    const row = wodRow(formData);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("wods").insert({ event_id: eventId, ...row });
-  if (error) throw new Error(error.message);
+    const supabase = await createClient();
+    const { error } = await supabase.from("wods").insert({ event_id: eventId, ...row });
+    if (error) throw new Error(error.message);
 
-  revalidatePath(`/admin/events/${eventId}/wods`);
+    revalidatePath(`/admin/events/${eventId}/wods`);
+    return ok();
+  });
 }
 
-export async function updateWod(eventId: string, wodId: string, formData: FormData) {
-  await requireEventAccess(eventId);
-  const row = wodRow(formData);
+export async function updateWod(
+  eventId: string,
+  wodId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    const row = wodRow(formData);
 
-  const supabase = await createClient();
-  expectChanged(
-    await supabase.from("wods").update(row).eq("id", wodId).eq("event_id", eventId).select("id"),
-    "save the WOD",
-  );
+    const supabase = await createClient();
+    expectChanged(
+      await supabase.from("wods").update(row).eq("id", wodId).eq("event_id", eventId).select("id"),
+      "save the WOD",
+    );
 
-  revalidatePath(`/admin/events/${eventId}/wods`);
+    revalidatePath(`/admin/events/${eventId}/wods`);
+    return ok();
+  });
 }
 
-export async function deleteWod(eventId: string, wodId: string) {
-  await requireEventAccess(eventId);
-  const supabase = await createClient();
-  expectChanged(
-    await supabase.from("wods").delete().eq("id", wodId).eq("event_id", eventId).select("id"),
-    "remove the WOD",
-  );
-  revalidatePath(`/admin/events/${eventId}/wods`);
+export async function deleteWod(eventId: string, wodId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    const supabase = await createClient();
+    expectChanged(
+      await supabase.from("wods").delete().eq("id", wodId).eq("event_id", eventId).select("id"),
+      "remove the WOD",
+    );
+    revalidatePath(`/admin/events/${eventId}/wods`);
+    return ok();
+  });
 }

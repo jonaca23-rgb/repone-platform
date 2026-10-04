@@ -4,16 +4,13 @@ import { cookies } from "next/headers";
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { getSessionContext } from "@/lib/auth/session";
-import { removeRegistration } from "@/lib/actions/registrations";
-import { AGE_CATEGORY_LABELS, computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminEvent, requireAdminEvent } from "../adminEvent";
-import { RegisterForms } from "./RegisterForms";
+import { type RegistrationRow, RegistrationsTable } from "./RegistrationsTable";
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -104,6 +101,34 @@ export default async function EventAthletesPage({ params }: Props) {
     );
   }
 
+  const divisionOrder = new Map(divisions.map((d, i) => [d.id, i]));
+  const divisionName = new Map(divisions.map((d) => [d.id, d.name]));
+  const rows: RegistrationRow[] = typedRegistrations
+    .map((r) => ({
+      id: r.id,
+      name: r.athletes
+        ? `${r.athletes.first_name} ${r.athletes.last_name}`
+        : (r.teams?.name ?? "This entry"),
+      affiliate: r.athletes ? r.athletes.affiliate : (r.teams?.affiliate ?? null),
+      type: r.athletes ? "individual" : (r.teams?.entry_format ?? "team"),
+      divisionId: r.division_id,
+      divisionName: divisionName.get(r.division_id) ?? "—",
+      bib: r.bib_number,
+      ageCategory: r.athletes
+        ? (computeAgeCategory(
+            privateDetails.get(r.athlete_id ?? "")?.dateOfBirth,
+            r.athletes.gender,
+            categoryAsOf,
+          ) ?? null)
+        : null,
+    }))
+    // Division order first, then name: how the desk reads the field.
+    .sort(
+      (x, y) =>
+        (divisionOrder.get(x.divisionId) ?? 0) - (divisionOrder.get(y.divisionId) ?? 0) ||
+        x.name.localeCompare(y.name),
+    );
+
   return (
     <div className="flex flex-col gap-6">
       {header}
@@ -132,89 +157,22 @@ export default async function EventAthletesPage({ params }: Props) {
         .
       </p>
 
-      <RegisterForms
+      <RegistrationsTable
         eventId={eventId}
-        athletes={athletes ?? []}
-        teams={teams ?? []}
-        divisions={divisions}
-        lastDivisionId={lastDivisionId}
+        rows={rows}
+        divisions={divisions.map((d) => ({ id: d.id, label: d.name }))}
+        athletes={(athletes ?? []).map((a) => ({
+          id: a.id,
+          label: `${a.first_name} ${a.last_name}${a.affiliate ? ` (${a.affiliate})` : ""}`,
+        }))}
+        teams={(teams ?? []).map((t) => ({
+          id: t.id,
+          label: `${t.name}${t.affiliate ? ` (${t.affiliate})` : ""}`,
+        }))}
+        defaultDivisionId={
+          divisions.some((d) => d.id === lastDivisionId) ? lastDivisionId : divisions[0].id
+        }
       />
-
-      <div className="flex flex-col gap-6">
-        {divisions.map((d) => {
-          const inDivision = typedRegistrations.filter((r) => r.division_id === d.id);
-          return (
-            <div key={d.id}>
-              <h2 className="mb-2 font-semibold uppercase tracking-wide text-muted-foreground">
-                {d.name}
-              </h2>
-              <div className="flex flex-col gap-2">
-                {inDivision.map((r) => {
-                  const category = r.athletes
-                    ? computeAgeCategory(
-                        privateDetails.get(r.athlete_id ?? "")?.dateOfBirth,
-                        r.athletes.gender,
-                        categoryAsOf,
-                      )
-                    : null;
-                  const name = r.athletes
-                    ? `${r.athletes.first_name} ${r.athletes.last_name}`
-                    : (r.teams?.name ?? "This entry");
-                  return (
-                    <div
-                      key={r.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-2"
-                    >
-                      <span className="flex flex-wrap items-center gap-x-2">
-                        {r.athletes ? (
-                          <>
-                            {name}
-                            {r.athletes.affiliate ? (
-                              <span className="text-muted-foreground">
-                                — {r.athletes.affiliate}
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          <>
-                            {r.teams?.name}
-                            <Badge variant="secondary" className="uppercase">
-                              {r.teams?.entry_format}
-                            </Badge>
-                            {r.teams?.affiliate ? (
-                              <span className="text-muted-foreground">— {r.teams.affiliate}</span>
-                            ) : null}
-                          </>
-                        )}
-                        {r.bib_number ? (
-                          <span className="text-xs text-muted-foreground">#{r.bib_number}</span>
-                        ) : null}
-                        {category ? (
-                          <span className="text-xs font-semibold uppercase tracking-wide text-brand-text">
-                            {AGE_CATEGORY_LABELS[category]}
-                          </span>
-                        ) : null}
-                      </span>
-                      <ConfirmAction
-                        trigger="Remove"
-                        title={`Remove ${name} from ${d.name}?`}
-                        description="Their registration for this event and its payment record are deleted. They stay on your roster and can be registered again."
-                        confirmLabel="Remove registration"
-                        onConfirm={removeRegistration.bind(null, eventId, r.id)}
-                      />
-                    </div>
-                  );
-                })}
-                {inDivision.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    No registrations in this division yet.
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
