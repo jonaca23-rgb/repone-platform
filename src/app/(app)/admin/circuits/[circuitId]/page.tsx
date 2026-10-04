@@ -3,22 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
-import { addEventToCircuit, removeEventFromCircuit } from "@/lib/actions/circuits";
 import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
-import { PageHeader } from "@/components/app/PageHeader";
+import { DetailHeader } from "@/components/app/DetailHeader";
+import { LinkTabs } from "@/components/app/LinkTabs";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
-import { Badge } from "@/components/ui/badge";
+import { pickTab } from "@/lib/tabs";
+import { formatDayRange } from "@/lib/time";
+import { AddCircuitEvent } from "./AddCircuitEventForm";
+import { CircuitEventsTable } from "./CircuitEventsTable";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,7 +21,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type Props = { params: Promise<{ circuitId: string }> };
+type Props = {
+  params: Promise<{ circuitId: string }>;
+  searchParams: Promise<{ tab?: string }>;
+};
+
+const TABS = [
+  { value: "events", label: "Events" },
+  { value: "standings", label: "Standings" },
+] as const;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { circuitId } = await params;
@@ -51,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * circuit only works cleanly if the same division names — e.g. "Rx Male" —
  * are reused at every stop).
  */
-export default async function CircuitDetailPage({ params }: Props) {
+export default async function CircuitDetailPage({ params, searchParams }: Props) {
   const { circuitId } = await params;
   const ctx = await getSessionContext();
   const supabase = await createClient();
@@ -178,149 +179,104 @@ export default async function CircuitDetailPage({ params }: Props) {
     };
   });
 
-  const dates =
+  const season =
     circuit.starts_on || circuit.ends_on
-      ? `${circuit.starts_on ?? "—"} ${circuit.ends_on && circuit.ends_on !== circuit.starts_on ? `→ ${circuit.ends_on}` : ""}`.trim()
+      ? formatDayRange(circuit.starts_on ?? circuit.ends_on, circuit.ends_on, " → ")
       : null;
-  const description = [circuit.description, dates].filter(Boolean).join(" · ") || undefined;
+  const subtitle = [circuit.description, season].filter(Boolean).join(" · ") || undefined;
+  const tab = pickTab(TABS, (await searchParams).tab);
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
+      <DetailHeader
         title={circuit.name}
-        description={description}
+        subtitle={subtitle}
         breadcrumb={
           <AdminBreadcrumb
             items={[{ label: "Circuits", href: "/admin/circuits" }, { label: circuit.name }]}
           />
         }
         actions={
-          <Button asChild variant="outline">
-            <Link href={`/live/circuits/${circuitId}`} target="_blank">
-              Public leaderboard
-            </Link>
-          </Button>
+          <>
+            <AddCircuitEvent circuitId={circuitId} events={standaloneEvents ?? []} />
+            <Button asChild variant="outline">
+              <Link href={`/live/circuits/${circuitId}`} target="_blank">
+                Public leaderboard
+              </Link>
+            </Button>
+          </>
         }
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Events in this circuit</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            {(circuitEvents ?? []).map((e) => (
-              <div
-                key={e.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted px-3 py-2"
-              >
-                <Link
-                  href={`/admin/events/${e.id}`}
-                  className="flex items-center gap-2 text-sm font-medium hover:text-brand-text"
-                >
-                  {e.name}
-                  <Badge variant="outline" className="uppercase">
-                    {e.status}
-                  </Badge>
-                </Link>
-                <ConfirmAction
-                  trigger="Remove from circuit"
-                  title={`Remove ${e.name} from ${circuit.name}?`}
-                  description="The event becomes standalone and its results stop counting toward this circuit's leaderboard. You can add it back later."
-                  confirmLabel="Remove from circuit"
-                  onConfirm={removeEventFromCircuit.bind(null, circuitId, e.id)}
-                />
+      <LinkTabs tabs={TABS} current={tab} label={`${circuit.name} sections`}>
+        {tab === "events" ? (
+          <CircuitEventsTable
+            circuitId={circuitId}
+            circuitName={circuit.name}
+            rows={(circuitEvents ?? []).map((e) => ({
+              id: e.id,
+              name: e.name,
+              status: e.status,
+              startsOn: e.starts_on,
+              endsOn: e.ends_on,
+            }))}
+          />
+        ) : (
+          <section className="flex flex-col gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Cumulative leaderboard</h2>
+              <p className="text-sm text-muted-foreground">
+                Lower total is better: the same placement-as-points method used to combine WODs into
+                one event&apos;s standings, applied here across events. Only divisions with at least
+                one completed, scored event show up below.
+              </p>
+            </div>
+
+            {divisionLeaderboards.map((division) => (
+              <div key={division.name}>
+                <h3 className="mb-2 font-semibold">{division.name}</h3>
+                <Table className="[&_tr]:border-border">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Place</TableHead>
+                      <TableHead>Competitor</TableHead>
+                      {(circuitEvents ?? []).map((e) => (
+                        <TableHead key={e.id}>{e.name}</TableHead>
+                      ))}
+                      <TableHead>Total points</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {division.standings.map((entry) => {
+                      const placementByEvent = new Map(
+                        entry.placements.map((p) => [p.wodId, p.placement]),
+                      );
+                      return (
+                        <TableRow key={entry.competitorId}>
+                          <TableCell className="font-semibold">{entry.overallPlacement}</TableCell>
+                          <TableCell>{entry.displayName}</TableCell>
+                          {(circuitEvents ?? []).map((e) => (
+                            <TableCell key={e.id} className="text-muted-foreground">
+                              {placementByEvent.get(e.id) ?? "—"}
+                            </TableCell>
+                          ))}
+                          <TableCell className="font-semibold">{entry.totalPoints}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             ))}
-            {circuitEvents?.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No events yet. Add a standalone event below, or create a new event and choose this
-                circuit.
+            {divisionLeaderboards.length === 0 && (
+              <p className="text-muted-foreground">
+                No scored results yet across this circuit&apos;s events. The leaderboard fills in as
+                each event&apos;s heats are finished.
               </p>
             )}
-          </div>
-
-          {(standaloneEvents ?? []).length > 0 && (
-            <form
-              action={addEventToCircuit.bind(null, circuitId)}
-              className="flex flex-wrap items-end gap-2"
-            >
-              <div className="grid gap-2">
-                <Label htmlFor="circuit-add-event">Standalone event</Label>
-                <Select name="event_id" defaultValue={(standaloneEvents ?? [])[0]?.id}>
-                  <SelectTrigger id="circuit-add-event" className="min-w-56">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(standaloneEvents ?? []).map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" variant="outline">
-                Add to this circuit
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Cumulative leaderboard</h2>
-          <p className="text-sm text-muted-foreground">
-            Lower total is better: the same placement-as-points method used to combine WODs into one
-            event&apos;s standings, applied here across events. Only divisions with at least one
-            completed, scored event show up below.
-          </p>
-        </div>
-
-        {divisionLeaderboards.map((division) => (
-          <div key={division.name}>
-            <h3 className="mb-2 font-semibold">{division.name}</h3>
-            <Table className="[&_tr]:border-border">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Place</TableHead>
-                  <TableHead>Competitor</TableHead>
-                  {(circuitEvents ?? []).map((e) => (
-                    <TableHead key={e.id}>{e.name}</TableHead>
-                  ))}
-                  <TableHead>Total points</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {division.standings.map((entry) => {
-                  const placementByEvent = new Map(
-                    entry.placements.map((p) => [p.wodId, p.placement]),
-                  );
-                  return (
-                    <TableRow key={entry.competitorId}>
-                      <TableCell className="font-semibold">{entry.overallPlacement}</TableCell>
-                      <TableCell>{entry.displayName}</TableCell>
-                      {(circuitEvents ?? []).map((e) => (
-                        <TableCell key={e.id} className="text-muted-foreground">
-                          {placementByEvent.get(e.id) ?? "—"}
-                        </TableCell>
-                      ))}
-                      <TableCell className="font-semibold">{entry.totalPoints}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        ))}
-        {divisionLeaderboards.length === 0 && (
-          <p className="text-muted-foreground">
-            No scored results yet across this circuit&apos;s events. The leaderboard fills in as
-            each event&apos;s heats are finished.
-          </p>
+          </section>
         )}
-      </section>
+      </LinkTabs>
     </div>
   );
 }
