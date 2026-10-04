@@ -229,7 +229,7 @@ export function DataTable<TData extends object>({
                         className={cn(
                           // shadcn cells never wrap; on a phone they must, or the
                           // last columns (the switch, the actions) fall off-screen.
-                          "align-middle max-md:whitespace-normal",
+                          "align-middle max-md:whitespace-normal max-md:[overflow-wrap:anywhere]",
                           meta?.priority === "low" && "max-md:hidden",
                           meta?.rowActions ? ROW_ACTIONS_CELL : PHONE_CELL,
                           meta?.className,

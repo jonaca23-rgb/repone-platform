@@ -5,10 +5,12 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth/server";
 import { NotAuthorizedError, requireOrgManager } from "@/lib/auth/guards";
-import { InviteError, inviteToOrg, pendingEmail } from "@/lib/auth/invite";
+import { inviteToOrg, pendingEmail } from "@/lib/auth/invite";
 import { ORG_ROLES, splitRoles, type OrgRole } from "@/lib/auth/permissions";
 import { orgCan } from "@/lib/auth/session";
-import { failure, inviteMessage, resendMessage, type FormResult } from "@/lib/actions/inviteResult";
+import { inviteMessage, resendMessage } from "@/lib/actions/inviteResult";
+import { type ActionResult, fail, okMessage } from "@/lib/action-result";
+import { safeAction } from "./safeAction";
 import { createClient } from "@/lib/db/server";
 import { field, parseArg, parseForm } from "@/lib/validation/form";
 
@@ -32,11 +34,8 @@ async function requireTeamManager() {
   return { ctx, organizationId };
 }
 
-export async function inviteTeamMember(
-  _previous: FormResult,
-  formData: FormData,
-): Promise<FormResult> {
-  try {
+export async function inviteTeamMember(formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
     const { email, role } = parseForm(InviteForm, formData);
     const { organizationId } = await requireTeamManager();
     const supabase = await createClient();
@@ -54,13 +53,11 @@ export async function inviteTeamMember(
     });
     revalidatePath("/admin/team");
     return inviteMessage(outcome);
-  } catch (error) {
-    return failure(error);
-  }
+  });
 }
 
-export async function resendTeamInvite(userId: string, _previous: FormResult): Promise<FormResult> {
-  try {
+export async function resendTeamInvite(userId: string): Promise<ActionResult> {
+  return safeAction(async () => {
     const id = parseArg(field.id("Person"), userId);
     const { organizationId } = await requireTeamManager();
     // Only someone in this organization (RLS lets managers read its members).
@@ -71,21 +68,15 @@ export async function resendTeamInvite(userId: string, _previous: FormResult): P
       .eq("organization_id", organizationId)
       .eq("user_id", id)
       .maybeSingle();
-    if (!row) throw new InviteError("That person isn't on this team.");
+    if (!row) return fail("That person isn't on this team.");
     const email = await pendingEmail(id);
-    if (!email) throw new InviteError("They have already signed in; there's nothing to resend.");
+    if (!email) return fail("They have already signed in; there's nothing to resend.");
     return await resendMessage(id, email);
-  } catch (error) {
-    return failure(error);
-  }
+  });
 }
 
-export async function removeTeamRole(
-  memberId: string,
-  role: string,
-  _previous: FormResult,
-): Promise<FormResult> {
-  try {
+export async function removeTeamRole(memberId: string, role: string): Promise<ActionResult> {
+  return safeAction(async () => {
     const id = parseArg(field.id("Member"), memberId);
     const dropped = parseArg(field.oneOf(ORG_ROLES as [OrgRole, ...OrgRole[]], "role"), role);
     const { organizationId } = await requireTeamManager();
@@ -96,7 +87,7 @@ export async function removeTeamRole(
       .eq("id", id)
       .eq("organization_id", organizationId)
       .maybeSingle();
-    if (!row) throw new InviteError("That person isn't on this team.");
+    if (!row) return fail("That person isn't on this team.");
 
     const remaining = splitRoles(row.role).filter((r) => r !== dropped);
     const requestHeaders = await headers();
@@ -112,8 +103,6 @@ export async function removeTeamRole(
       });
     }
     revalidatePath("/admin/team");
-    return { ok: true, message: remaining.length ? "Role removed." : "Removed from the team." };
-  } catch (error) {
-    return failure(error);
-  }
+    return okMessage(remaining.length ? "Role removed." : "Removed from the team.");
+  });
 }

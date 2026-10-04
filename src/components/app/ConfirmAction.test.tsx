@@ -6,7 +6,8 @@ import { Component, type ReactNode, useState } from "react";
 import { ConfirmAction } from "./ConfirmAction";
 
 const toastError = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", async (orig) => ({
   ...(await orig<typeof import("next/navigation")>()),
@@ -62,6 +63,22 @@ describe("ConfirmAction", () => {
     await user.click(screen.getByRole("button", { name: "Remove it" }));
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("That person isn't on this team."));
     expect(screen.getByRole("alertdialog")).toBeTruthy();
+  });
+  it("says what the server says it did", async () => {
+    const onConfirm = vi.fn().mockResolvedValue({ ok: true, message: "Removed from the team." });
+    render(
+      <ConfirmAction
+        trigger="Remove"
+        title="Remove?"
+        description="d"
+        confirmLabel="Remove it"
+        onConfirm={onConfirm}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove it" }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Removed from the team."));
   });
   it("goes where a successful result says", async () => {
     const onConfirm = vi.fn().mockResolvedValue({ ok: true, data: { href: "/admin" } });

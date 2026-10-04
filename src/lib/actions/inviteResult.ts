@@ -1,3 +1,4 @@
+import type { ActionResult } from "@/lib/action-result";
 import { resendInvitation, type InviteOutcome } from "@/lib/auth/invite";
 import { toFailure } from "./safeAction";
 
@@ -6,10 +7,10 @@ import { toFailure } from "./safeAction";
  * lib/actions/team.ts and eventStaff.ts, which as "use server" modules may
  * only export async functions.
  */
-export type FormResult = { ok: true; message: string } | { ok: false; message: string } | undefined;
+export type FormResult = ActionResult | undefined;
 
 /** The three outcomes of an invitation, in the inviter's words. */
-export function inviteMessage(outcome: InviteOutcome): FormResult {
+export function inviteMessage(outcome: InviteOutcome): ActionResult {
   if (!outcome.emailSent)
     return { ok: false, message: "Saved, but the email didn't send — use Resend." };
   return {
@@ -24,7 +25,7 @@ export function failure(error: unknown): FormResult {
 }
 
 /** Sends a fresh invitation link; a delivery failure is the inviter's message, not a crash. */
-export async function resendMessage(userId: string, email: string): Promise<FormResult> {
+export async function resendMessage(userId: string, email: string): Promise<ActionResult> {
   try {
     await resendInvitation(userId, email);
     return { ok: true, message: "Invitation sent again." };
