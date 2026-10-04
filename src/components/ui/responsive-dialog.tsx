@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -64,21 +64,28 @@ function ResponsiveDialog({
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
-  const compact = useMediaQuery(COMPACT_QUERY);
+  const fits = useMediaQuery(COMPACT_QUERY);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const isOpen = open ?? innerOpen;
+  const change = (next: boolean) => {
+    if (open === undefined) setInnerOpen(next);
+    onOpenChange?.(next);
+  };
+  // An open dialog keeps the shape it opened in. Rotating a phone crosses the
+  // breakpoint, and swapping Drawer for Dialog would remount the form and drop
+  // what was typed; the new shape applies from the next open.
+  const [compact, setCompact] = useState(fits);
+  if (!isOpen && compact !== fits) setCompact(fits);
 
   return (
     <CompactContext.Provider value={compact}>
       {compact ? (
         // The grab bar says "this is a sheet you can pull down".
-        <Drawer
-          open={open}
-          onOpenChange={onOpenChange ? (next) => onOpenChange(next) : undefined}
-          showSwipeHandle
-        >
+        <Drawer open={isOpen} onOpenChange={(next) => change(next)} showSwipeHandle>
           {children}
         </Drawer>
       ) : (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={isOpen} onOpenChange={change}>
           {children}
         </Dialog>
       )}

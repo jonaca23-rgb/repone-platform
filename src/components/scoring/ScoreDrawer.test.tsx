@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -148,5 +148,39 @@ describe("ScoreDrawer", () => {
     setup({ scoringType: "amrap" });
     expect(screen.getByLabelText("Total reps")).toBeTruthy();
     expect(screen.queryByLabelText("Minutes")).toBeNull();
+  });
+
+  it("doesn't close the next lane when a discarded lane's save lands late", async () => {
+    let finish: (r: { ok: true }) => void = () => {};
+    enterResult.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const onClose = vi.fn();
+    const client = new QueryClient();
+    const drawer = (lane: typeof LANE) => (
+      <QueryClientProvider client={client}>
+        <ScoreDrawer
+          key={lane.athleteId}
+          heatId="h-1"
+          lane={lane}
+          existing={undefined}
+          scoringType="for_time"
+          subtitle="WOD 2 · Intermediate Female"
+          onClose={onClose}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(drawer(LANE));
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Minutes"), "3");
+    await user.click(screen.getByRole("button", { name: "Save lane" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      drawer({ laneNumber: 4, athleteId: "a-4", name: "Valentina Cruz", affiliate: null }),
+    );
+    await act(async () => finish({ ok: true }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Lane 4 · Valentina Cruz")).toBeTruthy();
   });
 });

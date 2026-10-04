@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { enterResult } from "@/lib/actions/results";
 import {
@@ -135,10 +135,22 @@ function ScoreForm({
     () => existing?.tiebreak_value != null || (existing?.manually_adjusted ?? false),
   );
 
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const save = useServerAction((fd: FormData) => enterResult(heatId, fd), {
     success: `Lane ${lane.laneNumber} saved`,
     toastErrors: false,
-    onSuccess: onSaved,
+    // A save that lands after this lane was discarded (slow Wi-Fi) must not
+    // close whichever lane is open by then.
+    onSuccess: () => {
+      if (mounted.current) onSaved();
+    },
   });
   const errors = fieldErrorsOf(save.error);
   const edit =
