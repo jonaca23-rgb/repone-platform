@@ -54,7 +54,7 @@ export function LoginForm({
             <Label htmlFor="password">Password</Label>
             <Link
               href="/forgot-password"
-              className="rounded-sm text-sm text-brand-text underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+              className="inline-flex min-h-11 items-center rounded-sm text-sm text-brand-text underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
             >
               Forgot your password?
             </Link>
@@ -84,7 +84,7 @@ export function LoginForm({
         No account?{" "}
         <Link
           href="/signup"
-          className="rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+          className="inline-flex min-h-11 items-center rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
         >
           Create one
         </Link>

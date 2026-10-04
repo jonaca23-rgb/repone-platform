@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { producerEventTitle } from "../producerEvent";
+import { userModules } from "@/lib/auth/userModules";
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -21,7 +22,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // happens on Production/Broadcast.
 export default async function ProducerEventDashboardPage({ params }: Props) {
   const { eventId } = await params;
-  const context = await getEventLiveContext(eventId);
+  const [context, modules] = await Promise.all([getEventLiveContext(eventId), userModules()]);
+  // Producers without the Admin module are bounced from /admin; don't offer the link.
+  const canOpenAdmin = modules.some((m) => m.kind === "admin");
   if (!context) notFound();
 
   const totalHeats = context.floors.reduce((sum, f) => sum + f.heats.length, 0);
@@ -56,12 +59,14 @@ export default async function ProducerEventDashboardPage({ params }: Props) {
             <span className="sr-only">(opens in a new tab)</span>
           </Link>
         </Button>
-        <Button asChild size="touch" variant="secondary" className="gap-2">
-          <Link href={`/admin/events/${eventId}`}>
-            Event setup (Admin)
-            <ArrowRight aria-hidden />
-          </Link>
-        </Button>
+        {canOpenAdmin ? (
+          <Button asChild size="touch" variant="secondary" className="gap-2">
+            <Link href={`/admin/events/${eventId}`}>
+              Event setup (Admin)
+              <ArrowRight aria-hidden />
+            </Link>
+          </Button>
+        ) : null}
       </div>
     </div>
   );
