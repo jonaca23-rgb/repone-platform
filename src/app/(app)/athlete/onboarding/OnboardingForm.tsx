@@ -1,10 +1,14 @@
 "use client";
 
-import { type FormEvent, startTransition, useActionState, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { completeAthleteOnboarding } from "@/lib/actions/onboarding";
+import { fieldErrorsOf, useServerAction } from "@/lib/use-server-action";
+import { FormAlert } from "@/components/app/FormAlert";
+import { FormField } from "@/components/app/FormField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -13,20 +17,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { NONE } from "@/lib/validation/none";
-import { completeAthleteOnboarding } from "../actions";
+
+const FIELDS = [
+  { name: "first_name", label: "First name", required: true, autoComplete: "given-name" },
+  { name: "last_name", label: "Last name", required: true, autoComplete: "family-name" },
+  {
+    name: "affiliate",
+    label: "Box / affiliate",
+    placeholder: "Optional",
+    autoComplete: "organization",
+  },
+  { name: "email", label: "Email", required: true, type: "email", autoComplete: "email" },
+  { name: "phone", label: "Phone", placeholder: "Optional", type: "tel", autoComplete: "tel" },
+  { name: "date_of_birth", label: "Date of birth", type: "date", autoComplete: "bday" },
+] as const;
 
 export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
-  const [state, formAction, pending] = useActionState(completeAthleteOnboarding, undefined);
+  const router = useRouter();
   const [gender, setGender] = useState(NONE);
-
-  // Submitted through the action by hand rather than as <form action>: React
-  // resets a form's uncontrolled fields after its action runs, which would
-  // wipe what the person typed when the action returns an error.
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    startTransition(() => formAction(data));
-  }
+  // Submitted by hand rather than as <form action>: React resets a form's
+  // uncontrolled fields after its action runs, which would wipe what the
+  // person typed when the action fails.
+  const save = useServerAction(completeAthleteOnboarding, {
+    toastErrors: false,
+    refresh: false,
+    onSuccess: (data) => router.push(data.href),
+  });
+  const errors = fieldErrorsOf(save.error);
 
   return (
     <Card className="mx-auto w-full max-w-sm">
@@ -39,94 +56,56 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="onb-first-name">First name</Label>
-            <Input
-              id="onb-first-name"
-              name="first_name"
-              required
-              autoComplete="given-name"
-              className="h-11"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="onb-last-name">Last name</Label>
-            <Input
-              id="onb-last-name"
-              name="last_name"
-              required
-              autoComplete="family-name"
-              className="h-11"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="onb-affiliate">Box / affiliate</Label>
-            <Input
-              id="onb-affiliate"
-              name="affiliate"
-              placeholder="Optional"
-              autoComplete="organization"
-              className="h-11"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="onb-email">Email</Label>
-            <Input
-              id="onb-email"
-              type="email"
-              name="email"
-              required
-              defaultValue={defaultEmail}
-              autoComplete="email"
-              className="h-11"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="onb-phone">Phone</Label>
-            <Input
-              id="onb-phone"
-              type="tel"
-              name="phone"
-              placeholder="Optional"
-              autoComplete="tel"
-              className="h-11"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="onb-dob">Date of birth</Label>
-            <Input
-              id="onb-dob"
-              type="date"
-              name="date_of_birth"
-              autoComplete="bday"
-              className="h-11"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="onb-gender">Gender</Label>
-            <Select value={gender} onValueChange={setGender}>
-              <SelectTrigger id="onb-gender" className="w-full data-[size=default]:h-11">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>—</SelectItem>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
-              </SelectContent>
-            </Select>
-            {/* The action reads "" (not the Select's NONE) as not given, as the old native select posted. */}
-            <input type="hidden" name="gender" value={gender === NONE ? "" : gender} />
-          </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate(new FormData(e.currentTarget));
+          }}
+          className="flex flex-col gap-4"
+        >
+          {FIELDS.map((f) => (
+            <FormField key={f.name} label={f.label} name={f.name} errors={errors?.[f.name]}>
+              {(control) => (
+                <Input
+                  {...control}
+                  type={"type" in f ? f.type : "text"}
+                  required={"required" in f ? f.required : false}
+                  placeholder={"placeholder" in f ? f.placeholder : undefined}
+                  autoComplete={f.autoComplete}
+                  defaultValue={f.name === "email" ? defaultEmail : undefined}
+                  className="h-11"
+                />
+              )}
+            </FormField>
+          ))}
+          <FormField label="Gender" name="gender_choice" errors={errors?.gender}>
+            {(control) => (
+              <>
+                <Select value={gender} onValueChange={setGender}>
+                  <SelectTrigger
+                    id={control.id}
+                    aria-invalid={control["aria-invalid"]}
+                    aria-describedby={control["aria-describedby"]}
+                    className="w-full data-[size=default]:h-11"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>—</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+                {/* The action reads "" (not the Select's NONE) as not given. */}
+                <input type="hidden" name="gender" value={gender === NONE ? "" : gender} />
+              </>
+            )}
+          </FormField>
 
-          {state?.error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {state.error}
-            </p>
-          ) : null}
+          <FormAlert error={save.error} />
 
-          <Button type="submit" size="touch" disabled={pending} className="mt-2 w-full">
-            {pending ? "Saving…" : "Continue"}
+          <Button type="submit" size="touch" disabled={save.isPending} className="mt-2 w-full">
+            {save.isPending ? "Saving…" : "Continue"}
           </Button>
         </form>
       </CardContent>

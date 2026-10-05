@@ -38,6 +38,7 @@ export const ACTION_RESULT_FILES: readonly string[] = [
   "src/lib/actions/broadcast.ts",
   "src/lib/actions/myLifts.ts",
   "src/lib/actions/social.ts",
+  "src/lib/actions/onboarding.ts",
 ];
 
 type GuardRule = {
