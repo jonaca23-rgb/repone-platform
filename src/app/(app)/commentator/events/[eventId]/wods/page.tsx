@@ -5,7 +5,13 @@ import { getEventLiveContext } from "@/lib/db/queries";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { wodSummary } from "@/lib/scoring/format";
 import { commentatorEventTitle } from "../commentatorEvent";
 
 type Props = { params: Promise<{ eventId: string }> };
@@ -29,24 +35,29 @@ export default async function CommentatorEventWodsPage({ params }: Props) {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <PageHeader title="WODs" />
-      {wods.map((w) => (
-        <Card key={w.id}>
-          <CardHeader className="flex flex-wrap items-baseline justify-between gap-2">
-            <CardTitle className="text-xl font-bold">{w.name}</CardTitle>
-            <Badge variant="outline" className="tracking-wide text-brand-text uppercase">
-              {w.scoring_type.replace("_", " ")}
-              {w.time_cap_seconds ? ` · ${Math.round(w.time_cap_seconds / 60)} min cap` : ""}
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            {w.description ? (
-              <p className="text-sm whitespace-pre-wrap">{w.description}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">No description on file.</p>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+      {wods.length > 0 ? (
+        <Accordion type="multiple" className="rounded-xl border border-border px-4">
+          {wods.map((w) => (
+            <AccordionItem key={w.id} value={w.id}>
+              <AccordionTrigger className="min-h-11 text-left">
+                <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-lg font-bold">{w.name}</span>
+                  <Badge variant="outline" className="tracking-wide text-brand-text uppercase">
+                    {wodSummary(w).slice(w.name.length + 3)}
+                  </Badge>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                {w.description ? (
+                  <p className="text-sm whitespace-pre-wrap">{w.description}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No description on file.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      ) : null}
       {wods.length === 0 && (
         <EmptyState icon={Dumbbell} title="No WODs scheduled for this event yet" />
       )}

@@ -4,7 +4,14 @@ import { MapPinOff, Radio } from "lucide-react";
 import { getEventLiveContext } from "@/lib/db/queries";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { commentatorEventTitle } from "../commentatorEvent";
 
 type Props = { params: Promise<{ eventId: string }> };
@@ -50,27 +57,30 @@ export default async function CommentatorEventLanesPage({ params }: Props) {
                     </span>
                   )}
                 </p>
-                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {lanes.map((l) => (
-                    <li key={l.laneNumber}>
-                      <Card size="sm" className="h-full">
-                        <CardContent className="flex flex-row items-center gap-3">
-                          <span className="inline-flex size-8 shrink-0 items-center justify-center rounded bg-primary text-sm font-bold text-primary-foreground">
-                            {l.laneNumber}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{l.name}</p>
-                            {l.affiliate && (
-                              <p className="truncate text-xs text-muted-foreground">
-                                {l.affiliate}
-                              </p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </li>
-                  ))}
-                </ul>
+                <div className="rounded-xl border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-20">Lane</TableHead>
+                        <TableHead>Athlete</TableHead>
+                        <TableHead>Affiliate</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lanes.map((l) => (
+                        <TableRow key={l.laneNumber}>
+                          <TableCell className="font-bold tabular-nums">{l.laneNumber}</TableCell>
+                          <TableCell className="font-semibold whitespace-normal">
+                            {l.name}
+                          </TableCell>
+                          <TableCell className="whitespace-normal text-muted-foreground">
+                            {l.affiliate ?? "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
                 {lanes.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     No athletes assigned to lanes yet.
