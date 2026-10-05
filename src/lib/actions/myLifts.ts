@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { type ActionResult, fail, ok } from "@/lib/action-result";
 import { z } from "zod";
 import { expectChanged, NotAuthorizedError, requireSignedIn } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { field, parseArg, parseForm } from "@/lib/validation/form";
+import { safeAction } from "./safeAction";
 
 // Self-service counterparts to lib/actions/athletes.ts's saveAthleteLifts/
 // upsertAthleteBenchmark/deleteAthleteBenchmark — same save logic, but for
@@ -47,61 +49,70 @@ type LiftRow =
  * Saves every basic-lift input on the dashboard's edit form in one submit;
  * blank fields are left untouched — same behavior as the admin version.
  */
-export async function saveMyLifts(formData: FormData) {
-  const athleteId = await requireOwnAthleteId();
-  const values = parseForm(LiftsForm, formData);
+export async function saveMyLifts(formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    const athleteId = await requireOwnAthleteId();
+    const values = parseForm(LiftsForm, formData);
 
-  const rows: LiftRow[] = [];
-  for (const lift of LIFT_NAMES) {
-    const value = values[lift];
-    if (value === null) continue;
-    rows.push(
-      isTimeLift(lift)
-        ? { athlete_id: athleteId, lift, time_seconds: value }
-        : { athlete_id: athleteId, lift, weight_lbs: value },
-    );
-  }
+    const rows: LiftRow[] = [];
+    for (const lift of LIFT_NAMES) {
+      const value = values[lift];
+      if (value === null) continue;
+      rows.push(
+        isTimeLift(lift)
+          ? { athlete_id: athleteId, lift, time_seconds: value }
+          : { athlete_id: athleteId, lift, weight_lbs: value },
+      );
+    }
 
-  if (rows.length === 0) return;
+    if (rows.length === 0) return fail("Enter at least one lift or time to save.");
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("athlete_lifts")
-    .upsert(rows, { onConflict: "athlete_id,lift" });
-  if (error) throw new Error(error.message);
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("athlete_lifts")
+      .upsert(rows, { onConflict: "athlete_id,lift" });
+    if (error) throw new Error(error.message);
 
-  revalidatePath("/athlete");
+    revalidatePath("/athlete");
+    return ok();
+  });
 }
 
-export async function upsertMyBenchmark(formData: FormData) {
-  const athleteId = await requireOwnAthleteId();
-  const { name, result_display } = parseForm(BenchmarkForm, formData);
+export async function upsertMyBenchmark(formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    const athleteId = await requireOwnAthleteId();
+    const { name, result_display } = parseForm(BenchmarkForm, formData);
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("athlete_benchmarks")
-    .upsert({ athlete_id: athleteId, name, result_display }, { onConflict: "athlete_id,name" });
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/athlete");
-}
-
-export async function deleteMyBenchmark(benchmarkId: string) {
-  const athleteId = await requireOwnAthleteId();
-  parseArg(field.id("Benchmark"), benchmarkId);
-
-  const supabase = await createClient();
-  // The athlete_id filter scopes the delete to the caller's own rows (RLS's
-  // ownership check on athlete_benchmarks backs it up), and expectChanged
-  // turns a forged or stale id into an error instead of a silent no-op.
-  expectChanged(
-    await supabase
+    const supabase = await createClient();
+    const { error } = await supabase
       .from("athlete_benchmarks")
-      .delete()
-      .eq("id", benchmarkId)
-      .eq("athlete_id", athleteId)
-      .select("id"),
-    "remove the benchmark",
-  );
-  revalidatePath("/athlete");
+      .upsert({ athlete_id: athleteId, name, result_display }, { onConflict: "athlete_id,name" });
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/athlete");
+    return ok();
+  });
+}
+
+export async function deleteMyBenchmark(benchmarkId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const athleteId = await requireOwnAthleteId();
+    parseArg(field.id("Benchmark"), benchmarkId);
+
+    const supabase = await createClient();
+    // The athlete_id filter scopes the delete to the caller's own rows (RLS's
+    // ownership check on athlete_benchmarks backs it up), and expectChanged
+    // turns a forged or stale id into an error instead of a silent no-op.
+    expectChanged(
+      await supabase
+        .from("athlete_benchmarks")
+        .delete()
+        .eq("id", benchmarkId)
+        .eq("athlete_id", athleteId)
+        .select("id"),
+      "remove the benchmark",
+    );
+    revalidatePath("/athlete");
+    return ok();
+  });
 }
