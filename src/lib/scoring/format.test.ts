@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { joinClock, type LaneResult, scoreSummary, splitClock } from "./format";
+import {
+  joinClock,
+  type LaneResult,
+  scoreSummary,
+  scoringLabel,
+  splitClock,
+  wodSummary,
+} from "./format";
 
 const base: LaneResult = {
   athlete_id: "a",
@@ -51,4 +58,26 @@ describe("scoreSummary", () => {
     expect(scoreSummary({ ...base, points: 7 }, "other")).toBe("7 pts"));
   it("is a dash for a completed result with no number", () =>
     expect(scoreSummary(base, "amrap")).toBe("—"));
+});
+
+describe("scoringLabel", () => {
+  it.each([
+    ["for_time", "For time"],
+    ["amrap", "AMRAP"],
+    ["max_load", "Max load"],
+    ["points", "Points"],
+    ["other", "Other"],
+    ["tie_break_only", "tie break only"],
+  ])("%s reads %s", (type, label) => expect(scoringLabel(type)).toBe(label));
+});
+
+describe("wodSummary", () => {
+  it("names the cap in minutes", () =>
+    expect(wodSummary({ name: "WOD 2", scoring_type: "for_time", time_cap_seconds: 900 })).toBe(
+      "WOD 2 · For time · 15 min cap",
+    ));
+  it("leaves out a missing cap", () =>
+    expect(wodSummary({ name: "WOD 1", scoring_type: "max_load", time_cap_seconds: null })).toBe(
+      "WOD 1 · Max load",
+    ));
 });

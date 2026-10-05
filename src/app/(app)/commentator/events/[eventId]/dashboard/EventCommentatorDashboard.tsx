@@ -60,7 +60,9 @@ export function EventCommentatorDashboard({
           })}
         </div>
       )}
+      {/* Keyed by floor: the follow and picked-heat state belong to one floor. */}
       <CommentatorClient
+        key={selectedFloor.floorId}
         floorId={selectedFloor.floorId}
         heats={selectedFloor.heats}
         initialBroadcastState={selectedFloor.initialBroadcastState}
