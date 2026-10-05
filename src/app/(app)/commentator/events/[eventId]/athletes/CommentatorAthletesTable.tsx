@@ -20,6 +20,9 @@ const columns = [
   col.accessor((r) => `${r.sortName} ${r.name}`, {
     id: "athlete",
     header: "Athlete",
+    // Spanish order: "Álvarez" sorts with the A's, not after "Zayas".
+    sortFn: (a, b) =>
+      a.original.sortName.localeCompare(b.original.sortName, "es", { sensitivity: "base" }),
     cell: ({ row }) => <span className="font-semibold">{row.original.name}</span>,
   }),
   col.accessor((r) => r.bib ?? "", {

@@ -182,24 +182,29 @@ export function CommentatorClient({
               </Button>
             )}
           </div>
-          <details className="group rounded-lg border border-border">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-              {wodSummary(heat.wod)}
-              <ChevronDown
-                aria-hidden
-                className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <p className="px-3 pb-3 text-sm whitespace-pre-wrap">
-              {heat.wod.description || (
-                <span className="text-muted-foreground">No description on file.</span>
-              )}
-            </p>
-          </details>
         </div>
       </header>
 
-      <section aria-label="Athletes in this heat" className="mx-auto w-full max-w-7xl px-4 py-4">
+      <section
+        aria-label="Athletes in this heat"
+        className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4"
+      >
+        {/* Under the header, not in it: an open description must not grow the
+            sticky region over the athletes. */}
+        <details className="group rounded-lg border border-border">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            {wodSummary(heat.wod)}
+            <ChevronDown
+              aria-hidden
+              className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <p className="px-3 pb-3 text-sm whitespace-pre-wrap">
+            {heat.wod.description || (
+              <span className="text-muted-foreground">No description on file.</span>
+            )}
+          </p>
+        </details>
         {lanes.length > 0 ? (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {lanes.map((lane) => (

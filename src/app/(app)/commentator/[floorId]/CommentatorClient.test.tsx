@@ -120,4 +120,17 @@ describe("CommentatorClient", () => {
     await user.click(screen.getByRole("button", { name: /Follow live heat/ }));
     expect(screen.getByText("Athlete a")).toBeTruthy();
   });
+
+  it("keeps the WOD description out of the sticky header", () => {
+    render(
+      <CommentatorClient
+        floorId="f"
+        heats={HEATS}
+        initialBroadcastState={live}
+        detailsByAthleteId={DETAILS}
+      />,
+    );
+    const summary = screen.getByText("WOD 2 · For time · 15 min cap");
+    expect(summary.closest("header")).toBeNull();
+  });
 });

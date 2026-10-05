@@ -50,4 +50,42 @@ describe("CommentatorAthletesTable", () => {
     expect(screen.queryByText("Maria Rivera")).toBeNull();
     expect(screen.getByText("Ana López")).toBeTruthy();
   });
+
+  it("sorts accented surnames where a Spanish reader expects them", () => {
+    render(
+      <CommentatorAthletesTable
+        rows={[
+          {
+            id: "z",
+            name: "Ana Zayas",
+            sortName: "Zayas Ana",
+            bib: null,
+            division: "Rx",
+            affiliate: null,
+          },
+          {
+            id: "a",
+            name: "Luis Álvarez",
+            sortName: "Álvarez Luis",
+            bib: null,
+            division: "Rx",
+            affiliate: null,
+          },
+          {
+            id: "b",
+            name: "Eva Báez",
+            sortName: "Báez Eva",
+            bib: null,
+            division: "Rx",
+            affiliate: null,
+          },
+        ]}
+        divisions={["Rx"]}
+      />,
+    );
+    const names = [...document.querySelectorAll("tbody tr")].map(
+      (r) => r.querySelector("td")?.textContent,
+    );
+    expect(names).toEqual(["Luis Álvarez", "Eva Báez", "Ana Zayas"]);
+  });
 });
