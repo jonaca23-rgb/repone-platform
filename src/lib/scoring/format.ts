@@ -60,3 +60,26 @@ export function scoreSummary(result: LaneResult | undefined, scoringType: Scorin
   if (scoringType === "max_load") return result.load === null ? "—" : String(result.load);
   return result.points === null ? "—" : `${result.points} pts`;
 }
+
+const SCORING_LABEL: Record<string, string> = {
+  for_time: "For time",
+  amrap: "AMRAP",
+  max_load: "Max load",
+  points: "Points",
+  other: "Other",
+};
+
+/** "For time", "AMRAP"…; an unknown type reads as its words. */
+export function scoringLabel(scoringType: string): string {
+  return SCORING_LABEL[scoringType] ?? scoringType.replace(/_/g, " ");
+}
+
+/** "WOD 2 · For time · 15 min cap" — a WOD in one line. */
+export function wodSummary(wod: {
+  name: string;
+  scoring_type: string;
+  time_cap_seconds: number | null;
+}): string {
+  const cap = wod.time_cap_seconds ? ` · ${Math.round(wod.time_cap_seconds / 60)} min cap` : "";
+  return `${wod.name} · ${scoringLabel(wod.scoring_type)}${cap}`;
+}
