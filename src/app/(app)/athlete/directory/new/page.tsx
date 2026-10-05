@@ -3,12 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { getAthleteSessionContext } from "@/lib/auth/session";
-import { createAthleteFromPortal } from "@/lib/actions/social";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { NewAthleteForm } from "./NewAthleteForm";
 
 export const metadata: Metadata = { title: "Add New Athlete" };
 
@@ -19,6 +17,7 @@ export const metadata: Metadata = { title: "Add New Athlete" };
  * 0017_athlete_likes_and_roster_add.sql). Doesn't link to that person's own
  * future signup — flagged to Jonathan as a possible follow-up.
  */
+
 export default async function AddAthletePage() {
   const ctx = await getAthleteSessionContext();
   if (!ctx) redirect("/login");
@@ -45,50 +44,7 @@ export default async function AddAthletePage() {
 
       <Card>
         <CardContent>
-          <form action={createAthleteFromPortal} className="flex flex-col gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="new-first-name">First name</Label>
-              <Input
-                id="new-first-name"
-                name="first_name"
-                required
-                autoComplete="off"
-                className="h-11"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-last-name">Last name</Label>
-              <Input
-                id="new-last-name"
-                name="last_name"
-                required
-                autoComplete="off"
-                className="h-11"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-affiliate">Affiliate / gym (optional)</Label>
-              <Input id="new-affiliate" name="affiliate" autoComplete="off" className="h-11" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-email">Email</Label>
-              <Input
-                id="new-email"
-                type="email"
-                name="email"
-                required
-                autoComplete="off"
-                className="h-11"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-phone">Phone (optional)</Label>
-              <Input id="new-phone" type="tel" name="phone" autoComplete="off" className="h-11" />
-            </div>
-            <Button type="submit" size="touch" className="mt-2 w-full">
-              Add Athlete
-            </Button>
-          </form>
+          <NewAthleteForm />
         </CardContent>
       </Card>
     </div>
