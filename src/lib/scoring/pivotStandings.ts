@@ -61,11 +61,14 @@ export function pivotStandings(raw: RawStandingRow[]): {
     if (competitor) competitor.wodPlacements[p.wodId] = p.placement;
   }
 
+  // Ties (and unplaced rows) go by name, so tied rows don't swap between refetches.
   const rows = [...byKey.values()].sort((a, b) => {
-    if (a.placement === null && b.placement === null) return a.name.localeCompare(b.name, "es");
-    if (a.placement === null) return 1;
-    if (b.placement === null) return -1;
-    return a.placement - b.placement;
+    if (a.placement !== b.placement) {
+      if (a.placement === null) return 1;
+      if (b.placement === null) return -1;
+      return a.placement - b.placement;
+    }
+    return a.name.localeCompare(b.name, "es");
   });
   return {
     wods: [...wods.values()]

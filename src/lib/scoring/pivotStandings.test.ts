@@ -70,4 +70,13 @@ describe("pivotStandings", () => {
     expect(out.rows).toEqual([]);
     expect(out.wods).toEqual([{ id: "w1", name: "WOD 1" }]);
   });
+
+  it("breaks ties in placement by name, so tied rows don't swap between updates", () => {
+    const out = pivotStandings([
+      row({ ...athlete("z", "Zoe", "Zayas"), placement: 2, points: 4 }),
+      row({ ...athlete("b", "Ana", "Báez"), placement: 2, points: 4 }),
+      row({ ...athlete("w", "Eva", "Winner"), placement: 1, points: 2 }),
+    ]);
+    expect(out.rows.map((r) => r.name)).toEqual(["Eva Winner", "Ana Báez", "Zoe Zayas"]);
+  });
 });
