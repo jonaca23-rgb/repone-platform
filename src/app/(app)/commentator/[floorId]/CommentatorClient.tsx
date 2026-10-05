@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ListOrdered, Radio, Users } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ListOrdered, Radio, Users } from "lucide-react";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import type { FloorHeat } from "@/lib/db/queries";
 import type { Database } from "@/lib/db/database.types";
@@ -92,8 +92,9 @@ export function CommentatorClient({
 
   return (
     <div className="flex flex-col">
-      {/* Heat header: sticky unless the screen is short (a phone in landscape). */}
-      <header className="top-[calc(3.5rem+env(safe-area-inset-top))] z-10 border-b border-border bg-background/95 backdrop-blur [@media(min-height:600px)]:sticky">
+      {/* Heat header: sticky from tablet width on screens at least 600px tall;
+          on a phone it would cover half the athletes, so it scrolls away. */}
+      <header className="top-[calc(3.5rem+env(safe-area-inset-top))] z-10 border-b border-border bg-background/95 backdrop-blur sm:[@media(min-height:600px)]:sticky">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3">
           {backLink}
           <div className="flex items-start justify-between gap-3">
@@ -181,9 +182,13 @@ export function CommentatorClient({
               </Button>
             )}
           </div>
-          <details className="rounded-lg border border-border">
-            <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold">
+          <details className="group rounded-lg border border-border">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
               {wodSummary(heat.wod)}
+              <ChevronDown
+                aria-hidden
+                className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+              />
             </summary>
             <p className="px-3 pb-3 text-sm whitespace-pre-wrap">
               {heat.wod.description || (

@@ -105,7 +105,9 @@ function HistoryLine({ h }: { h: CommentatorAthleteDetails["history"][number] })
       <span className="font-semibold">{h.eventName}</span>
       <span className="text-muted-foreground"> ({h.divisionName})</span>
       {h.overall?.placement ? (
-        <span className="ml-2 font-semibold text-brand-text">#{h.overall.placement} overall</span>
+        <span className="ml-2 font-semibold whitespace-nowrap text-brand-text">
+          #{h.overall.placement} overall
+        </span>
       ) : null}
       {h.wods.length > 0 ? (
         <div className="mt-0.5 flex flex-wrap gap-1">
