@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   joinClock,
   type LaneResult,
+  ordinal,
   scoreSummary,
   scoringLabel,
   splitClock,
@@ -80,4 +81,21 @@ describe("wodSummary", () => {
     expect(wodSummary({ name: "WOD 1", scoring_type: "max_load", time_cap_seconds: null })).toBe(
       "WOD 1 · Max load",
     ));
+});
+
+describe("ordinal", () => {
+  it.each([
+    [1, "1st"],
+    [2, "2nd"],
+    [3, "3rd"],
+    [4, "4th"],
+    [11, "11th"],
+    [12, "12th"],
+    [13, "13th"],
+    [21, "21st"],
+    [22, "22nd"],
+    [23, "23rd"],
+    [101, "101st"],
+    [111, "111th"],
+  ])("%i is %s", (n, s) => expect(ordinal(n)).toBe(s));
 });

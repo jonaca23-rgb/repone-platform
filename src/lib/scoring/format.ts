@@ -83,3 +83,11 @@ export function wodSummary(wod: {
   const cap = wod.time_cap_seconds ? ` · ${Math.round(wod.time_cap_seconds / 60)} min cap` : "";
   return `${wod.name} · ${scoringLabel(wod.scoring_type)}${cap}`;
 }
+
+/** 1 → "1st", 12 → "12th", 22 → "22nd": a placing as people say it. */
+export function ordinal(n: number): string {
+  const lastTwo = n % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${n}th`;
+  const suffix = ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
+}
