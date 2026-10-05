@@ -1,12 +1,23 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ListOrdered, Timer } from "lucide-react";
 import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
-import { useStandings } from "@/lib/realtime/useStandings";
+import { useDivisionStandings } from "@/lib/realtime/useDivisionStandings";
+import { ordinal } from "@/lib/scoring/format";
 import { TimerDisplay } from "@/components/graphics/TimerDisplay";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -15,31 +26,76 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EventLiveFloor } from "@/lib/db/queries";
 import { cn } from "@/lib/utils";
 
-// Public, read-only leaderboard for spectators/athletes — no login, no
-// controls. Reuses the exact same Realtime hooks the OBS overlays and
-// Production Dashboard already use (useFloorOverlay for "what heat is live
-// right now," useStandings for the live-updating overall leaderboard), so
-// this page updates the instant an operator advances a heat or a scorekeeper
-// saves a result — no manual refresh, same as everything else in the app.
+type LiveTab = "now" | "standings";
+
+/** The URL's ?tab= and ?division=, read once on mount; anything unknown falls back. */
+function initialFromUrl(defaultTab: LiveTab, divisionIds: string[]) {
+  if (typeof window === "undefined") return { tab: defaultTab, division: divisionIds[0] ?? null };
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get("tab");
+  const division = params.get("division");
+  return {
+    tab: tab === "now" || tab === "standings" ? tab : defaultTab,
+    division: division && divisionIds.includes(division) ? division : (divisionIds[0] ?? null),
+  };
+}
+
+/** Keeps the tab and division in the URL without navigating, so a link opens the same view. */
+function writeUrl(key: "tab" | "division", value: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(key, value);
+  window.history.replaceState(window.history.state, "", url);
+}
+
+// Public, read-only live view for spectators and athletes (and the
+// commentator's Leaderboard tab): what's on each floor now, and one division's
+// standings with each WOD's placing. Reuses the realtime hooks the overlays
+// use, so it updates the moment a heat advances or a result is saved.
 export function LiveEventClient({
   floors,
   divisions,
+  defaultTab = "now",
 }: {
   floors: EventLiveFloor[];
   divisions: Array<{ id: string; name: string }>;
+  defaultTab?: LiveTab;
 }) {
+  const [tab, setTab] = useState<LiveTab>(defaultTab);
+  const [divisionId, setDivisionId] = useState<string | null>(divisions[0]?.id ?? null);
+  // The server renders the defaults; the URL's choice is applied once on mount,
+  // so the first client render matches the server's.
+  const divisionKey = divisions.map((d) => d.id).join(",");
+  useEffect(() => {
+    const fromUrl = initialFromUrl(defaultTab, divisionKey ? divisionKey.split(",") : []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from the URL once on mount
+    setTab(fromUrl.tab);
+    setDivisionId(fromUrl.division);
+  }, [defaultTab, divisionKey]);
+
   return (
-    <div className="flex flex-col gap-10">
-      <section aria-labelledby="now-competing" className="flex flex-col gap-4">
-        <h2
-          id="now-competing"
-          className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
-        >
-          Now Competing
-        </h2>
+    <Tabs
+      value={tab}
+      onValueChange={(v) => {
+        setTab(v as LiveTab);
+        writeUrl("tab", v);
+      }}
+      className="flex flex-col gap-6"
+    >
+      <TabsList className="w-full sm:w-fit">
+        <TabsTrigger value="now" className="min-h-11 flex-1 sm:flex-none sm:px-6">
+          Now
+        </TabsTrigger>
+        <TabsTrigger value="standings" className="min-h-11 flex-1 sm:flex-none sm:px-6">
+          Standings
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="now" className="flex flex-col gap-4">
+        <h2 className="sr-only">Now competing</h2>
         {floors.map((floor) => (
           <FloorNowCompeting key={floor.floorId} floor={floor} />
         ))}
@@ -50,26 +106,111 @@ export function LiveEventClient({
             description="The current heat shows here once the organizer sets up the floors."
           />
         )}
-      </section>
+      </TabsContent>
 
-      <section aria-labelledby="leaderboard" className="flex flex-col gap-8">
-        <h2
-          id="leaderboard"
-          className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
-        >
-          Leaderboard
-        </h2>
-        {divisions.map((division) => (
-          <DivisionLeaderboard key={division.id} division={division} />
-        ))}
-        {divisions.length === 0 && (
+      <TabsContent value="standings" className="flex flex-col gap-4">
+        <h2 className="sr-only">Standings</h2>
+        {divisions.length === 0 ? (
           <EmptyState
             icon={ListOrdered}
             title="No divisions set up yet"
             description="Standings show here once the organizer adds divisions."
           />
+        ) : (
+          <>
+            {divisions.length > 1 && (
+              <div className="grid gap-2 sm:w-72">
+                <Label htmlFor="live-division">Division</Label>
+                <Select
+                  value={divisionId ?? undefined}
+                  onValueChange={(v) => {
+                    setDivisionId(v);
+                    writeUrl("division", v);
+                  }}
+                >
+                  <SelectTrigger id="live-division" className="w-full data-[size=default]:h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {divisions.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <DivisionStandings divisionId={divisionId} />
+          </>
         )}
-      </section>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+const PIN = "sticky z-10 bg-card";
+
+function DivisionStandings({ divisionId }: { divisionId: string | null }) {
+  const { wods, rows, loading } = useDivisionStandings(divisionId);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-2">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} data-testid="standings-skeleton" className="h-11 w-full" />
+        ))}
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No scored results yet. Standings fill in as heats are finished.
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      <Table className="[&_tr]:border-border">
+        <TableHeader>
+          <TableRow>
+            <TableHead className={cn(PIN, "left-0 w-12 min-w-12")}>#</TableHead>
+            <TableHead className={cn(PIN, "left-12 min-w-40")}>Athlete</TableHead>
+            {wods.map((w) => (
+              <TableHead key={w.id} className="text-center whitespace-nowrap">
+                {w.name}
+              </TableHead>
+            ))}
+            <TableHead className="text-right">Pts</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.key} className="h-11">
+              <TableCell
+                className={cn(PIN, "left-0 w-12 min-w-12 font-bold text-brand-text tabular-nums")}
+              >
+                {r.placement ?? "—"}
+              </TableCell>
+              <TableCell className={cn(PIN, "left-12 min-w-40 font-semibold whitespace-normal")}>
+                {r.name}
+              </TableCell>
+              {wods.map((w) => {
+                const p = r.wodPlacements[w.id];
+                return (
+                  <TableCell key={w.id} className="text-center text-muted-foreground tabular-nums">
+                    {p ? ordinal(p) : "—"}
+                  </TableCell>
+                );
+              })}
+              <TableCell className="text-right font-semibold tabular-nums">
+                {r.points ?? "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -141,45 +282,5 @@ function FloorNowCompeting({ floor }: { floor: EventLiveFloor }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function DivisionLeaderboard({ division }: { division: { id: string; name: string } }) {
-  const rows = useStandings(division.id);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <h3 className="font-semibold tracking-wide text-brand-text uppercase">{division.name}</h3>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No scored results yet. Standings fill in as heats are finished.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <Table className="[&_tr]:border-border">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16 text-muted-foreground">Place</TableHead>
-                <TableHead className="text-muted-foreground">Athlete</TableHead>
-                <TableHead className="text-right text-muted-foreground">Points</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-bold text-brand-text tabular-nums">
-                    {r.placement ?? "—"}
-                  </TableCell>
-                  <TableCell>{r.name}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {r.points ?? "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
   );
 }

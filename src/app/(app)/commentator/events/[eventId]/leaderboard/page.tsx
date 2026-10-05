@@ -22,7 +22,11 @@ export default async function CommentatorEventLeaderboardPage({ params }: Props)
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
       <PageHeader title="Leaderboard" />
-      <LiveEventClient floors={context.floors} divisions={context.divisions} />
+      <LiveEventClient
+        floors={context.floors}
+        divisions={context.divisions}
+        defaultTab="standings"
+      />
     </div>
   );
 }
