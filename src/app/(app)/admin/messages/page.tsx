@@ -35,7 +35,7 @@ export default async function AdminMessagesPage() {
             <Link
               key={c.counterpartId}
               href={`/admin/messages/${c.counterpartId}`}
-              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/60"
+              className="flex min-h-14 items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/60"
             >
               <div className="min-w-0">
                 <p className="font-semibold">

@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Send } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { getThread, markThreadRead, resolveCounterparts } from "@/lib/db/messages";
-import { sendMessage } from "@/lib/actions/messages";
+import { MessageComposer } from "@/components/messages/MessageComposer";
+import { MessageThread } from "@/components/messages/MessageThread";
+import { ThreadLiveRefresh } from "@/components/messages/ThreadLiveRefresh";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { formatDateTime } from "@/lib/time";
 
 // Read once per request: the page and its title share them.
 const sessionContext = cache(getAthleteSessionContext);
@@ -66,54 +65,13 @@ export default async function AthleteThreadPage({
         ) : null}
       </div>
 
-      <ol className="flex flex-col gap-3" aria-label={`Conversation with ${counterpart.name}`}>
-        {thread.map((m) => (
-          <li
-            key={m.id}
-            className={`max-w-[85%] rounded-lg px-4 py-2 sm:max-w-md ${
-              m.fromMe
-                ? "ml-auto bg-primary text-primary-foreground"
-                : "border border-border bg-card text-card-foreground"
-            }`}
-          >
-            <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>
-            <p
-              className={`mt-1 text-xs ${m.fromMe ? "text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              <span className="sr-only">{m.fromMe ? "You, " : `${counterpart.name}, `}</span>
-              {formatDateTime(m.createdAt)}
-            </p>
-          </li>
-        ))}
-        {thread.length === 0 && (
-          <li className="text-muted-foreground">No messages yet — say hello.</li>
-        )}
-      </ol>
+      <MessageThread messages={thread} counterpartName={counterpart.name} />
 
       {/* Sticks above the bottom tab bar on phones, to the bottom of the screen from md up. */}
-      <form
-        action={sendMessage.bind(null, counterpartId)}
-        className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] -mx-4 flex items-end gap-2 border-t border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6 md:bottom-0"
-      >
-        <div className="grid min-w-0 flex-1 gap-2">
-          <Label htmlFor="message-body" className="sr-only">
-            Message to {counterpart.name}
-          </Label>
-          <Textarea
-            id="message-body"
-            name="body"
-            required
-            rows={2}
-            maxLength={2000}
-            placeholder="Write a message…"
-            className="max-h-40 min-h-11"
-          />
-        </div>
-        <Button type="submit" size="touch" className="gap-2 px-4">
-          <Send aria-hidden />
-          Send
-        </Button>
-      </form>
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] -mx-4 border-t border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6 md:bottom-0">
+        <MessageComposer recipientId={counterpartId} recipientName={counterpart.name} />
+      </div>
+      <ThreadLiveRefresh myUserId={ctx.userId} />
     </div>
   );
 }
