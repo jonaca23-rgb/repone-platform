@@ -104,7 +104,12 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
 
           <FormAlert error={save.error} />
 
-          <Button type="submit" size="touch" disabled={save.isPending} className="mt-2 w-full">
+          <Button
+            type="submit"
+            size="touch"
+            disabled={save.isPending || save.isSuccess}
+            className="mt-2 w-full"
+          >
             {save.isPending ? "Saving…" : "Continue"}
           </Button>
         </form>

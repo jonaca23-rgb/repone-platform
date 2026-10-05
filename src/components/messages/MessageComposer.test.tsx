@@ -75,4 +75,23 @@ describe("MessageComposer", () => {
     answer({ ok: true });
     await waitFor(() => expect(box).toHaveProperty("value", "and more"));
   });
+
+  it("adds a line on Enter on a touch screen, where there's no Shift", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({
+      matches: q === "(pointer: coarse)",
+      media: q,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      sendMessage.mockResolvedValue({ ok: true });
+      const { user, box } = setup();
+      await user.type(box, "one{Enter}two");
+      expect(sendMessage).not.toHaveBeenCalled();
+      expect(box).toHaveProperty("value", "one\ntwo");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
 });

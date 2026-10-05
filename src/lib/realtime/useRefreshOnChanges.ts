@@ -8,6 +8,8 @@ export interface TableWatch {
   table: "heats" | "lanes" | "results" | "standings" | "messages";
   /** Realtime filter, e.g. "floor_id=eq.<id>" or "heat_id=in.(<id>,<id>)". */
   filter?: string;
+  /** Which changes count; every change by default. */
+  event?: "INSERT" | "UPDATE" | "DELETE" | "*";
 }
 
 /**
@@ -23,10 +25,10 @@ export interface TableWatch {
 export function useRefreshOnChanges(watches: TableWatch[], debounceMs = 400) {
   const router = useRouter();
   const instanceId = useId();
-  const signature = watches.map((w) => `${w.table}:${w.filter ?? "*"}`).join("|");
+  const signature = JSON.stringify(watches.map((w) => [w.table, w.filter ?? null, w.event ?? "*"]));
 
   useEffect(() => {
-    if (!signature) return;
+    if (signature === "[]") return;
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => {
@@ -35,13 +37,12 @@ export function useRefreshOnChanges(watches: TableWatch[], debounceMs = 400) {
     };
 
     let channel = supabase.channel(`refresh:${instanceId}`);
-    for (const part of signature.split("|")) {
-      const colon = part.indexOf(":");
-      const table = part.slice(0, colon);
-      const filter = part.slice(colon + 1);
+    const parts = JSON.parse(signature) as Array<[string, string | null, string]>;
+    for (const [table, filter, event] of parts) {
       channel = channel.on(
         "postgres_changes",
-        { event: "*", schema: "public", table, ...(filter === "*" ? {} : { filter }) },
+        // The overloads key on a literal event; "*" stands in for any of them.
+        { event: event as "*", schema: "public", table, ...(filter ? { filter } : {}) },
         schedule,
       );
     }

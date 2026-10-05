@@ -48,7 +48,12 @@ export function NewAthleteForm() {
         </FormField>
       ))}
       <FormAlert error={add.error} />
-      <Button type="submit" size="touch" disabled={add.isPending} className="mt-2 w-full">
+      <Button
+        type="submit"
+        size="touch"
+        disabled={add.isPending || add.isSuccess}
+        className="mt-2 w-full"
+      >
         {add.isPending ? "Adding…" : "Add Athlete"}
       </Button>
     </form>

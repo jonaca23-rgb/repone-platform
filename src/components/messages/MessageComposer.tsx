@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-/** Write and send a message. Enter sends, Shift+Enter adds a line; a failure keeps the text. */
+/**
+ * Write and send a message. With a keyboard, Enter sends and Shift+Enter adds
+ * a line; on a touch screen Enter adds a line. A failure keeps the text.
+ */
 export function MessageComposer({
   recipientId,
   recipientName,
@@ -53,7 +56,9 @@ export function MessageComposer({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              // On a touch screen there's no Shift: Enter adds a line and Send sends.
+              const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+              if (e.key === "Enter" && !e.shiftKey && !touch && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 formRef.current?.requestSubmit();
               }

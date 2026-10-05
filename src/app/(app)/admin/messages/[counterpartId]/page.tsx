@@ -43,7 +43,7 @@ export default async function AdminThreadPage({ params }: Props) {
 
       <MessageThread messages={thread} counterpartName={counterpart.name} />
 
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-0 rounded-t-xl border border-b-0 border-border bg-background px-4 py-3">
         <MessageComposer recipientId={counterpartId} recipientName={counterpart.name} />
       </div>
       <ThreadLiveRefresh myUserId={ctx.userId} />
