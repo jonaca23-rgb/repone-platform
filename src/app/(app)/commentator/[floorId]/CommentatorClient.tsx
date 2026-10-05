@@ -7,10 +7,9 @@ import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import type { FloorHeat } from "@/lib/db/queries";
 import type { Database } from "@/lib/db/database.types";
 import type { CommentatorAthleteDetails } from "@/lib/db/commentator";
+import { wodSummary } from "@/lib/scoring/format";
 import { EmptyState } from "@/components/app/EmptyState";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,11 +19,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { AthleteCard } from "./AthleteCard";
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
-
-const SECTION_LABEL = "mb-1.5 text-xs font-bold tracking-widest text-muted-foreground uppercase";
-const CHIP = "rounded-full bg-muted px-3 py-1 text-sm";
 
 // Read-only, tablet-first view for whoever is on the mic: current heat,
 // who's in it, and enough of their stats/history to talk about them without
@@ -94,48 +91,53 @@ export function CommentatorClient({
   const lanes = heat.lanes.filter((l) => l.athleteId).sort((a, b) => a.laneNumber - b.laneNumber);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:gap-6">
-      {backLink}
-
-      {/* Header — big enough to read at arm's length on a tablet */}
-      <Card size="sm">
-        <CardContent className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl font-bold tracking-wide uppercase">
-              {heat.wod.name} · Heat {heat.heatNumber}
-              {heat.heatCount ? ` / ${heat.heatCount}` : ""}
-            </h1>
-            <p className="text-base font-semibold tracking-wide text-brand-text uppercase">
-              {heat.division.name}
-            </p>
-          </div>
-          <span aria-live="polite" className="flex items-center gap-2 text-sm font-medium">
+    <div className="flex flex-col">
+      {/* Heat header: sticky unless the screen is short (a phone in landscape). */}
+      <header className="top-[calc(3.5rem+env(safe-area-inset-top))] z-10 border-b border-border bg-background/95 backdrop-blur [@media(min-height:600px)]:sticky">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3">
+          {backLink}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl font-bold tracking-wide uppercase sm:text-3xl">
+                {heat.wod.name} · Heat {heat.heatNumber}
+                {heat.heatCount ? ` / ${heat.heatCount}` : ""}
+              </h1>
+              <p className="text-sm font-semibold tracking-wide text-brand-text uppercase sm:text-base">
+                {heat.division.name}
+              </p>
+            </div>
             <span
-              aria-hidden
-              className={cn(
-                "size-3 rounded-full",
-                connected ? "bg-success" : "animate-pulse bg-primary",
-              )}
-            />
-            {connected ? "Live" : "Reconnecting…"}
-          </span>
-        </CardContent>
-      </Card>
-
-      {/* Heat picker / follow controls — same pattern as Score Keeper */}
-      <Card size="sm">
-        <CardContent className="flex flex-row flex-wrap items-end gap-3">
-          <div className="grid min-w-0 flex-1 basis-56 grid-cols-[minmax(0,1fr)] gap-2">
-            <Label
-              htmlFor="commentator-heat"
-              className="text-xs tracking-wide text-muted-foreground uppercase"
+              aria-live="polite"
+              className="flex shrink-0 items-center gap-2 text-sm font-medium"
             >
+              <span
+                aria-hidden
+                className={cn(
+                  "size-3 rounded-full",
+                  connected ? "bg-success" : "animate-pulse bg-primary",
+                )}
+              />
+              {connected ? "Live" : "Reconnecting…"}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-lg"
+              aria-label="Previous heat"
+              disabled={heatIndex <= 0}
+              onClick={() => heatIndex > 0 && goToHeat(heats[heatIndex - 1].id)}
+            >
+              <ChevronLeft aria-hidden />
+            </Button>
+            <Label htmlFor="commentator-heat" className="sr-only">
               Heat
             </Label>
             <Select value={heat.id} onValueChange={goToHeat}>
               <SelectTrigger
                 id="commentator-heat"
-                className="w-full min-w-0 text-lg data-[size=default]:h-12"
+                className="min-w-0 flex-1 basis-48 data-[size=default]:h-11"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -147,149 +149,64 @@ export function CommentatorClient({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
-              size="touch"
-              className="gap-2 px-4"
-              disabled={heatIndex <= 0}
-              onClick={() => heatIndex > 0 && goToHeat(heats[heatIndex - 1].id)}
-            >
-              <ChevronLeft aria-hidden />
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="touch"
-              className="gap-2 px-4"
+              size="icon-lg"
+              aria-label="Next heat"
               disabled={heatIndex === -1 || heatIndex >= heats.length - 1}
               onClick={() =>
                 heatIndex >= 0 && heatIndex < heats.length - 1 && goToHeat(heats[heatIndex + 1].id)
               }
             >
-              Next
               <ChevronRight aria-hidden />
             </Button>
+            {following ? (
+              <span className="flex min-h-11 items-center gap-2 text-xs font-semibold tracking-wide text-brand-text uppercase">
+                <Radio className="size-4" aria-hidden />
+                Following live heat
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-11 gap-2"
+                onClick={() => {
+                  setFollowing(true);
+                  setManualHeatId(null);
+                }}
+              >
+                <Radio aria-hidden />
+                Follow live heat
+              </Button>
+            )}
           </div>
-          {following ? (
-            <span className="flex min-h-12 items-center gap-2 text-xs font-semibold tracking-wide text-brand-text uppercase">
-              <Radio className="size-4" aria-hidden />
-              Following live heat
-            </span>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              className="gap-2 px-4"
-              onClick={() => {
-                setFollowing(true);
-                setManualHeatId(null);
-              }}
-            >
-              <Radio aria-hidden />
-              Follow live heat
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+          <details className="rounded-lg border border-border">
+            <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold">
+              {wodSummary(heat.wod)}
+            </summary>
+            <p className="px-3 pb-3 text-sm whitespace-pre-wrap">
+              {heat.wod.description || (
+                <span className="text-muted-foreground">No description on file.</span>
+              )}
+            </p>
+          </details>
+        </div>
+      </header>
 
-      {/* One card per lane — everything a commentator needs on this athlete
-          without switching screens. */}
-      <div className="flex flex-col gap-4">
-        {lanes.map((lane) => {
-          const details = detailsByAthleteId[lane.athleteId!];
-          const hasStats =
-            details &&
-            (details.lifts.length > 0 ||
-              details.benchmarks.length > 0 ||
-              details.history.length > 0);
-          return (
-            <Card key={lane.laneNumber}>
-              <CardContent className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="flex min-w-0 items-center gap-3 text-2xl font-bold">
-                    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded bg-primary text-base font-bold text-primary-foreground">
-                      {lane.laneNumber}
-                    </span>
-                    <span className="min-w-0">{lane.name}</span>
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    {lane.affiliate && <span>{lane.affiliate}</span>}
-                    {details?.ageCategoryLabel && (
-                      <Badge variant="outline" className="tracking-wide text-brand-text uppercase">
-                        {details.ageCategoryLabel}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {!hasStats ? (
-                  <p className="text-sm text-muted-foreground">
-                    No lifts, benchmarks, or competition history on file yet.
-                  </p>
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {(details!.lifts.length > 0 || details!.benchmarks.length > 0) && (
-                      <div>
-                        <h3 className={SECTION_LABEL}>Lifts &amp; Benchmarks</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {details!.lifts.map((l) => (
-                            <span key={l.id} className={CHIP}>
-                              {l.label}: <span className="font-semibold">{l.valueDisplay}</span>
-                            </span>
-                          ))}
-                          {details!.benchmarks.map((b) => (
-                            <span key={b.id} className={CHIP}>
-                              {b.name}: <span className="font-semibold">{b.resultDisplay}</span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {details!.history.length > 0 && (
-                      <div>
-                        <h3 className={SECTION_LABEL}>Previous Standings</h3>
-                        <div className="flex flex-col gap-1.5">
-                          {details!.history.map((h) => (
-                            <div key={h.eventId} className="text-sm">
-                              <span className="font-semibold">{h.eventName}</span>
-                              <span className="text-muted-foreground"> ({h.divisionName})</span>
-                              {h.overall?.placement && (
-                                <span className="ml-2 font-semibold text-brand-text">
-                                  #{h.overall.placement} overall
-                                </span>
-                              )}
-                              {h.wods.length > 0 && (
-                                <div className="mt-0.5 flex flex-wrap gap-1.5">
-                                  {h.wods.map((w) => (
-                                    <span
-                                      key={w.wodId}
-                                      className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                                    >
-                                      {w.name}: {w.placement ? `#${w.placement}` : "—"}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-        {lanes.length === 0 && (
+      <section aria-label="Athletes in this heat" className="mx-auto w-full max-w-7xl px-4 py-4">
+        {lanes.length > 0 ? (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {lanes.map((lane) => (
+              <li key={lane.laneNumber}>
+                <AthleteCard lane={lane} details={detailsByAthleteId[lane.athleteId!]} />
+              </li>
+            ))}
+          </ul>
+        ) : (
           <EmptyState icon={Users} title="No athletes assigned to lanes for this heat yet" />
         )}
-      </div>
+      </section>
     </div>
   );
 }
