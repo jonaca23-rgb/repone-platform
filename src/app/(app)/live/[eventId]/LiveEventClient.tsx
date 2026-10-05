@@ -175,7 +175,7 @@ function DivisionStandings({ divisionId }: { divisionId: string | null }) {
       <Table className="[&_tr]:border-border">
         <TableHeader>
           <TableRow>
-            <TableHead className={cn(PIN, "left-0 w-12")}>#</TableHead>
+            <TableHead className={cn(PIN, "left-0 w-12 min-w-12")}>#</TableHead>
             <TableHead className={cn(PIN, "left-12 min-w-40")}>Athlete</TableHead>
             {wods.map((w) => (
               <TableHead key={w.id} className="text-center whitespace-nowrap">
@@ -188,7 +188,9 @@ function DivisionStandings({ divisionId }: { divisionId: string | null }) {
         <TableBody>
           {rows.map((r) => (
             <TableRow key={r.key} className="h-11">
-              <TableCell className={cn(PIN, "left-0 w-12 font-bold text-brand-text tabular-nums")}>
+              <TableCell
+                className={cn(PIN, "left-0 w-12 min-w-12 font-bold text-brand-text tabular-nums")}
+              >
                 {r.placement ?? "—"}
               </TableCell>
               <TableCell className={cn(PIN, "left-12 min-w-40 font-semibold whitespace-normal")}>
