@@ -30,7 +30,9 @@ export function MessageThread({
         <li
           key={m.id}
           ref={m.id === newest ? endRef : undefined}
-          className={`max-w-[85%] rounded-lg px-4 py-2 sm:max-w-md ${
+          // Scrolling to the newest message must clear the sticky composer
+          // (and, on a phone, the tab bar under it), which sit over the bottom.
+          className={`max-w-[85%] scroll-mb-44 rounded-lg px-4 py-2 sm:max-w-md md:scroll-mb-32 ${
             m.fromMe
               ? "ml-auto bg-primary text-primary-foreground"
               : "border border-border bg-card text-card-foreground"

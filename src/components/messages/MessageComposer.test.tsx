@@ -64,4 +64,15 @@ describe("MessageComposer", () => {
     await user.type(box, "{Enter}");
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
   });
+
+  it("keeps what was typed while a message was sending", async () => {
+    let answer: (r: unknown) => void = () => {};
+    sendMessage.mockReturnValue(new Promise((r) => (answer = r)));
+    const { user, box } = setup();
+    await user.type(box, "First");
+    await user.click(screen.getByRole("button", { name: /Send/ }));
+    await user.type(box, " and more");
+    answer({ ok: true });
+    await waitFor(() => expect(box).toHaveProperty("value", "and more"));
+  });
 });

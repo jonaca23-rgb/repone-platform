@@ -21,7 +21,11 @@ export function MessageComposer({
   const formRef = useRef<HTMLFormElement>(null);
   const send = useServerAction((fd: FormData) => sendMessage(recipientId, fd), {
     toastErrors: false,
-    onSuccess: () => setBody(""),
+    // Clear only what was sent: anything typed while it was sending stays.
+    onSuccess: (_data, fd) => {
+      const sent = String(fd.get("body") ?? "");
+      setBody((now) => (now.startsWith(sent) ? now.slice(sent.length).trimStart() : now));
+    },
   });
   return (
     <form
