@@ -15,7 +15,7 @@ export function SponsorCard({
     <div
       className={
         fullScreen
-          ? "absolute inset-0 flex flex-col items-center justify-center gap-[40px] bg-broadcast-fg px-[192px] py-[54px]"
+          ? "absolute inset-0 flex flex-col items-center justify-center gap-[40px] bg-broadcast-fg px-[192px] pt-[54px] pb-[216px]"
           : "flex w-[520px] flex-col items-center gap-[16px] bg-broadcast-fg px-[40px] py-[32px] shadow-2xl"
       }
     >

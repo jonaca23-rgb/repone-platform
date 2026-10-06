@@ -5,6 +5,7 @@ export interface LaneEntry {
 }
 
 // "LANE IDENTIFICATION" package. Full-frame: the heat's lane board as a card
+// (two columns past six lanes, so eight to twelve still fit above the lower third)
 // filling the stage, laid out inside the safe area. Compact: a lane list for a
 // corner of a single-graphic browser source. Sizes are stage pixels.
 export function LanesBoard({
@@ -16,7 +17,16 @@ export function LanesBoard({
 }) {
   if (fullScreen) {
     return (
-      <div className="absolute inset-0 flex flex-col justify-center gap-[12px] bg-broadcast-bg px-[160px] py-[54px] text-broadcast-fg">
+      <div
+        className={`absolute inset-0 grid content-center gap-x-[64px] gap-y-[8px] bg-broadcast-bg px-[160px] pt-[54px] pb-[216px] text-broadcast-fg ${
+          lanes.length > 6 ? "grid-flow-col grid-cols-2" : "grid-cols-1"
+        }`}
+        style={
+          lanes.length > 6
+            ? { gridTemplateRows: `repeat(${Math.ceil(lanes.length / 2)}, auto)` }
+            : undefined
+        }
+      >
         {lanes.map((lane) => (
           <div
             key={lane.laneNumber}

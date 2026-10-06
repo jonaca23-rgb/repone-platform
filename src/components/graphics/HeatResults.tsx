@@ -16,7 +16,7 @@ export function HeatResults({ title, rows }: { title: string; rows: HeatResultRo
   );
 
   return (
-    <div className="absolute inset-0 flex flex-col justify-center gap-[12px] bg-broadcast-bg px-[160px] py-[54px] text-broadcast-fg">
+    <div className="absolute inset-0 flex flex-col justify-center gap-[12px] bg-broadcast-bg px-[160px] pt-[54px] pb-[216px] text-broadcast-fg">
       <div className="mb-[16px] flex items-center gap-[20px]">
         <span className="h-[56px] w-[10px] bg-broadcast-accent" />
         <p className="font-display text-bc-title leading-none font-bold tracking-widest uppercase">

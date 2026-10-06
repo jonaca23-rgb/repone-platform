@@ -4,11 +4,11 @@ export interface LeaderboardRow {
   value: string; // formatted score/points/time for display
 }
 
-/** Rows that fit a full-frame card on the 1080px stage; the rest is for the live page. */
-export const LEADERBOARD_FULL_ROWS = 10;
+/** Rows that fit a full-frame card above the lower third's zone; the rest is for the live page. */
+export const LEADERBOARD_FULL_ROWS = 8;
 
-// The standings card. Full-frame fills the stage and shows the top ten (a
-// broadcast convention, and what fits 1080px); compact sits at the side of a
+// The standings card. Full-frame fills the stage and shows the top eight (what
+// fits above the lower third's zone); compact sits at the side of a
 // single-graphic browser source. Sizes are stage pixels.
 export function Leaderboard({
   title,
@@ -21,7 +21,7 @@ export function Leaderboard({
 }) {
   const shown = fullScreen ? rows.slice(0, LEADERBOARD_FULL_ROWS) : rows;
   const container = fullScreen
-    ? "absolute inset-0 flex flex-col justify-center gap-[8px] bg-broadcast-bg px-[160px] py-[54px]"
+    ? "absolute inset-0 flex flex-col justify-center gap-[8px] bg-broadcast-bg px-[160px] pt-[54px] pb-[216px]"
     : "flex w-[640px] flex-col gap-[6px] bg-broadcast-bg/95 px-[32px] py-[28px] shadow-2xl";
   const rowText = fullScreen ? "text-bc-body" : "text-bc-label";
 
@@ -41,7 +41,7 @@ export function Leaderboard({
         <div
           key={i}
           className={`flex items-center justify-between border-b border-broadcast-fg/10 text-broadcast-fg last:border-none ${
-            fullScreen ? "py-[10px]" : "py-[6px]"
+            fullScreen ? "py-[8px]" : "py-[6px]"
           }`}
         >
           <div className="flex min-w-0 items-center gap-[24px]">

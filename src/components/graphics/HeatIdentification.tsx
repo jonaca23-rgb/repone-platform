@@ -16,7 +16,7 @@ export function HeatIdentification({
 }) {
   if (fullScreen) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-broadcast-bg px-[192px] py-[54px] text-center text-broadcast-fg">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-broadcast-bg px-[192px] pt-[54px] pb-[216px] text-center text-broadcast-fg">
         <div className="mb-[32px] h-[12px] w-[240px] bg-broadcast-accent" />
         <p className="font-display text-bc-hero leading-none font-bold tracking-widest uppercase">
           {wodName}

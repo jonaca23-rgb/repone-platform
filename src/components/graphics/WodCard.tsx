@@ -17,7 +17,7 @@ export function WodCard({
     <div
       className={
         fullScreen
-          ? "absolute inset-0 flex flex-col items-center justify-center bg-broadcast-bg px-[192px] py-[54px] text-center text-broadcast-fg"
+          ? "absolute inset-0 flex flex-col items-center justify-center bg-broadcast-bg px-[192px] pt-[54px] pb-[216px] text-center text-broadcast-fg"
           : "flex w-[720px] flex-col bg-broadcast-bg/95 px-[40px] py-[32px] text-broadcast-fg shadow-2xl"
       }
     >

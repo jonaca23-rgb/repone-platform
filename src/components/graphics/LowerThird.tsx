@@ -13,7 +13,7 @@ export function LowerThird({
   return (
     <div className="flex items-stretch shadow-2xl">
       <div className="w-[12px] bg-broadcast-accent" />
-      <div className="flex flex-col justify-center bg-broadcast-bg/95 px-[40px] py-[20px]">
+      <div className="flex flex-col justify-center bg-broadcast-muted px-[40px] py-[20px]">
         <p className="font-display text-bc-title leading-none font-bold tracking-wide text-broadcast-fg uppercase">
           {name}
         </p>
