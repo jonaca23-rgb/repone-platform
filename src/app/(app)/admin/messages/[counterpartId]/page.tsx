@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth/session";
 import { getThread, markThreadRead, resolveCounterparts } from "@/lib/db/messages";
-import { sendMessage } from "@/lib/actions/messages";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { formatDateTime } from "@/lib/time";
+import { MessageComposer } from "@/components/messages/MessageComposer";
+import { MessageThread } from "@/components/messages/MessageThread";
+import { ThreadLiveRefresh } from "@/components/messages/ThreadLiveRefresh";
 
 type Props = { params: Promise<{ counterpartId: string }> };
 
@@ -43,40 +41,12 @@ export default async function AdminThreadPage({ params }: Props) {
         }
       />
 
-      <div className="flex flex-col gap-3">
-        {thread.map((m) => (
-          <div
-            key={m.id}
-            className={`max-w-md rounded-lg px-4 py-2 ${m.fromMe ? "ml-auto bg-primary text-primary-foreground" : "border border-border bg-card"}`}
-          >
-            <p className="whitespace-pre-wrap text-sm">{m.body}</p>
-            <p
-              className={`mt-1 text-xs ${m.fromMe ? "text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              {formatDateTime(m.createdAt)}
-            </p>
-          </div>
-        ))}
-        {thread.length === 0 && (
-          <p className="text-muted-foreground">No messages yet. Say hello.</p>
-        )}
-      </div>
+      <MessageThread messages={thread} counterpartName={counterpart.name} />
 
-      <form action={sendMessage.bind(null, counterpartId)} className="flex items-end gap-3">
-        <div className="grid flex-1 gap-2">
-          <Label htmlFor="message-body" className="sr-only">
-            Message
-          </Label>
-          <Textarea
-            id="message-body"
-            name="body"
-            required
-            rows={2}
-            placeholder="Write a message…"
-          />
-        </div>
-        <Button type="submit">Send</Button>
-      </form>
+      <div className="sticky bottom-0 rounded-t-xl border border-b-0 border-border bg-background px-4 py-3">
+        <MessageComposer recipientId={counterpartId} recipientName={counterpart.name} />
+      </div>
+      <ThreadLiveRefresh myUserId={ctx.userId} />
     </div>
   );
 }
