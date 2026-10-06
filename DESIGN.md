@@ -265,7 +265,14 @@ The one door to anything destructive or on-air-changing: delete, remove, refund,
 `PageHeader` is the top of every page: optional breadcrumb, Display title, a Booth Gray description, actions on the right (wrapping under on phones). `EmptyState` replaces bare "No X yet" text: a lucide icon, a Title-weight line, one sentence, and the next action, inside a dashed Hairline box.
 
 ### Broadcast graphics (overlays)
-Square slabs of Broadcast Black (95% opacity in corner graphics, solid when full-screen) with Broadcast White Barlow Condensed type, a Broadcast Red accent bar or lane tile, and a heavy drop shadow. They render on a transparent body at 1920×1080 for OBS/vMix/YoloBox and must stay transparent: no page background, no shadcn, no focus rings, no portals.
+Square slabs of Broadcast Black (95% opacity in corner graphics, solid when full-frame) with Broadcast White Barlow Condensed type, a Broadcast Red accent bar or lane tile, and a heavy drop shadow. They render on a transparent body and must stay transparent: no page background, no shadcn, no focus rings, no portals.
+
+- **Stage.** Every overlay is drawn on a fixed 1920×1080 stage (`BroadcastStage`) that scales to the browser source's viewport and centres in it. YoloBox can render a web overlay at 1280×720, and OBS at 1080p or 4K; the stage keeps every graphic whole at all of them. Lay graphics out in stage pixels (`px-[48px]` is fine here). The stage stays hidden until it has measured the viewport.
+- **Safe area.** Anything that must never be cut off goes inside `SafeArea`: 96px from the sides, 54px from top and bottom (5% action-safe). Full-frame cards fill the stage but lay their content out inside it.
+- **Type scale.** `text-bc-hero` (112), `text-bc-title` (64), `text-bc-body` (40), `text-bc-label` (26), `text-bc-clock` (96), in stage pixels. Don't use the app's text sizes in a graphic.
+- **Motion.** Wrap anything that goes on and off air in `Appear` (`slide-left` for the lower third, `rise` for cards, `fade` for corner bugs). It plays an entrance, keeps the graphic through its exit (`EXIT_MS`, 320ms), and does nothing under reduced motion. Only `transform` and `opacity`: YoloBox's browser is a WebView, so no blur, filters or backdrop effects.
+- **Program.** One browser source that shows whatever Production puts on air: one full-frame card at a time, the timer as a corner clock (`ClockBug`) with the heat strip over live video, and the lower third over either.
+- **YoloBox.** Add one URL, Program (an Ultra shows at most three web overlays). The overlay index (`/overlay/{floorId}`) has copyable URLs; check a device with `/overlay/{floorId}/test`, which shows the stage, the safe area, the real viewport and scale, and whether the background comes through transparent.
 
 ### Unmatched URLs
 The app has three root layouts (`(app)`, `(auth)`, `(overlay)`), so no layout can host Next's 404 for a URL that matches no route. `src/app/global-not-found.tsx` renders the `(app)` not-found screen on the dark tokens, and `next.config.ts` enables it with the experimental `globalNotFound` flag. Re-check that flag (still needed, renamed, or stable) on every Next upgrade.

@@ -11,7 +11,9 @@ import type { ScoringType } from "@/lib/scoring/types";
 import { HeatIdentification } from "@/components/graphics/HeatIdentification";
 import { LanesBoard } from "@/components/graphics/LanesBoard";
 import { WodCard } from "@/components/graphics/WodCard";
-import { TimerDisplay } from "@/components/graphics/TimerDisplay";
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
+import { ClockBug } from "@/components/graphics/ClockBug";
 import { Leaderboard } from "@/components/graphics/Leaderboard";
 import { LowerThird } from "@/components/graphics/LowerThird";
 import { SponsorCard } from "@/components/graphics/SponsorCard";
@@ -55,82 +57,126 @@ export function ProgramOverlayClient({
   const activeSponsor = sponsors.find((s) => s.id === state?.active_sponsor_id) ?? null;
 
   const graphic = state?.active_graphic ?? "none";
+  const heat = currentHeat;
 
   return (
-    <>
-      {graphic === "heat_intro" && currentHeat && (
-        <HeatIdentification
-          wodName={currentHeat.wod.name}
-          heatNumber={currentHeat.heatNumber}
-          heatCount={currentHeat.heatCount}
-          divisionName={currentHeat.division.name}
-          fullScreen
-        />
-      )}
-      {graphic === "lanes" && currentHeat && (
-        <LanesBoard
-          fullScreen
-          lanes={currentHeat.lanes.map((l) => ({
-            laneNumber: l.laneNumber,
-            name: l.name,
-            affiliate: l.affiliate,
-          }))}
-        />
-      )}
-      {graphic === "wod" && currentHeat && (
-        <WodCard
-          fullScreen
-          name={currentHeat.wod.name}
-          description={currentHeat.wod.description}
-          timeCapSeconds={currentHeat.wod.time_cap_seconds}
-        />
-      )}
-      {graphic === "timer" && (
-        <TimerDisplay fullScreen seconds={timer.displaySeconds} atLimit={timer.atLimit} />
-      )}
-      {graphic === "score" && currentHeat && (
-        <HeatResults
-          title={`${currentHeat.wod.name} · Heat ${currentHeat.heatNumber} — Results`}
-          rows={currentHeat.lanes.map((l) => {
-            const r = l.athleteId ? heatResults.get(l.athleteId) : undefined;
-            return {
+    <BroadcastStage>
+      {/* Cards fill the stage, one at a time: the old one leaves while the next comes in. */}
+      <Appear show={graphic === "heat_intro" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <HeatIdentification
+            wodName={heat.wod.name}
+            heatNumber={heat.heatNumber}
+            heatCount={heat.heatCount}
+            divisionName={heat.division.name}
+            fullScreen
+          />
+        )}
+      </Appear>
+      <Appear show={graphic === "lanes" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <LanesBoard
+            fullScreen
+            lanes={heat.lanes.map((l) => ({
               laneNumber: l.laneNumber,
-              name: l.name ?? "—",
-              value: formatResult(r?.result ?? null, currentHeat.wod.scoring_type as ScoringType),
-              placement: r?.placement ?? null,
-            };
-          })}
-        />
-      )}
-      {graphic === "leaderboard" && currentHeat && (
-        <div className="flex h-screen w-screen items-center justify-center bg-broadcast-bg">
+              name: l.name,
+              affiliate: l.affiliate,
+            }))}
+          />
+        )}
+      </Appear>
+      <Appear show={graphic === "wod" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <WodCard
+            fullScreen
+            name={heat.wod.name}
+            description={heat.wod.description}
+            timeCapSeconds={heat.wod.time_cap_seconds}
+          />
+        )}
+      </Appear>
+      <Appear show={graphic === "score" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <HeatResults
+            title={`${heat.wod.name} · Heat ${heat.heatNumber} — Results`}
+            rows={heat.lanes.map((l) => {
+              const r = l.athleteId ? heatResults.get(l.athleteId) : undefined;
+              return {
+                laneNumber: l.laneNumber,
+                name: l.name ?? "—",
+                value: formatResult(r?.result ?? null, heat.wod.scoring_type as ScoringType),
+                placement: r?.placement ?? null,
+              };
+            })}
+          />
+        )}
+      </Appear>
+      <Appear
+        show={graphic === "leaderboard" && !!heat}
+        variant="rise"
+        className="absolute inset-0"
+      >
+        {heat && (
           <Leaderboard
-            title={`${currentHeat.division.name} — Overall`}
+            fullScreen
+            title={`${heat.division.name} — Overall`}
             rows={standings.map((s) => ({
               placement: s.placement,
               name: s.name,
               value: `${s.points ?? "—"} pts`,
             }))}
           />
-        </div>
-      )}
-      {graphic === "sponsor" && activeSponsor && (
-        <SponsorCard
-          fullScreen
-          businessName={activeSponsor.business_name}
-          logoUrl={activeSponsor.logo_url}
-          tierLabel={SPONSOR_TIER_LABELS[activeSponsor.tier as keyof typeof SPONSOR_TIER_LABELS]}
-        />
-      )}
+        )}
+      </Appear>
+      <Appear
+        show={graphic === "sponsor" && !!activeSponsor}
+        variant="rise"
+        className="absolute inset-0"
+      >
+        {activeSponsor && (
+          <SponsorCard
+            fullScreen
+            businessName={activeSponsor.business_name}
+            logoUrl={activeSponsor.logo_url}
+            tierLabel={SPONSOR_TIER_LABELS[activeSponsor.tier as keyof typeof SPONSOR_TIER_LABELS]}
+          />
+        )}
+      </Appear>
 
-      {/* Lower third renders as an overlay on top of whatever else is showing (or nothing). */}
-      {state?.lower_third_athlete_id && lowerThirdAthlete && (
-        <LowerThird
-          name={lowerThirdAthlete.name}
-          division={lowerThirdAthlete.division}
-          affiliate={lowerThirdAthlete.affiliate}
-        />
-      )}
-    </>
+      <SafeArea>
+        {/* The timer is corner bugs over live video, not a card. */}
+        <Appear
+          show={graphic === "timer" && !!heat}
+          variant="fade"
+          className="absolute top-0 left-0"
+        >
+          {heat && (
+            <HeatIdentification
+              wodName={heat.wod.name}
+              heatNumber={heat.heatNumber}
+              heatCount={heat.heatCount}
+              divisionName={heat.division.name}
+            />
+          )}
+        </Appear>
+        <Appear show={graphic === "timer"} variant="fade" className="absolute top-0 right-0">
+          <ClockBug seconds={timer.displaySeconds} atLimit={timer.atLimit} />
+        </Appear>
+        {/* The lower third goes over whatever else is on air, or over plain video. */}
+        <Appear
+          show={!!state?.lower_third_athlete_id && !!lowerThirdAthlete}
+          variant="slide-left"
+          className="absolute bottom-0 left-0"
+        >
+          {lowerThirdAthlete && (
+            <LowerThird
+              name={lowerThirdAthlete.name}
+              division={lowerThirdAthlete.division}
+              affiliate={lowerThirdAthlete.affiliate}
+            />
+          )}
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }

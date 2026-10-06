@@ -15,33 +15,46 @@ export function HeatResults({ title, rows }: { title: string; rows: HeatResultRo
       a.laneNumber - b.laneNumber,
   );
 
+  const twoCols = ordered.length > 6;
+
   return (
-    <div className="flex h-screen w-screen flex-col justify-center gap-3 bg-broadcast-bg px-24 py-16">
-      <div className="mb-2 flex items-center gap-3">
-        <span className="h-8 w-1.5 bg-broadcast-accent" />
-        <p className="font-display text-2xl font-bold uppercase tracking-widest text-broadcast-fg">
+    <div className="absolute inset-0 flex flex-col justify-center gap-[12px] bg-broadcast-bg px-[160px] pt-[54px] pb-[216px] text-broadcast-fg">
+      <div className="mb-[16px] flex items-center gap-[20px]">
+        <span className="h-[56px] w-[10px] bg-broadcast-accent" />
+        <p className="font-display text-bc-title leading-none font-bold tracking-widest uppercase">
           {title}
         </p>
       </div>
-      {ordered.map((row) => (
-        <div
-          key={row.laneNumber}
-          className="flex items-center justify-between border-b border-broadcast-fg/10 py-2 text-broadcast-fg last:border-none"
-        >
-          <div className="flex items-center gap-4">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-broadcast-accent font-bold">
-              {row.laneNumber}
-            </span>
-            <span className="text-xl font-semibold uppercase tracking-wide">{row.name}</span>
+      {/* Past six lanes the rows flow into two columns, so a full heat stays above the lower third. */}
+      <div
+        data-columns={twoCols ? 2 : 1}
+        className={`grid gap-x-[64px] ${twoCols ? "grid-flow-col grid-cols-2" : "grid-cols-1"}`}
+        style={
+          twoCols
+            ? { gridTemplateRows: `repeat(${Math.ceil(ordered.length / 2)}, auto)` }
+            : undefined
+        }
+      >
+        {ordered.map((row) => (
+          <div
+            key={row.laneNumber}
+            className="flex items-center justify-between border-b border-broadcast-fg/10 py-[12px] last:border-none"
+          >
+            <div className="flex min-w-0 items-center gap-[24px]">
+              <span className="flex size-[64px] shrink-0 items-center justify-center bg-broadcast-accent text-bc-label font-bold">
+                {row.laneNumber}
+              </span>
+              <span className="text-bc-body font-semibold tracking-wide uppercase">{row.name}</span>
+            </div>
+            <div className="flex items-center gap-[40px]">
+              <span className="font-display text-bc-body font-bold tabular-nums">{row.value}</span>
+              <span className="w-[96px] text-right font-display text-bc-body font-bold text-broadcast-fg/70">
+                {row.placement != null ? `#${row.placement}` : ""}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-6">
-            <span className="font-display text-xl font-bold tabular-nums">{row.value}</span>
-            <span className="w-14 text-right font-display text-xl font-bold text-broadcast-fg/70">
-              {row.placement != null ? `#${row.placement}` : ""}
-            </span>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
