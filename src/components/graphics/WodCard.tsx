@@ -11,6 +11,8 @@ export function WodCard({
   timeCapSeconds: number | null;
   fullScreen?: boolean;
 }) {
+  // A long chipper steps down a size, and the clamp keeps any description on the stage.
+  const long = (description?.length ?? 0) > 240;
   const timeCap = timeCapSeconds ? `${Math.floor(timeCapSeconds / 60)} MIN CAP` : null;
 
   return (
@@ -29,7 +31,13 @@ export function WodCard({
         {name}
       </p>
       {description ? (
-        <p className="mt-[24px] text-bc-body leading-snug whitespace-pre-line">{description}</p>
+        <p
+          className={`mt-[24px] leading-snug whitespace-pre-line ${
+            long ? "text-bc-label" : "text-bc-body"
+          } ${fullScreen ? "line-clamp-[12]" : "line-clamp-[9]"}`}
+        >
+          {description}
+        </p>
       ) : null}
       {timeCap ? (
         <p className="mt-[24px] text-bc-label font-bold tracking-widest text-broadcast-fg/70 uppercase">

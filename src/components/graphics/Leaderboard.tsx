@@ -6,6 +6,8 @@ export interface LeaderboardRow {
 
 /** Rows that fit a full-frame card above the lower third's zone; the rest is for the live page. */
 export const LEADERBOARD_FULL_ROWS = 8;
+/** Rows on the compact board of a single-graphic source: the top ten fit the safe height. */
+export const LEADERBOARD_COMPACT_ROWS = 10;
 
 // The standings card. Full-frame fills the stage and shows the top eight (what
 // fits above the lower third's zone); compact sits at the side of a
@@ -19,7 +21,7 @@ export function Leaderboard({
   rows: LeaderboardRow[];
   fullScreen?: boolean;
 }) {
-  const shown = fullScreen ? rows.slice(0, LEADERBOARD_FULL_ROWS) : rows;
+  const shown = rows.slice(0, fullScreen ? LEADERBOARD_FULL_ROWS : LEADERBOARD_COMPACT_ROWS);
   const container = fullScreen
     ? "absolute inset-0 flex flex-col justify-center gap-[8px] bg-broadcast-bg px-[160px] pt-[54px] pb-[216px]"
     : "flex w-[640px] flex-col gap-[6px] bg-broadcast-bg/95 px-[32px] py-[28px] shadow-2xl";

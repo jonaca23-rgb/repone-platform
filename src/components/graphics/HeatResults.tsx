@@ -15,6 +15,8 @@ export function HeatResults({ title, rows }: { title: string; rows: HeatResultRo
       a.laneNumber - b.laneNumber,
   );
 
+  const twoCols = ordered.length > 6;
+
   return (
     <div className="absolute inset-0 flex flex-col justify-center gap-[12px] bg-broadcast-bg px-[160px] pt-[54px] pb-[216px] text-broadcast-fg">
       <div className="mb-[16px] flex items-center gap-[20px]">
@@ -23,25 +25,36 @@ export function HeatResults({ title, rows }: { title: string; rows: HeatResultRo
           {title}
         </p>
       </div>
-      {ordered.map((row) => (
-        <div
-          key={row.laneNumber}
-          className="flex items-center justify-between border-b border-broadcast-fg/10 py-[12px] last:border-none"
-        >
-          <div className="flex min-w-0 items-center gap-[24px]">
-            <span className="flex size-[64px] shrink-0 items-center justify-center bg-broadcast-accent text-bc-label font-bold">
-              {row.laneNumber}
-            </span>
-            <span className="text-bc-body font-semibold tracking-wide uppercase">{row.name}</span>
+      {/* Past six lanes the rows flow into two columns, so a full heat stays above the lower third. */}
+      <div
+        data-columns={twoCols ? 2 : 1}
+        className={`grid gap-x-[64px] ${twoCols ? "grid-flow-col grid-cols-2" : "grid-cols-1"}`}
+        style={
+          twoCols
+            ? { gridTemplateRows: `repeat(${Math.ceil(ordered.length / 2)}, auto)` }
+            : undefined
+        }
+      >
+        {ordered.map((row) => (
+          <div
+            key={row.laneNumber}
+            className="flex items-center justify-between border-b border-broadcast-fg/10 py-[12px] last:border-none"
+          >
+            <div className="flex min-w-0 items-center gap-[24px]">
+              <span className="flex size-[64px] shrink-0 items-center justify-center bg-broadcast-accent text-bc-label font-bold">
+                {row.laneNumber}
+              </span>
+              <span className="text-bc-body font-semibold tracking-wide uppercase">{row.name}</span>
+            </div>
+            <div className="flex items-center gap-[40px]">
+              <span className="font-display text-bc-body font-bold tabular-nums">{row.value}</span>
+              <span className="w-[96px] text-right font-display text-bc-body font-bold text-broadcast-fg/70">
+                {row.placement != null ? `#${row.placement}` : ""}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-[40px]">
-            <span className="font-display text-bc-body font-bold tabular-nums">{row.value}</span>
-            <span className="w-[96px] text-right font-display text-bc-body font-bold text-broadcast-fg/70">
-              {row.placement != null ? `#${row.placement}` : ""}
-            </span>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
