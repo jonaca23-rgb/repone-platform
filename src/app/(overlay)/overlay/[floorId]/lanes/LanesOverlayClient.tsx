@@ -1,5 +1,7 @@
 "use client";
 
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
 import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { LanesBoard } from "@/components/graphics/LanesBoard";
 import type { FloorHeat } from "@/lib/db/queries";
@@ -17,17 +19,21 @@ export function LanesOverlayClient({
   initialBroadcastState: BroadcastStateRow | null;
 }) {
   const { currentHeat } = useFloorOverlay(floorId, initialBroadcastState, heats);
-  if (!currentHeat) return null;
-
   return (
-    <div className="flex h-screen w-screen items-center justify-start p-8">
-      <LanesBoard
-        lanes={currentHeat.lanes.map((l) => ({
-          laneNumber: l.laneNumber,
-          name: l.name,
-          affiliate: l.affiliate,
-        }))}
-      />
-    </div>
+    <BroadcastStage>
+      <SafeArea>
+        <Appear show={!!currentHeat} variant="rise" className="absolute top-[120px] left-0">
+          {currentHeat && (
+            <LanesBoard
+              lanes={currentHeat.lanes.map((l) => ({
+                laneNumber: l.laneNumber,
+                name: l.name,
+                affiliate: l.affiliate,
+              }))}
+            />
+          )}
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
 import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { useStandings } from "@/lib/realtime/useStandings";
 import { Leaderboard } from "@/components/graphics/Leaderboard";
@@ -22,18 +24,26 @@ export function LeaderboardOverlayClient({
   const { currentHeat } = useFloorOverlay(floorId, initialBroadcastState, heats);
   const standings = useStandings(currentHeat?.division.id ?? null);
 
-  if (!currentHeat) return null;
-
   return (
-    <div className="flex h-screen w-screen items-center justify-end p-8">
-      <Leaderboard
-        title={`${currentHeat.division.name} — Overall`}
-        rows={standings.map((s) => ({
-          placement: s.placement,
-          name: s.name,
-          value: `${s.points ?? "—"} pts`,
-        }))}
-      />
-    </div>
+    <BroadcastStage>
+      <SafeArea>
+        <Appear
+          show={!!currentHeat}
+          variant="rise"
+          className="absolute top-1/2 right-0 -translate-y-1/2"
+        >
+          {currentHeat && (
+            <Leaderboard
+              title={`${currentHeat.division.name} — Overall`}
+              rows={standings.map((s) => ({
+                placement: s.placement,
+                name: s.name,
+                value: `${s.points ?? "—"} pts`,
+              }))}
+            />
+          )}
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }

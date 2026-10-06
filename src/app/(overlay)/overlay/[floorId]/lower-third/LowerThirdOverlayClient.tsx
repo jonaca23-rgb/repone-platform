@@ -1,5 +1,7 @@
 "use client";
 
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { useAthleteLookup } from "@/lib/realtime/useAthleteLookup";
 import { LowerThird } from "@/components/graphics/LowerThird";
@@ -19,9 +21,23 @@ export function LowerThirdOverlayClient({
   const { state } = useBroadcastState(floorId, initialBroadcastState);
   const athlete = useAthleteLookup(state?.lower_third_athlete_id ?? null, eventId);
 
-  if (!state?.lower_third_athlete_id || !athlete) return null;
-
   return (
-    <LowerThird name={athlete.name} division={athlete.division} affiliate={athlete.affiliate} />
+    <BroadcastStage>
+      <SafeArea>
+        <Appear
+          show={!!state?.lower_third_athlete_id && !!athlete}
+          variant="slide-left"
+          className="absolute bottom-0 left-0"
+        >
+          {athlete && (
+            <LowerThird
+              name={athlete.name}
+              division={athlete.division}
+              affiliate={athlete.affiliate}
+            />
+          )}
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }

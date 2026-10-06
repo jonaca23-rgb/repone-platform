@@ -1,8 +1,10 @@
 "use client";
 
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
-import { TimerDisplay } from "@/components/graphics/TimerDisplay";
+import { ClockBug } from "@/components/graphics/ClockBug";
 import type { Database } from "@/lib/db/database.types";
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
@@ -24,8 +26,12 @@ export function TimerOverlayClient({
   });
 
   return (
-    <div className="flex h-screen w-screen items-start justify-end p-8">
-      <TimerDisplay seconds={timer.displaySeconds} atLimit={timer.atLimit} />
-    </div>
+    <BroadcastStage>
+      <SafeArea>
+        <Appear show variant="fade" className="absolute top-0 right-0">
+          <ClockBug seconds={timer.displaySeconds} atLimit={timer.atLimit} />
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }
