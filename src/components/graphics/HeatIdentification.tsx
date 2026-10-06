@@ -1,5 +1,6 @@
 // "HEAT IDENTIFICATION" package — WOD / heat-of-total / division.
-// Designed to sit top-left as a persistent ID strip, or full-screen as a heat intro.
+// The compact strip sits top-left in the safe area (with the clock bug, or on its
+// own source); full-frame fills the stage as a heat intro. Sizes are stage pixels.
 export function HeatIdentification({
   wodName,
   heatNumber,
@@ -15,14 +16,16 @@ export function HeatIdentification({
 }) {
   if (fullScreen) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-broadcast-bg text-broadcast-fg">
-        <div className="mb-4 h-1.5 w-40 bg-broadcast-accent" />
-        <p className="font-display text-5xl font-bold uppercase tracking-widest">{wodName}</p>
-        <p className="mt-4 text-3xl font-semibold uppercase tracking-wide text-broadcast-fg/80">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-broadcast-bg px-[192px] py-[54px] text-center text-broadcast-fg">
+        <div className="mb-[32px] h-[12px] w-[240px] bg-broadcast-accent" />
+        <p className="font-display text-bc-hero leading-none font-bold tracking-widest uppercase">
+          {wodName}
+        </p>
+        <p className="mt-[32px] text-bc-title font-semibold tracking-wide text-broadcast-fg/85 uppercase">
           Heat {heatNumber}
           {heatCount ? ` of ${heatCount}` : ""}
         </p>
-        <p className="mt-2 text-2xl font-medium uppercase tracking-wide text-broadcast-accent">
+        <p className="mt-[16px] text-bc-body font-medium tracking-wide text-broadcast-accent uppercase">
           {divisionName}
         </p>
       </div>
@@ -30,15 +33,15 @@ export function HeatIdentification({
   }
 
   return (
-    <div className="inline-flex flex-col bg-broadcast-bg px-6 py-3 text-broadcast-fg shadow-lg">
-      <div className="flex items-center gap-3">
-        <span className="h-full w-1 self-stretch bg-broadcast-accent" />
+    <div className="inline-flex bg-broadcast-bg px-[28px] py-[16px] text-broadcast-fg shadow-2xl">
+      <div className="flex items-stretch gap-[18px]">
+        <span className="w-[8px] bg-broadcast-accent" />
         <div>
-          <p className="font-display text-2xl font-bold uppercase tracking-wide leading-tight">
-            {wodName} — Heat {heatNumber}
+          <p className="font-display text-bc-body leading-tight font-bold tracking-wide uppercase">
+            {wodName} · Heat {heatNumber}
             {heatCount ? ` / ${heatCount}` : ""}
           </p>
-          <p className="text-sm font-semibold uppercase tracking-widest text-broadcast-accent">
+          <p className="text-bc-label font-semibold tracking-widest text-broadcast-accent uppercase">
             {divisionName}
           </p>
         </div>

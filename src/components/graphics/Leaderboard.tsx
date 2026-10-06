@@ -4,6 +4,12 @@ export interface LeaderboardRow {
   value: string; // formatted score/points/time for display
 }
 
+/** Rows that fit a full-frame card on the 1080px stage; the rest is for the live page. */
+export const LEADERBOARD_FULL_ROWS = 10;
+
+// The standings card. Full-frame fills the stage and shows the top ten (a
+// broadcast convention, and what fits 1080px); compact sits at the side of a
+// single-graphic browser source. Sizes are stage pixels.
 export function Leaderboard({
   title,
   rows,
@@ -13,30 +19,40 @@ export function Leaderboard({
   rows: LeaderboardRow[];
   fullScreen?: boolean;
 }) {
+  const shown = fullScreen ? rows.slice(0, LEADERBOARD_FULL_ROWS) : rows;
   const container = fullScreen
-    ? "flex h-screen w-screen flex-col justify-center gap-3 bg-broadcast-bg px-24 py-16"
-    : "flex w-[520px] flex-col gap-2 bg-broadcast-bg/95 px-6 py-5 shadow-2xl";
+    ? "absolute inset-0 flex flex-col justify-center gap-[8px] bg-broadcast-bg px-[160px] py-[54px]"
+    : "flex w-[640px] flex-col gap-[6px] bg-broadcast-bg/95 px-[32px] py-[28px] shadow-2xl";
+  const rowText = fullScreen ? "text-bc-body" : "text-bc-label";
 
   return (
     <div className={container}>
-      <div className="mb-2 flex items-center gap-3">
-        <span className="h-8 w-1.5 bg-broadcast-accent" />
-        <p className="font-display text-2xl font-bold uppercase tracking-widest text-broadcast-fg">
+      <div className="mb-[12px] flex items-center gap-[20px]">
+        <span className={`w-[10px] bg-broadcast-accent ${fullScreen ? "h-[56px]" : "h-[36px]"}`} />
+        <p
+          className={`font-display leading-none font-bold tracking-widest text-broadcast-fg uppercase ${
+            fullScreen ? "text-bc-title" : "text-bc-body"
+          }`}
+        >
           {title}
         </p>
       </div>
-      {rows.map((row, i) => (
+      {shown.map((row, i) => (
         <div
           key={i}
-          className="flex items-center justify-between border-b border-broadcast-fg/10 py-2 text-broadcast-fg last:border-none"
+          className={`flex items-center justify-between border-b border-broadcast-fg/10 text-broadcast-fg last:border-none ${
+            fullScreen ? "py-[10px]" : "py-[6px]"
+          }`}
         >
-          <div className="flex items-center gap-4">
-            <span className="w-8 font-display text-xl font-bold text-broadcast-accent">
+          <div className="flex min-w-0 items-center gap-[24px]">
+            <span
+              className={`w-[64px] font-display font-bold text-broadcast-accent tabular-nums ${rowText}`}
+            >
               {row.placement ?? "—"}
             </span>
-            <span className="text-xl font-semibold uppercase tracking-wide">{row.name}</span>
+            <span className={`font-semibold tracking-wide uppercase ${rowText}`}>{row.name}</span>
           </div>
-          <span className="font-display text-xl font-bold">{row.value}</span>
+          <span className={`font-display font-bold tabular-nums ${rowText}`}>{row.value}</span>
         </div>
       ))}
     </div>

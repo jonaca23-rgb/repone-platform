@@ -1,3 +1,5 @@
+// The workout card. Full-frame fills the stage; compact sits beside the action.
+// Sizes are stage pixels.
 export function WodCard({
   name,
   description,
@@ -15,18 +17,22 @@ export function WodCard({
     <div
       className={
         fullScreen
-          ? "flex h-screen w-screen flex-col items-center justify-center bg-broadcast-bg px-24 text-center text-broadcast-fg"
-          : "flex w-[560px] flex-col bg-broadcast-bg/95 px-8 py-6 text-broadcast-fg shadow-2xl"
+          ? "absolute inset-0 flex flex-col items-center justify-center bg-broadcast-bg px-[192px] py-[54px] text-center text-broadcast-fg"
+          : "flex w-[720px] flex-col bg-broadcast-bg/95 px-[40px] py-[32px] text-broadcast-fg shadow-2xl"
       }
     >
-      <p className="font-display text-3xl font-bold uppercase tracking-widest text-broadcast-accent">
+      <p
+        className={`font-display font-bold tracking-widest text-broadcast-accent uppercase ${
+          fullScreen ? "text-bc-hero leading-none" : "text-bc-title leading-tight"
+        }`}
+      >
         {name}
       </p>
       {description ? (
-        <p className="mt-4 whitespace-pre-line text-xl leading-relaxed">{description}</p>
+        <p className="mt-[24px] text-bc-body leading-snug whitespace-pre-line">{description}</p>
       ) : null}
       {timeCap ? (
-        <p className="mt-4 text-sm font-bold uppercase tracking-widest text-broadcast-fg/60">
+        <p className="mt-[24px] text-bc-label font-bold tracking-widest text-broadcast-fg/70 uppercase">
           {timeCap}
         </p>
       ) : null}

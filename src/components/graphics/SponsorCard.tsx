@@ -1,3 +1,5 @@
+// A sponsor's moment on air. Full-frame fills the stage in white; compact sits
+// in a corner. Sizes are stage pixels.
 export function SponsorCard({
   businessName,
   logoUrl,
@@ -13,20 +15,28 @@ export function SponsorCard({
     <div
       className={
         fullScreen
-          ? "flex h-screen w-screen flex-col items-center justify-center gap-6 bg-broadcast-fg"
-          : "flex w-[420px] flex-col items-center gap-3 bg-broadcast-fg px-8 py-6 shadow-2xl"
+          ? "absolute inset-0 flex flex-col items-center justify-center gap-[40px] bg-broadcast-fg px-[192px] py-[54px]"
+          : "flex w-[520px] flex-col items-center gap-[16px] bg-broadcast-fg px-[40px] py-[32px] shadow-2xl"
       }
     >
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logoUrl} alt={businessName} className="max-h-40 max-w-[80%] object-contain" />
+        <img
+          src={logoUrl}
+          alt={businessName}
+          className={`object-contain ${fullScreen ? "max-h-[480px] max-w-[1200px]" : "max-h-[200px] max-w-[440px]"}`}
+        />
       ) : (
-        <p className="font-display text-4xl font-bold uppercase tracking-wide text-broadcast-bg">
+        <p
+          className={`font-display font-bold tracking-wide text-broadcast-bg uppercase ${
+            fullScreen ? "text-bc-hero" : "text-bc-title"
+          }`}
+        >
           {businessName}
         </p>
       )}
       {tierLabel ? (
-        <p className="text-sm font-bold uppercase tracking-widest text-broadcast-accent">
+        <p className="text-bc-label font-bold tracking-widest text-broadcast-accent uppercase">
           {tierLabel}
         </p>
       ) : null}
