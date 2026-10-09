@@ -47,6 +47,8 @@ async function ownedSponsor(sponsorId: string, organizationId: string) {
 }
 
 const NOT_OURS = "That sponsor doesn't belong to your organization.";
+const CATEGORY_TAKEN =
+  "Another sponsor holds that category exclusively at an event this sponsor is part of.";
 
 export async function createSponsor(formData: FormData): Promise<ActionResult> {
   return safeAction(async () => {
@@ -67,15 +69,18 @@ export async function updateSponsor(sponsorId: string, formData: FormData): Prom
     const { organizationId } = await requireOrgManager();
     const f = parseForm(SponsorForm, formData);
     const supabase = await createClient();
-    expectChanged(
-      await supabase
-        .from("sponsors")
-        .update(f)
-        .eq("id", sponsorId)
-        .eq("organization_id", organizationId)
-        .select("id"),
-      "update the sponsor",
-    );
+    const res = await supabase
+      .from("sponsors")
+      .update(f)
+      .eq("id", sponsorId)
+      .eq("organization_id", organizationId)
+      .select("id");
+    // The database refuses a category another sponsor holds exclusively at
+    // one of this sponsor's events (0032).
+    if (res.error?.message.includes("sponsor_category_exclusive")) {
+      return fail(CATEGORY_TAKEN, { category: [CATEGORY_TAKEN] });
+    }
+    expectChanged(res, "update the sponsor");
     revalidatePath("/admin/sponsors");
     return ok();
   });

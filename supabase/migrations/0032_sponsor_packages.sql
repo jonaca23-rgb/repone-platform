@@ -80,22 +80,36 @@ on conflict do nothing;
 -- sponsor, so a partial unique index can't express it; a trigger can.
 -- Categories compare case-insensitively. The advisory lock serializes two
 -- concurrent inserts for the same (event, category).
-create or replace function enforce_sponsor_category_exclusive() returns trigger as $$
+-- It runs for both ways a clash can arise: a sponsorship row changing, or a
+-- sponsor's category being edited while it is at events.
+create or replace function check_sponsor_category_exclusive(
+  p_sponsorship_id uuid, p_event_id uuid, p_category text, p_exclusive boolean
+) returns void as $$
 declare
-  v_category text;
+  v_category text := lower(btrim(p_category));
 begin
-  if not new.active then return new; end if;
-  select lower(btrim(category)) into v_category from sponsors where id = new.sponsor_id;
-  if v_category is null or v_category = '' then return new; end if;
-  perform pg_advisory_xact_lock(hashtext(new.event_id::text || ':' || v_category));
+  if v_category is null or v_category = '' then return; end if;
+  perform pg_advisory_xact_lock(hashtext(p_event_id::text || ':' || v_category));
   if exists (
     select 1 from event_sponsorships es join sponsors s on s.id = es.sponsor_id
-    where es.event_id = new.event_id and es.id <> new.id and es.active
+    where es.event_id = p_event_id and es.id <> p_sponsorship_id and es.active
       and lower(btrim(s.category)) = v_category
-      and (es.category_exclusive or new.category_exclusive)
+      and (es.category_exclusive or p_exclusive)
   ) then
     raise exception 'sponsor_category_exclusive: category "%" is exclusive for this event', v_category
       using errcode = '23505';
+  end if;
+end;
+$$ language plpgsql security definer set search_path = public;
+revoke execute on function check_sponsor_category_exclusive(uuid, uuid, text, boolean) from public, anon, authenticated;
+
+create or replace function enforce_sponsor_category_exclusive() returns trigger as $$
+begin
+  if new.active then
+    perform check_sponsor_category_exclusive(
+      new.id, new.event_id,
+      (select category from sponsors where id = new.sponsor_id),
+      new.category_exclusive);
   end if;
   return new;
 end;
@@ -104,6 +118,25 @@ $$ language plpgsql security definer set search_path = public;
 create trigger event_sponsorships_category_exclusive
   before insert or update of active, category_exclusive, sponsor_id, event_id on event_sponsorships
   for each row execute function enforce_sponsor_category_exclusive();
+
+create or replace function enforce_sponsor_recategory_exclusive() returns trigger as $$
+declare
+  r record;
+begin
+  if lower(btrim(coalesce(new.category, ''))) = lower(btrim(coalesce(old.category, ''))) then
+    return new;
+  end if;
+  for r in select id, event_id, category_exclusive from event_sponsorships
+           where sponsor_id = new.id and active loop
+    perform check_sponsor_category_exclusive(r.id, r.event_id, new.category, r.category_exclusive);
+  end loop;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger sponsors_category_exclusive
+  after update of category on sponsors
+  for each row execute function enforce_sponsor_recategory_exclusive();
 
 -- RLS ----------------------------------------------------------------------
 alter table sponsor_packages enable row level security;

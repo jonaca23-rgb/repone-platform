@@ -78,6 +78,26 @@ describe("updateSponsor", () => {
     expect(await updateSponsor(SPONSOR, form({ business_name: "Hoka One" }))).toEqual({ ok: true });
     expect(fake.calls).toContainEqual(["sponsors", "eq", ["organization_id", "org-1"]]);
   });
+
+  it("explains a category held exclusively at one of the sponsor's events", async () => {
+    db.current = fakeSupabase({
+      sponsors: [
+        { error: { message: 'sponsor_category_exclusive: category "apparel" is exclusive' } },
+      ],
+    }).client;
+    expect(
+      await updateSponsor(SPONSOR, form({ business_name: "Hoka", category: "Apparel" })),
+    ).toEqual({
+      ok: false,
+      message:
+        "Another sponsor holds that category exclusively at an event this sponsor is part of.",
+      fieldErrors: {
+        category: [
+          "Another sponsor holds that category exclusively at an event this sponsor is part of.",
+        ],
+      },
+    });
+  });
 });
 
 describe("toggleSponsorActive", () => {

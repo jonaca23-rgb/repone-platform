@@ -71,6 +71,7 @@ async function main() {
     process.exit(1);
   }
 
+  const extra: string[] = [];
   try {
     const first = await admin
       .from("event_sponsorships")
@@ -108,6 +109,30 @@ async function main() {
       .eq("id", first.data?.id ?? "");
     expect("re-activating the exclusive one is refused", !!reactivate.error, reactivate.error);
 
+    // Editing a sponsor's category can't land it in a category held exclusively.
+    await admin
+      .from("event_sponsorships")
+      .update({ category_exclusive: true })
+      .eq("id", third.data?.id ?? "");
+    const { data: s3 } = await admin
+      .from("sponsors")
+      .insert({ organization_id: ORG_ID, business_name: "Check PT 3", category: "OtherCat" })
+      .select("id")
+      .single();
+    extra.push(s3?.id ?? "");
+    await admin
+      .from("event_sponsorships")
+      .insert({ event_id: EVENT_ID, sponsor_id: s3?.id ?? "", package_id: pkg.id });
+    const recategorize = await admin
+      .from("sponsors")
+      .update({ category: " CHECKCAT " })
+      .eq("id", s3?.id ?? "");
+    expect(
+      "editing a sponsor into an exclusively held category is refused",
+      !!recategorize.error?.message.includes("sponsor_category_exclusive"),
+      recategorize.error,
+    );
+
     const anonInactive = await anon
       .from("event_sponsorships")
       .select("id")
@@ -137,7 +162,10 @@ async function main() {
     const usedPkg = await service.from("sponsor_packages").delete().eq("id", pkg.id);
     expect("a package in use can't be deleted", !!usedPkg.error, usedPkg.error);
   } finally {
-    await service.from("sponsors").delete().in("id", [s1.id, s2.id]);
+    await service
+      .from("sponsors")
+      .delete()
+      .in("id", [s1.id, s2.id, ...extra.filter(Boolean)]);
   }
   if (failures) process.exit(1);
 }

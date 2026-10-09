@@ -2133,6 +2133,15 @@ export type Database = {
         Args: { p_recipient: string; p_sender: string }
         Returns: boolean
       }
+      check_sponsor_category_exclusive: {
+        Args: {
+          p_category: string
+          p_event_id: string
+          p_exclusive: boolean
+          p_sponsorship_id: string
+        }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           p_event_id?: string
