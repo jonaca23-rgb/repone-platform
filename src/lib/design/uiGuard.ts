@@ -40,6 +40,8 @@ export const ACTION_RESULT_FILES: readonly string[] = [
   "src/lib/actions/social.ts",
   "src/lib/actions/onboarding.ts",
   "src/lib/actions/messages.ts",
+  "src/lib/actions/sponsorPackages.ts",
+  "src/lib/actions/eventSponsorships.ts",
 ];
 
 type GuardRule = {

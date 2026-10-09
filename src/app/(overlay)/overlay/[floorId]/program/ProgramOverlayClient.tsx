@@ -17,12 +17,12 @@ import { ClockBug } from "@/components/graphics/ClockBug";
 import { Leaderboard } from "@/components/graphics/Leaderboard";
 import { LowerThird } from "@/components/graphics/LowerThird";
 import { SponsorCard } from "@/components/graphics/SponsorCard";
-import { SPONSOR_TIER_LABELS } from "@/lib/constants/sponsors";
 import type { FloorHeat } from "@/lib/db/queries";
 import type { Database } from "@/lib/db/database.types";
+import type { BroadcastSponsor } from "@/lib/db/sponsors";
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
-type Sponsor = { id: string; business_name: string; logo_url: string | null; tier: string };
+type Sponsor = BroadcastSponsor;
 
 export function ProgramOverlayClient({
   floorId,
@@ -138,7 +138,7 @@ export function ProgramOverlayClient({
             fullScreen
             businessName={activeSponsor.business_name}
             logoUrl={activeSponsor.logo_url}
-            tierLabel={SPONSOR_TIER_LABELS[activeSponsor.tier as keyof typeof SPONSOR_TIER_LABELS]}
+            packageName={activeSponsor.packageName}
           />
         )}
       </Appear>

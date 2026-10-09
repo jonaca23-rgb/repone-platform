@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
+import { getEventSponsors, toBroadcastSponsor } from "@/lib/db/sponsors";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { DashboardClient } from "./DashboardClient";
@@ -31,13 +32,9 @@ export default async function DashboardPage({ params }: Props) {
   if (!(await isAssignedToEvent(ctx, context.eventId, "producer"))) redirect("/producer");
 
   const supabase = await createClient();
-  const [{ data: broadcastState }, { data: sponsors }] = await Promise.all([
+  const [{ data: broadcastState }, sponsors] = await Promise.all([
     supabase.from("broadcast_state").select("*").eq("floor_id", floorId).single(),
-    supabase
-      .from("sponsors")
-      .select("id, business_name, tier")
-      .eq("active", true)
-      .or(`event_id.eq.${context.eventId},event_id.is.null`),
+    getEventSponsors(context.eventId),
   ]);
 
   return (
@@ -47,7 +44,7 @@ export default async function DashboardPage({ params }: Props) {
       eventName={context.eventName}
       heats={context.heats}
       initialBroadcastState={broadcastState ?? null}
-      sponsors={sponsors ?? []}
+      sponsors={sponsors.map(toBroadcastSponsor)}
     />
   );
 }

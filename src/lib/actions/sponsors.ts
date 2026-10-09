@@ -5,59 +5,77 @@ import { z } from "zod";
 import { type ActionResult, fail, ok } from "@/lib/action-result";
 import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { Constants } from "@/lib/db/supabase.types";
-import { field, parseForm } from "@/lib/validation/form";
+import { field, imageUpload, parseForm, ValidationError } from "@/lib/validation/form";
 import { safeAction } from "./safeAction";
+
+// A sponsor is one org-level record. What it bought for an event (package,
+// exclusivity, display overrides) lives in ./eventSponsorships.
 
 const SponsorForm = z.object({
   business_name: field.text("Business name", { max: 200 }),
-  tier: field.oneOf(Constants.public.Enums.sponsor_tier, "sponsor tier").default("logo_sponsor"),
   category: field.optionalText({ max: 100, label: "Category" }),
-  category_exclusive: field.checkbox(),
   website: field.optionalText({ max: 500, label: "Website" }),
-  event_id: field.optionalId("Event"),
+  notes: field.optionalText({ max: 2000, label: "Notes" }),
 });
+
+const BUCKET = "sponsor-creatives";
+// The bucket's own limits (0032): what the venue display can show, and under
+// the 4.5MB request body a Server Action accepts.
+const BUCKET_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const BUCKET_MAX_BYTES = 4 * 1024 * 1024;
+
+/** imageUpload, narrowed to what the sponsor-creatives bucket accepts. */
+function sponsorImage(value: FormDataEntryValue | null, name: string, tooBig: string) {
+  const upload = imageUpload(value, name);
+  const invalid = (message: string) => new ValidationError(message, { [name]: [message] });
+  if (!BUCKET_TYPES.has(upload.file.type))
+    throw invalid("Please upload a JPEG, PNG or WebP image.");
+  if (upload.file.size > BUCKET_MAX_BYTES) throw invalid(tooBig);
+  return upload;
+}
+
+async function ownedSponsor(sponsorId: string, organizationId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("sponsors")
+    .select("id")
+    .eq("id", sponsorId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? supabase : null;
+}
+
+const NOT_OURS = "That sponsor doesn't belong to your organization.";
 
 export async function createSponsor(formData: FormData): Promise<ActionResult> {
   return safeAction(async () => {
     const { organizationId } = await requireOrgManager();
     const f = parseForm(SponsorForm, formData);
-
     const supabase = await createClient();
+    const { error } = await supabase
+      .from("sponsors")
+      .insert({ organization_id: organizationId, ...f });
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin/sponsors");
+    return ok();
+  });
+}
 
-    if (f.event_id) {
-      const { data: event, error: eventError } = await supabase
-        .from("events")
-        .select("id")
-        .eq("id", f.event_id)
+export async function updateSponsor(sponsorId: string, formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const f = parseForm(SponsorForm, formData);
+    const supabase = await createClient();
+    expectChanged(
+      await supabase
+        .from("sponsors")
+        .update(f)
+        .eq("id", sponsorId)
         .eq("organization_id", organizationId)
-        .maybeSingle();
-      if (eventError) throw new Error(eventError.message);
-      if (!event) {
-        return fail("That event doesn't belong to your organization.", {
-          event_id: ["Choose one of your events."],
-        });
-      }
-    }
-
-    const { error } = await supabase.from("sponsors").insert({
-      organization_id: organizationId,
-      business_name: f.business_name,
-      tier: f.tier,
-      category: f.category,
-      category_exclusive: f.category_exclusive,
-      website: f.website,
-      event_id: f.event_id,
-    });
-    if (error) {
-      if (error.message.includes("sponsors_category_exclusive_uidx")) {
-        return fail(
-          `Another active sponsor already holds exclusive category "${f.category}" for this event.`,
-        );
-      }
-      throw new Error(error.message);
-    }
-
+        .select("id"),
+      "update the sponsor",
+    );
     revalidatePath("/admin/sponsors");
     return ok();
   });
@@ -70,18 +88,95 @@ export async function toggleSponsorActive(
   return safeAction(async () => {
     const { organizationId } = await requireOrgManager();
     if (typeof active !== "boolean") return fail("Invalid sponsor status.");
-
     const supabase = await createClient();
-    const res = await supabase
-      .from("sponsors")
-      .update({ active })
-      .eq("id", sponsorId)
-      .eq("organization_id", organizationId)
-      .select("id");
-    if (res.error?.message.includes("sponsors_category_exclusive_uidx")) {
-      return fail("Another active sponsor already holds this sponsor's exclusive category.");
-    }
-    expectChanged(res, "update the sponsor");
+    expectChanged(
+      await supabase
+        .from("sponsors")
+        .update({ active })
+        .eq("id", sponsorId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "update the sponsor",
+    );
+    revalidatePath("/admin/sponsors");
+    return ok();
+  });
+}
+
+export async function uploadSponsorLogo(
+  sponsorId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const { file, ext } = sponsorImage(formData.get("logo"), "logo", "Logo must be under 4MB.");
+    const supabase = await ownedSponsor(sponsorId, organizationId);
+    if (!supabase) return fail(NOT_OURS);
+
+    const path = `${sponsorId}/logo-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { contentType: file.type });
+    if (uploadError) throw new Error(uploadError.message);
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+    expectChanged(
+      await supabase
+        .from("sponsors")
+        .update({ logo_url: data.publicUrl })
+        .eq("id", sponsorId)
+        .eq("organization_id", organizationId)
+        .select("id"),
+      "save the logo",
+    );
+    revalidatePath("/admin/sponsors");
+    return ok();
+  });
+}
+
+export async function uploadSponsorCreative(
+  sponsorId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireOrgManager();
+    const { file, ext } = sponsorImage(
+      formData.get("creative"),
+      "creative",
+      "Creative must be under 4MB — export a 2160×3840 JPEG or WebP.",
+    );
+    const supabase = await ownedSponsor(sponsorId, organizationId);
+    if (!supabase) return fail(NOT_OURS);
+
+    const path = `${sponsorId}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { contentType: file.type });
+    if (uploadError) throw new Error(uploadError.message);
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+    const { error } = await supabase
+      .from("sponsor_creatives")
+      .insert({ sponsor_id: sponsorId, storage_path: path, public_url: data.publicUrl });
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin/sponsors");
+    return ok();
+  });
+}
+
+export async function toggleCreativeActive(
+  creativeId: string,
+  active: boolean,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireOrgManager();
+    if (typeof active !== "boolean") return fail("Invalid creative status.");
+    const supabase = await createClient();
+    // RLS limits this to creatives of the manager's org's sponsors.
+    expectChanged(
+      await supabase.from("sponsor_creatives").update({ active }).eq("id", creativeId).select("id"),
+      "update the creative",
+    );
     revalidatePath("/admin/sponsors");
     return ok();
   });

@@ -3,12 +3,12 @@
 export function SponsorCard({
   businessName,
   logoUrl,
-  tierLabel,
+  packageName,
   fullScreen = false,
 }: {
   businessName: string;
   logoUrl: string | null;
-  tierLabel?: string;
+  packageName?: string;
   fullScreen?: boolean;
 }) {
   return (
@@ -35,9 +35,9 @@ export function SponsorCard({
           {businessName}
         </p>
       )}
-      {tierLabel ? (
+      {packageName ? (
         <p className="text-bc-label font-bold tracking-widest text-broadcast-accent uppercase">
-          {tierLabel}
+          {packageName}
         </p>
       ) : null}
     </div>

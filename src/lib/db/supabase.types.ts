@@ -631,6 +631,64 @@ export type Database = {
           },
         ]
       }
+      event_sponsorships: {
+        Row: {
+          active: boolean
+          category_exclusive: boolean
+          created_at: string
+          display_duration_override: number | null
+          display_weight_override: number | null
+          event_id: string
+          id: string
+          package_id: string
+          sponsor_id: string
+        }
+        Insert: {
+          active?: boolean
+          category_exclusive?: boolean
+          created_at?: string
+          display_duration_override?: number | null
+          display_weight_override?: number | null
+          event_id: string
+          id?: string
+          package_id: string
+          sponsor_id: string
+        }
+        Update: {
+          active?: boolean
+          category_exclusive?: boolean
+          created_at?: string
+          display_duration_override?: number | null
+          display_weight_override?: number | null
+          event_id?: string
+          id?: string
+          package_id?: string
+          sponsor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsorships_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sponsorships_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sponsorships_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "sponsors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           circuit_id: string | null
@@ -1608,60 +1666,120 @@ export type Database = {
           },
         ]
       }
+      sponsor_creatives: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          public_url: string
+          sponsor_id: string
+          storage_path: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          public_url: string
+          sponsor_id: string
+          storage_path: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          public_url?: string
+          sponsor_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_creatives_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "sponsors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sponsor_packages: {
+        Row: {
+          active: boolean
+          created_at: string
+          display_duration_seconds: number
+          display_enabled: boolean
+          display_weight: number
+          id: string
+          name: string
+          organization_id: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          display_duration_seconds?: number
+          display_enabled?: boolean
+          display_weight?: number
+          id?: string
+          name: string
+          organization_id: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          display_duration_seconds?: number
+          display_enabled?: boolean
+          display_weight?: number
+          id?: string
+          name?: string
+          organization_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_packages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sponsors: {
         Row: {
           active: boolean
           business_name: string
           category: string | null
-          category_exclusive: boolean
-          commercial_video_url: string | null
           created_at: string
-          event_id: string | null
           id: string
           logo_url: string | null
           notes: string | null
           organization_id: string
-          tier: Database["public"]["Enums"]["sponsor_tier"]
           website: string | null
         }
         Insert: {
           active?: boolean
           business_name: string
           category?: string | null
-          category_exclusive?: boolean
-          commercial_video_url?: string | null
           created_at?: string
-          event_id?: string | null
           id?: string
           logo_url?: string | null
           notes?: string | null
           organization_id: string
-          tier: Database["public"]["Enums"]["sponsor_tier"]
           website?: string | null
         }
         Update: {
           active?: boolean
           business_name?: string
           category?: string | null
-          category_exclusive?: boolean
-          commercial_video_url?: string | null
           created_at?: string
-          event_id?: string | null
           id?: string
           logo_url?: string | null
           notes?: string | null
           organization_id?: string
-          tier?: Database["public"]["Enums"]["sponsor_tier"]
           website?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "sponsors_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "sponsors_organization_id_fkey"
             columns: ["organization_id"]
@@ -2007,6 +2125,10 @@ export type Database = {
         Args: { p_object_name: string }
         Returns: boolean
       }
+      can_manage_sponsor_creative: {
+        Args: { p_object_name: string }
+        Returns: boolean
+      }
       can_message: {
         Args: { p_recipient: string; p_sender: string }
         Returns: boolean
@@ -2111,13 +2233,6 @@ export type Database = {
       payment_status: "unpaid" | "paid" | "waived" | "refunded"
       result_status: "completed" | "dns" | "dnf" | "dq"
       scoring_type: "for_time" | "amrap" | "max_load" | "points" | "other"
-      sponsor_tier:
-        | "logo_sponsor"
-        | "brand_mention"
-        | "commercial_30"
-        | "commercial_30_plus"
-        | "wod_sponsor"
-        | "presenting_sponsor"
       tiebreak_type: "none" | "time" | "reps" | "load" | "points"
       timer_direction: "count_up" | "count_down"
       timer_status: "idle" | "running" | "paused" | "ended"
@@ -2301,14 +2416,6 @@ export const Constants = {
       payment_status: ["unpaid", "paid", "waived", "refunded"],
       result_status: ["completed", "dns", "dnf", "dq"],
       scoring_type: ["for_time", "amrap", "max_load", "points", "other"],
-      sponsor_tier: [
-        "logo_sponsor",
-        "brand_mention",
-        "commercial_30",
-        "commercial_30_plus",
-        "wod_sponsor",
-        "presenting_sponsor",
-      ],
       tiebreak_type: ["none", "time", "reps", "load", "points"],
       timer_direction: ["count_up", "count_down"],
       timer_status: ["idle", "running", "paused", "ended"],

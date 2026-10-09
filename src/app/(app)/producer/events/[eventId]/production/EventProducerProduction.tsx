@@ -5,6 +5,7 @@ import { MapPinOff } from "lucide-react";
 import { DashboardClient } from "@/app/(app)/dashboard/[floorId]/DashboardClient";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/button";
+import type { BroadcastSponsor } from "@/lib/db/sponsors";
 import type { EventLiveFloor } from "@/lib/db/queries";
 
 // Same "floor tabs instead of a floor URL segment" pattern as
@@ -21,7 +22,7 @@ export function EventProducerProduction({
   eventId: string;
   eventName: string;
   floors: EventLiveFloor[];
-  sponsors: Array<{ id: string; business_name: string; tier: string }>;
+  sponsors: BroadcastSponsor[];
 }) {
   const [selectedFloorId, setSelectedFloorId] = useState(floors[0]?.floorId ?? null);
   const selectedFloor = floors.find((f) => f.floorId === selectedFloorId) ?? floors[0] ?? null;

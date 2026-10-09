@@ -165,22 +165,21 @@ export async function setActiveSponsor(
   sponsorId: string | null,
 ): Promise<ActionResult> {
   return safeAction(async () => {
-    const { ctx, eventId, organizationId } = await requireFloorAccess(floorId, ["producer"]);
+    const { ctx, eventId } = await requireFloorAccess(floorId, ["producer"]);
     const supabase = await createClient();
 
     if (sponsorId !== null) {
       parseArg(Id("Sponsor"), sponsorId);
-      // Same scope the board lists: the event's org, for this event or org-wide.
-      const { data: sponsor, error } = await supabase
-        .from("sponsors")
-        .select("id, event_id")
-        .eq("id", sponsorId)
-        .eq("organization_id", organizationId)
+      // Same list the board shows: the event's active sponsorships.
+      const { data: sponsorship, error } = await supabase
+        .from("event_sponsorships")
+        .select("id")
+        .eq("event_id", eventId)
+        .eq("sponsor_id", sponsorId)
+        .eq("active", true)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      if (!sponsor || (sponsor.event_id !== null && sponsor.event_id !== eventId)) {
-        return fail("That sponsor isn't part of this event.");
-      }
+      if (!sponsorship) return fail("That sponsor isn't part of this event.");
     }
 
     const changed = await updateBroadcastState(supabase, floorId, {
