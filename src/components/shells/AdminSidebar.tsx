@@ -96,6 +96,7 @@ const EVENT_ITEMS: { slug: string; label: string; icon: LucideIcon }[] = [
   { slug: "wods", label: "WODs", icon: Dumbbell },
   { slug: "heats", label: "Heats", icon: ListOrdered },
   { slug: "staff", label: "Staff", icon: UserCog },
+  { slug: "sponsors", label: "Sponsors", icon: BadgeDollarSign },
   { slug: "fees", label: "Fees", icon: Receipt },
   { slug: "payments", label: "Payments", icon: Wallet },
   { slug: "statement", label: "Statement", icon: FileText },

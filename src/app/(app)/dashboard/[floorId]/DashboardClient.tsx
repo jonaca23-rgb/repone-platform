@@ -36,6 +36,7 @@ import {
   setLowerThird,
   startTimer,
 } from "@/lib/actions/broadcast";
+import type { BroadcastSponsor } from "@/lib/db/sponsors";
 import type { ActiveGraphic, Database } from "@/lib/db/database.types";
 import { heatOnAir } from "@/lib/broadcast/heatOnAir";
 import { OnAirBar } from "./OnAirBar";
@@ -116,7 +117,7 @@ export function DashboardClient({
   eventName: string;
   heats: DashboardHeat[];
   initialBroadcastState: BroadcastStateRow | null;
-  sponsors: Array<{ id: string; business_name: string; tier: string }>;
+  sponsors: BroadcastSponsor[];
 }) {
   const { state, connected } = useBroadcastState(floorId, initialBroadcastState);
   useRefreshOnChanges(

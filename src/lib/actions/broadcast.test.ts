@@ -14,10 +14,17 @@ vi.mock("@/lib/auth/guards", async (orig) => ({
   }),
 }));
 
-import { clearGraphics, setActiveGraphic, setCurrentHeat, startTimer } from "./broadcast";
+import {
+  clearGraphics,
+  setActiveGraphic,
+  setActiveSponsor,
+  setCurrentHeat,
+  startTimer,
+} from "./broadcast";
 
 const FLOOR = "00000000-0000-4000-8000-000000000030";
 const HEAT = "00000000-0000-4000-8000-000000000070";
+const SPONSOR = "00000000-0000-4000-8000-000000000081";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -49,6 +56,25 @@ describe("broadcast actions", () => {
       ok: false,
       message: "This floor's broadcast controls aren't available to your account.",
     });
+  });
+
+  it("refuses a sponsor without an active sponsorship at this event", async () => {
+    const fake = fakeSupabase({ event_sponsorships: [{ data: null }] });
+    db.current = fake.client;
+    expect(await setActiveSponsor(FLOOR, SPONSOR)).toEqual({
+      ok: false,
+      message: "That sponsor isn't part of this event.",
+    });
+    expect(fake.calls).toContainEqual(["event_sponsorships", "eq", ["event_id", "ev-1"]]);
+    expect(fake.calls).toContainEqual(["event_sponsorships", "eq", ["active", true]]);
+  });
+
+  it("puts an event's sponsor on air", async () => {
+    db.current = fakeSupabase({
+      event_sponsorships: [{ data: { id: "es-1" } }],
+      broadcast_state: [{ data: [{ floor_id: FLOOR }] }],
+    }).client;
+    expect(await setActiveSponsor(FLOOR, SPONSOR)).toEqual({ ok: true });
   });
 
   it("clears the graphics", async () => {

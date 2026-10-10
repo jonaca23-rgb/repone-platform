@@ -54,10 +54,18 @@ insert into lanes (heat_id, lane_number, athlete_id) values
   ('00000000-0000-0000-0000-000000000070', 5, '00000000-0000-0000-0000-000000000065'),
   ('00000000-0000-0000-0000-000000000070', 6, '00000000-0000-0000-0000-000000000066');
 
-insert into sponsors (organization_id, event_id, business_name, category, category_exclusive, tier, active) values
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010',
-   'Isla Physical Therapy', 'Physical Therapy', true, 'presenting_sponsor', true),
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010',
-   'Borinquen Nutrition', 'Nutrition', false, 'wod_sponsor', true),
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010',
-   'San Juan Sports Gear', 'Retail', false, 'logo_sponsor', true);
+insert into sponsors (id, organization_id, business_name, category) values
+  ('00000000-0000-0000-0000-000000000081', '00000000-0000-0000-0000-000000000001', 'Isla Physical Therapy', 'Physical Therapy'),
+  ('00000000-0000-0000-0000-000000000082', '00000000-0000-0000-0000-000000000001', 'Borinquen Nutrition', 'Nutrition'),
+  ('00000000-0000-0000-0000-000000000083', '00000000-0000-0000-0000-000000000001', 'San Juan Sports Gear', 'Retail');
+
+-- What each sponsor bought for the demo event (packages come from the
+-- organizations trigger in 0032).
+insert into event_sponsorships (event_id, sponsor_id, package_id, category_exclusive)
+select '00000000-0000-0000-0000-000000000010', s.id, p.id, s.exclusive
+from (values
+  ('00000000-0000-0000-0000-000000000081'::uuid, 'Presenting Sponsor', true),
+  ('00000000-0000-0000-0000-000000000082'::uuid, 'WOD Sponsor', false),
+  ('00000000-0000-0000-0000-000000000083'::uuid, 'Logo Sponsor', false)
+) as s(id, package_name, exclusive)
+join sponsor_packages p on p.organization_id = '00000000-0000-0000-0000-000000000001' and p.name = s.package_name;

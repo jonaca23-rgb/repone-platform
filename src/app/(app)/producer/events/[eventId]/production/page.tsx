@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getEventLiveContext } from "@/lib/db/queries";
-import { createClient } from "@/lib/db/server";
+import { getEventSponsors, toBroadcastSponsor } from "@/lib/db/sponsors";
 import { producerEventTitle } from "../producerEvent";
 import { EventProducerProduction } from "./EventProducerProduction";
 
@@ -16,19 +16,14 @@ export default async function ProducerEventProductionPage({ params }: Props) {
   const context = await getEventLiveContext(eventId);
   if (!context) notFound();
 
-  const supabase = await createClient();
-  const { data: sponsors } = await supabase
-    .from("sponsors")
-    .select("id, business_name, tier")
-    .eq("active", true)
-    .or(`event_id.eq.${eventId},event_id.is.null`);
+  const sponsors = (await getEventSponsors(eventId)).map(toBroadcastSponsor);
 
   return (
     <EventProducerProduction
       eventId={eventId}
       eventName={context.eventName}
       floors={context.floors}
-      sponsors={sponsors ?? []}
+      sponsors={sponsors}
     />
   );
 }

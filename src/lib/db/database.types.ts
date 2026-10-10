@@ -27,7 +27,6 @@ export type PaymentMethodType = Enums["payment_method_type"];
 export type PaymentStatus = Enums["payment_status"];
 export type ResultStatus = Enums["result_status"];
 export type ScoringTypeDb = Enums["scoring_type"];
-export type SponsorTier = Enums["sponsor_tier"];
 export type TiebreakTypeDb = Enums["tiebreak_type"];
 export type TimerDirection = Enums["timer_direction"];
 export type TimerStatus = Enums["timer_status"];
