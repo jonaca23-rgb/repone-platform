@@ -95,6 +95,53 @@ async function main() {
     );
   }
 
+  // A signed-out kiosk can't see a row switched off (RLS hides it from its
+  // Realtime feed), so sponsor changes bump the display's content_version.
+  const version = async () =>
+    (await service.from("display_devices").select("content_version").eq("id", DISPLAY_ID).single())
+      .data?.content_version as number | undefined;
+  const { data: sponsorship } = await service
+    .from("event_sponsorships")
+    .select("id, active")
+    .eq("event_id", EVENT_ID)
+    .limit(1)
+    .single();
+  const before = await version();
+  await service
+    .from("event_sponsorships")
+    .update({ active: false })
+    .eq("id", sponsorship?.id ?? "");
+  const afterSponsorship = await version();
+  expect(
+    "switching a sponsorship off bumps the display's content version",
+    before !== undefined && afterSponsorship !== undefined && afterSponsorship > before,
+    { before, afterSponsorship },
+  );
+  await service
+    .from("event_sponsorships")
+    .update({ active: sponsorship?.active ?? true })
+    .eq("id", sponsorship?.id ?? "");
+  const { data: sponsor } = await service
+    .from("event_sponsorships")
+    .select("sponsor_id")
+    .eq("id", sponsorship?.id ?? "")
+    .single();
+  const beforeSponsor = await version();
+  await service
+    .from("sponsors")
+    .update({ active: true })
+    .eq("id", sponsor?.sponsor_id ?? "");
+  expect(
+    "editing a sponsor at the event bumps the display's content version",
+    ((await version()) ?? 0) > (beforeSponsor ?? 0),
+  );
+  const anonVersion = await anon
+    .from("display_devices")
+    .select("content_version")
+    .eq("id", DISPLAY_ID)
+    .single();
+  expect("anon reads the content version", anonVersion.data !== null, anonVersion.error);
+
   if (failures) process.exit(1);
 }
 void main();

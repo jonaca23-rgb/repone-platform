@@ -456,6 +456,7 @@ export type Database = {
       }
       display_devices: {
         Row: {
+          content_version: number
           created_at: string
           enabled: boolean
           event_id: string
@@ -466,6 +467,7 @@ export type Database = {
           sponsors_enabled: boolean
         }
         Insert: {
+          content_version?: number
           created_at?: string
           enabled?: boolean
           event_id: string
@@ -476,6 +478,7 @@ export type Database = {
           sponsors_enabled?: boolean
         }
         Update: {
+          content_version?: number
           created_at?: string
           enabled?: boolean
           event_id?: string
@@ -2193,6 +2196,10 @@ export type Database = {
         Returns: string
       }
       bootstrap_organization: { Args: { p_name: string }; Returns: string }
+      bump_display_content: {
+        Args: { p_event_ids: string[] }
+        Returns: undefined
+      }
       can_like: {
         Args: { p_athlete_id: string; p_liker: string }
         Returns: boolean

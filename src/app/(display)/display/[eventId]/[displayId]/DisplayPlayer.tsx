@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Appear } from "@/components/graphics/Appear";
 import { DisplayStage } from "@/components/display/DisplayStage";
 import { CurrentHeatBlock, NextHeatBlock } from "@/components/display/HeatBlock";
@@ -24,14 +25,27 @@ type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
 
 /** With nothing to show, or the display switched off, look again this often. */
 const STANDBY_RETRY_MS = 5_000;
+/** Realtime can't deliver deletes to a filtered watch, so re-read this often regardless. */
+const SAFETY_REFRESH_MS = 60_000;
+
+/** The same thing on screen: a retry or a lone sponsor's next turn shouldn't fade in again. */
+function sameItem(a: PlaylistItem | null, b: PlaylistItem | null): boolean {
+  if (!a || !b) return a === b;
+  if (a.kind === "sponsor" && b.kind === "sponsor") {
+    return a.slot.sponsorshipId === b.slot.sponsorshipId;
+  }
+  return a.kind === "info" && b.kind === "info" && a.slot.type === b.slot.type;
+}
 
 /**
  * The venue display's clock. Each time an item's time is up it asks the
  * scheduler for the next one, with whatever is eligible right now, so a heat
  * change, a removed sponsor or a new weight lands on the very next item
  * without restarting the rotation. The snapshot (device, blocks, sponsors,
- * heats) is re-read on the server when any of it changes; the floor's live
- * heat and the leaderboard come straight from Realtime.
+ * heats) is re-read on the server when the device row changes (sponsor
+ * changes bump its content_version, 0033), its blocks or the floor's heats
+ * change, and once a minute; the floor's live heat and the leaderboard come
+ * straight from Realtime.
  */
 export function DisplayPlayer({
   snapshot,
@@ -44,12 +58,13 @@ export function DisplayPlayer({
   useRefreshOnChanges([
     { table: "display_devices", filter: `id=eq.${device.id}` },
     { table: "display_blocks", filter: `display_id=eq.${device.id}` },
-    { table: "event_sponsorships", filter: `event_id=eq.${device.eventId}` },
-    { table: "sponsors" },
-    { table: "sponsor_packages" },
-    { table: "sponsor_creatives" },
     { table: "heats", filter: `floor_id=eq.${device.floorId}` },
   ]);
+  const router = useRouter();
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), SAFETY_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [router]);
 
   const { state: broadcast, connected } = useBroadcastState(device.floorId, initialBroadcastState);
   const { current, next } = currentAndNextHeat(snapshot.heats, broadcast?.current_heat_id ?? null);
@@ -57,16 +72,12 @@ export function DisplayPlayer({
   const leaderboardDivision = (live ?? next ?? current)?.division ?? null;
   const standings = useDivisionStandings(leaderboardDivision?.id ?? null);
 
-  // When Realtime dropped, so info blocks can be retired after five minutes.
-  const wasConnected = useRef(false);
+  // Since when Realtime has been unreachable, counting from boot, so heat
+  // info from a stale snapshot is retired after five minutes.
   const disconnectedSince = useRef<number | null>(null);
   useEffect(() => {
-    if (connected) {
-      wasConnected.current = true;
-      disconnectedSince.current = null;
-    } else if (wasConnected.current && disconnectedSince.current === null) {
-      disconnectedSince.current = Date.now();
-    }
+    if (connected) disconnectedSince.current = null;
+    else disconnectedSince.current ??= Date.now();
   }, [connected]);
 
   // The timer reads the latest inputs without being reset by every refresh.
@@ -87,7 +98,7 @@ export function DisplayPlayer({
     const advance = () => {
       const { snapshot: s, current: c, next: nx, leaderboardRows } = latest.current;
       if (!s.device.enabled) {
-        setShown((prev) => ({ item: null, n: prev.n + 1 }));
+        setShown((prev) => (prev.item === null ? prev : { item: null, n: prev.n + 1 }));
         timer = setTimeout(advance, STANDBY_RETRY_MS);
         return;
       }
@@ -112,7 +123,9 @@ export function DisplayPlayer({
         scheduler.current,
       );
       scheduler.current = r.state;
-      setShown((prev) => ({ item: r.item, n: prev.n + 1 }));
+      setShown((prev) =>
+        sameItem(prev.item, r.item) ? { item: r.item, n: prev.n } : { item: r.item, n: prev.n + 1 },
+      );
       timer = setTimeout(advance, r.item ? r.item.slot.durationSeconds * 1000 : STANDBY_RETRY_MS);
     };
     timer = setTimeout(advance, 0);

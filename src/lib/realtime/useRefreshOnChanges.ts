@@ -12,11 +12,7 @@ export interface TableWatch {
     | "standings"
     | "messages"
     | "display_devices"
-    | "display_blocks"
-    | "event_sponsorships"
-    | "sponsors"
-    | "sponsor_packages"
-    | "sponsor_creatives";
+    | "display_blocks";
   /** Realtime filter, e.g. "floor_id=eq.<id>" or "heat_id=in.(<id>,<id>)". */
   filter?: string;
   /** Which changes count; every change by default. */

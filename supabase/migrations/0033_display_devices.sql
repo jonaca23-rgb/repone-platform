@@ -16,6 +16,8 @@ create table display_devices (
   enabled boolean not null default true,
   sponsors_enabled boolean not null default true,
   info_blocks_between_sponsors int not null default 1 check (info_blocks_between_sponsors between 1 and 5),
+  -- Bumped whenever the event's sponsors change (see bump_display_content).
+  content_version int not null default 0,
   created_at timestamptz not null default now()
 );
 create index on display_devices (event_id);
@@ -80,15 +82,62 @@ create policy "event displays managers manage display_blocks" on display_blocks 
   with check (exists (select 1 from display_devices d where d.id = display_blocks.display_id
     and can_manage_event_displays(d.event_id)));
 
--- The player reloads its snapshot when any of these change.
-do $$
-declare t text;
+-- A signed-out kiosk can't hear sponsor changes itself: Realtime checks RLS
+-- on the new row, so a sponsorship, sponsor or creative switched off becomes
+-- invisible to it and the change is never delivered. Instead every change
+-- that affects what an event's displays rotate bumps their content_version,
+-- a row the kiosk can always read, and the player re-reads its snapshot.
+create or replace function bump_display_content(p_event_ids uuid[]) returns void as $$
+  update display_devices set content_version = content_version + 1
+  where event_id = any(p_event_ids);
+$$ language sql security definer set search_path = public;
+revoke execute on function bump_display_content(uuid[]) from public, anon, authenticated;
+
+create or replace function display_content_from_sponsorship() returns trigger as $$
 begin
-  foreach t in array array['display_devices','display_blocks','event_sponsorships',
-                           'sponsor_creatives','sponsor_packages','sponsors'] loop
-    if not exists (select 1 from pg_publication_tables
-                   where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
-      execute format('alter publication supabase_realtime add table public.%I', t);
-    end if;
-  end loop;
-end $$;
+  perform bump_display_content(array[coalesce(new.event_id, old.event_id)]);
+  return null;
+end;
+$$ language plpgsql security definer set search_path = public;
+create trigger event_sponsorships_display_content
+  after insert or update or delete on event_sponsorships
+  for each row execute function display_content_from_sponsorship();
+
+create or replace function display_content_from_sponsor() returns trigger as $$
+begin
+  perform bump_display_content(array(
+    select event_id from event_sponsorships where sponsor_id = coalesce(new.id, old.id)));
+  return null;
+end;
+$$ language plpgsql security definer set search_path = public;
+create trigger sponsors_display_content
+  after update or delete on sponsors
+  for each row execute function display_content_from_sponsor();
+
+create or replace function display_content_from_package() returns trigger as $$
+begin
+  perform bump_display_content(array(
+    select event_id from event_sponsorships where package_id = coalesce(new.id, old.id)));
+  return null;
+end;
+$$ language plpgsql security definer set search_path = public;
+create trigger sponsor_packages_display_content
+  after update on sponsor_packages
+  for each row execute function display_content_from_package();
+
+create or replace function display_content_from_creative() returns trigger as $$
+begin
+  perform bump_display_content(array(
+    select event_id from event_sponsorships where sponsor_id = coalesce(new.sponsor_id, old.sponsor_id)));
+  return null;
+end;
+$$ language plpgsql security definer set search_path = public;
+create trigger sponsor_creatives_display_content
+  after insert or update or delete on sponsor_creatives
+  for each row execute function display_content_from_creative();
+
+-- The player watches its own device row (settings and content_version) and
+-- its blocks; deletes aren't filterable in Realtime, so it also re-reads
+-- once a minute.
+alter publication supabase_realtime add table display_devices;
+alter publication supabase_realtime add table display_blocks;

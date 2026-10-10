@@ -3,8 +3,8 @@ import { DisplayFrame } from "./DisplayFrame";
 
 /**
  * A heat on the venue display: the WOD, which heat of how many, the division,
- * then one row per lane. Past ten lanes the affiliates drop so every lane
- * still fits the portrait screen.
+ * then one row per lane. Past eight lanes the affiliates drop, and the lane
+ * badge shrinks with its row, so every lane still fits the portrait screen.
  */
 function HeatBlock({
   title,
@@ -17,7 +17,7 @@ function HeatBlock({
   heat: FloorHeat;
   eventName: string;
 }) {
-  const roomy = heat.lanes.length <= 10;
+  const roomy = heat.lanes.length <= 8;
   const heatOf = heat.heatCount
     ? `Heat ${heat.heatNumber} of ${heat.heatCount}`
     : `Heat ${heat.heatNumber}`;
@@ -33,9 +33,9 @@ function HeatBlock({
         {heat.lanes.map((lane) => (
           <li
             key={lane.laneNumber}
-            className="flex min-h-0 flex-1 items-center gap-[36px] border-b-2 border-broadcast-muted last:border-none"
+            className="flex min-h-0 flex-1 items-center gap-[36px] overflow-hidden border-b-2 border-broadcast-muted last:border-none"
           >
-            <span className="flex size-[88px] shrink-0 items-center justify-center bg-broadcast-accent font-display text-dp-body font-bold tabular-nums">
+            <span className="flex aspect-square h-[80%] max-h-[88px] shrink-0 items-center justify-center bg-broadcast-accent font-display text-dp-body font-bold tabular-nums">
               {lane.laneNumber}
             </span>
             <span className="min-w-0">
