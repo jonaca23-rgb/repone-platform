@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T21:16:11Z",
+  "generatedAt": "2026-10-10T23:55:57Z",
   "title": "Design System: RepOne",
   "extensions": {
     "colorMeta": {
@@ -273,6 +273,21 @@
           "#d7d7da",
           "#f2f2f3"
         ]
+      },
+      "broadcast-dim": {
+        "role": "neutral",
+        "displayName": "Broadcast Dim",
+        "canonical": "#a1a1aa",
+        "tonalRamp": [
+          "#242428",
+          "#3d3d43",
+          "#55555e",
+          "#6d6d79",
+          "#868692",
+          "#afafb6",
+          "#d7d7db",
+          "#f2f2f3"
+        ]
       }
     },
     "typographyMeta": {
@@ -470,6 +485,11 @@
         "name": "The Flat Floor Rule",
         "body": "In the app, separate surfaces by tone and Hairline borders. Do not add shadows to signal importance; use red, size or position.",
         "section": "elevation"
+      },
+      {
+        "name": "The Live Red Rule",
+        "body": "On the venue display, a red banner means \"happening now\": only Now on the Floor gets one. Up Next and the Leaderboard sit on Broadcast Slate; the first place tile is the only other red.",
+        "section": "components"
       }
     ],
     "dos": [
