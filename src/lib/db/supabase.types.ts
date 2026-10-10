@@ -422,6 +422,86 @@ export type Database = {
           },
         ]
       }
+      display_blocks: {
+        Row: {
+          block_type: Database["public"]["Enums"]["display_block_type"]
+          display_id: string
+          duration_seconds: number
+          enabled: boolean
+          weight: number
+        }
+        Insert: {
+          block_type: Database["public"]["Enums"]["display_block_type"]
+          display_id: string
+          duration_seconds: number
+          enabled?: boolean
+          weight?: number
+        }
+        Update: {
+          block_type?: Database["public"]["Enums"]["display_block_type"]
+          display_id?: string
+          duration_seconds?: number
+          enabled?: boolean
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "display_blocks_display_id_fkey"
+            columns: ["display_id"]
+            isOneToOne: false
+            referencedRelation: "display_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      display_devices: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          event_id: string
+          floor_id: string
+          id: string
+          info_blocks_between_sponsors: number
+          name: string
+          sponsors_enabled: boolean
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          event_id: string
+          floor_id: string
+          id?: string
+          info_blocks_between_sponsors?: number
+          name: string
+          sponsors_enabled?: boolean
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          event_id?: string
+          floor_id?: string
+          id?: string
+          info_blocks_between_sponsors?: number
+          name?: string
+          sponsors_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "display_devices_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "display_devices_floor_id_fkey"
+            columns: ["floor_id"]
+            isOneToOne: false
+            referencedRelation: "floors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       divisions: {
         Row: {
           created_at: string
@@ -2121,6 +2201,10 @@ export type Database = {
         Args: { p_object_name: string }
         Returns: boolean
       }
+      can_manage_event_displays: {
+        Args: { p_event_id: string }
+        Returns: boolean
+      }
       can_manage_event_photo: {
         Args: { p_object_name: string }
         Returns: boolean
@@ -2213,6 +2297,7 @@ export type Database = {
         | "sponsor"
       athlete_gender: "male" | "female"
       competitor_entry_type: "individual" | "pair" | "team" | "custom"
+      display_block_type: "current_heat" | "next_heat" | "leaderboard"
       entry_format: "pair" | "team" | "custom"
       event_assignment_status: "active" | "inactive" | "removed"
       event_status: "draft" | "scheduled" | "live" | "completed" | "archived"
@@ -2394,6 +2479,7 @@ export const Constants = {
       ],
       athlete_gender: ["male", "female"],
       competitor_entry_type: ["individual", "pair", "team", "custom"],
+      display_block_type: ["current_heat", "next_heat", "leaderboard"],
       entry_format: ["pair", "team", "custom"],
       event_assignment_status: ["active", "inactive", "removed"],
       event_status: ["draft", "scheduled", "live", "completed", "archived"],

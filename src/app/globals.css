@@ -70,6 +70,11 @@
   --text-bc-body: 40px;
   --text-bc-label: 26px;
   --text-bc-clock: 96px;
+  /* Venue display (1080x1920 stage px), read from 5-15 m away. */
+  --text-dp-hero: 160px;
+  --text-dp-title: 96px;
+  --text-dp-body: 56px;
+  --text-dp-label: 40px;
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-display: var(--font-barlow), "Arial Narrow", Arial, sans-serif;
   --font-heading: var(--font-sans);
