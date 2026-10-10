@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/db/client";
 
 export interface TableWatch {
-  table: "heats" | "lanes" | "results" | "standings" | "messages";
+  table:
+    | "heats"
+    | "lanes"
+    | "results"
+    | "standings"
+    | "messages"
+    | "display_devices"
+    | "display_blocks";
   /** Realtime filter, e.g. "floor_id=eq.<id>" or "heat_id=in.(<id>,<id>)". */
   filter?: string;
   /** Which changes count; every change by default. */

@@ -48,6 +48,8 @@
   --broadcast-fg: #ffffff;
   --broadcast-accent: #e0122f;
   --broadcast-muted: #1c1c1e;
+  /* Secondary words on Broadcast Black (affiliates, meta): never opacity. */
+  --broadcast-dim: #a1a1aa;
   color-scheme: dark;
 }
 
@@ -64,12 +66,18 @@
   --color-broadcast-fg: var(--broadcast-fg);
   --color-broadcast-accent: var(--broadcast-accent);
   --color-broadcast-muted: var(--broadcast-muted);
+  --color-broadcast-dim: var(--broadcast-dim);
   /* Broadcast type scale, in stage pixels (the 1920x1080 overlay stage scales them). */
   --text-bc-hero: 112px;
   --text-bc-title: 64px;
   --text-bc-body: 40px;
   --text-bc-label: 26px;
   --text-bc-clock: 96px;
+  /* Venue display (1080x1920 stage px), read from 5-15 m away. */
+  --text-dp-hero: 160px;
+  --text-dp-title: 96px;
+  --text-dp-body: 56px;
+  --text-dp-label: 40px;
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-display: var(--font-barlow), "Arial Narrow", Arial, sans-serif;
   --font-heading: var(--font-sans);

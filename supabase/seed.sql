@@ -69,3 +69,8 @@ from (values
   ('00000000-0000-0000-0000-000000000083'::uuid, 'Logo Sponsor', false)
 ) as s(id, package_name, exclusive)
 join sponsor_packages p on p.organization_id = '00000000-0000-0000-0000-000000000001' and p.name = s.package_name;
+
+-- One venue display following Floor A (0033).
+insert into display_devices (id, event_id, floor_id, name) values
+  ('00000000-0000-0000-0000-000000000090', '00000000-0000-0000-0000-000000000010',
+   '00000000-0000-0000-0000-000000000030', 'Entrance Display');

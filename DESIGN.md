@@ -20,6 +20,7 @@ colors:
   broadcast-white: "#ffffff"
   broadcast-red: "#e0122f"
   broadcast-slate: "#1c1c1e"
+  broadcast-dim: "#a1a1aa"
 typography:
   display:
     fontFamily: "Barlow Condensed, Arial Narrow, Arial, sans-serif"
@@ -174,8 +175,8 @@ A near-black stage with white type and a single red, plus green and amber reserv
 - **Floodlight White** (#fafafa, `--foreground`): body text and headings.
 - **Booth Gray** (#a1a1aa, `--muted-foreground`): descriptions, labels, inactive tabs, meta text. The dimmest text allowed.
 
-### Broadcast (overlays only)
-- **Broadcast Black** (#0a0a0a, `--broadcast-bg`), **Broadcast White** (#ffffff, `--broadcast-fg`), **Broadcast Red** (#e0122f, `--broadcast-accent`), **Broadcast Slate** (#1c1c1e, `--broadcast-muted`). Used through `bg-broadcast-*` / `text-broadcast-*` in `src/components/graphics/*` and `src/app/(overlay)/**`. They match the app values but are separate tokens so the app can change without moving what is on air.
+### Broadcast (overlays and the venue display)
+- **Broadcast Black** (#0a0a0a, `--broadcast-bg`), **Broadcast White** (#ffffff, `--broadcast-fg`), **Broadcast Red** (#e0122f, `--broadcast-accent`), **Broadcast Slate** (#1c1c1e, `--broadcast-muted`), **Broadcast Dim** (#a1a1aa, `--broadcast-dim`, secondary words on Broadcast Black: affiliates, meta lines, the event name; never opacity). Used through `bg-broadcast-*` / `text-broadcast-*` in `src/components/graphics/*`, `src/components/display/*`, `src/app/(overlay)/**` and `src/app/(display)/**`. They match the app values but are separate tokens so the app can change without moving what is on air.
 
 ### Named Rules
 **The Signal Rule.** RepOne Red is a fill; Signal Red is a word. Never put `text-primary` or the base red on dark as running text.
@@ -274,8 +275,20 @@ Square slabs of Broadcast Black (95% opacity in corner graphics, solid when full
 - **Program.** One browser source that shows whatever Production puts on air: one full-frame card at a time, the timer as a corner clock (`ClockBug`) with the heat strip over live video, and the lower third over either.
 - **YoloBox.** Add one URL, Program (an Ultra shows at most three web overlays). The overlay index (`/overlay/{floorId}`) has copyable URLs; check a device with `/overlay/{floorId}/test`, which shows the stage, the safe area, the real viewport and scale, and whether the background comes through transparent.
 
+### Venue display
+A portrait 9:16 TV at the venue (`/display/{eventId}/{displayId}`), running signed out in a kiosk browser and read from 5 to 15 metres away across a gym. It shares the broadcast identity but is opaque: the screen is the whole picture, not a layer over video.
+
+- **Stage.** A fixed 1080×1920 stage (`DisplayStage`, the same `ScaledStage` the overlays use) on Broadcast Black, scaled to the TV: 1× on a 1080p portrait screen, 2× on 4K. Lay blocks out in stage pixels.
+- **Type scale.** `text-dp-hero` (160), `text-dp-title` (96), `text-dp-body` (56), `text-dp-label` (40). Nothing on the display is under 40 stage px; names are at least 56 and headings 96. Don't use the `bc` scale here: it is sized for a broadcast frame, not a wall across a gym.
+- **Info blocks** (`CurrentHeatBlock`, `NextHeatBlock`, `LeaderboardBlock`) sit in `DisplayFrame`: a full-width 200px banner naming the block, the content with 72px side margins, and a footer with the event name in Broadcast Dim and the RepOne mark. A list fills the space between with equal rows, a lane or place tile on the left; past eight lanes the affiliates drop so every row still fits.
+- **Sponsors.** A sponsor's creative fills the stage (designed at 2160×3840, `object-cover`). Without one, its logo (or its name in `dp-hero`) sits on Broadcast White with the package name in Broadcast Red.
+- **Standby.** Switched off, with nothing to rotate, or after a failed load, the display shows the RepOne mark centred on Broadcast Black and keeps trying. Standby never fades in again on a retry.
+- **Motion.** Each new item fades in through `Appear` (`fade`); the same item again (a lone sponsor's next turn, a retry) doesn't re-fade. Transform and opacity only, nothing under reduced motion.
+
+**The Live Red Rule.** On the venue display, a red banner means "happening now": only Now on the Floor gets one. Up Next and the Leaderboard sit on Broadcast Slate; the first place tile is the only other red.
+
 ### Unmatched URLs
-The app has three root layouts (`(app)`, `(auth)`, `(overlay)`), so no layout can host Next's 404 for a URL that matches no route. `src/app/global-not-found.tsx` renders the `(app)` not-found screen on the dark tokens, and `next.config.ts` enables it with the experimental `globalNotFound` flag. Re-check that flag (still needed, renamed, or stable) on every Next upgrade.
+The app has four root layouts (`(app)`, `(auth)`, `(overlay)`, `(display)`), so no layout can host Next's 404 for a URL that matches no route. `src/app/global-not-found.tsx` renders the `(app)` not-found screen on the dark tokens, and `next.config.ts` enables it with the experimental `globalNotFound` flag. Re-check that flag (still needed, renamed, or stable) on every Next upgrade.
 
 ## Building an admin screen
 

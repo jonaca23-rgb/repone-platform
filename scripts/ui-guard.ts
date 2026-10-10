@@ -3,7 +3,13 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { checkSource, GUARD_RULES } from "../src/lib/design/uiGuard";
 
-const SKIP = ["src/components/ui", "src/components/graphics", "src/app/(overlay)"];
+const SKIP = [
+  "src/components/ui",
+  "src/components/graphics",
+  "src/components/display",
+  "src/app/(overlay)",
+  "src/app/(display)",
+];
 const roots = process.argv.slice(2).length
   ? process.argv.slice(2)
   : ["src/app", "src/components", "src/lib/actions"];
