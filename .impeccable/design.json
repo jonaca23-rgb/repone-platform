@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-02T20:55:31.882362+00:00",
+  "generatedAt": "2026-10-10T21:16:11Z",
   "title": "Design System: RepOne",
   "extensions": {
     "colorMeta": {
@@ -325,6 +325,16 @@
         "name": "state",
         "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
         "purpose": "Tailwind transition default for hover and focus color changes; no decorative motion."
+      },
+      {
+        "name": "on-air-enter",
+        "value": "300ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Broadcast graphics entering and leaving air through Appear (slide-left for the lower third, rise for cards, fade for corner bugs); transform and opacity only, none under reduced motion."
+      },
+      {
+        "name": "on-air-exit-hold",
+        "value": "320ms",
+        "purpose": "EXIT_MS: how long Appear keeps a graphic mounted while its exit plays."
       }
     ],
     "breakpoints": [
@@ -419,9 +429,9 @@
       "name": "Lower Third (overlay)",
       "kind": "custom",
       "refersTo": "overlay-panel",
-      "description": "On-air graphic: square slab, red accent bar, transparent page.",
-      "html": "<div class=\"ds-l3\"><div class=\"ds-l3-bar\"></div><div class=\"ds-l3-body\"><p class=\"ds-l3-n\">Sofia Delgado</p><p class=\"ds-l3-s\">Box 787</p></div></div>",
-      "css": ".ds-l3{display:inline-flex;box-shadow:0 25px 50px -12px rgba(0,0,0,.25)}.ds-l3-bar{width:8px;background:#e0122f}.ds-l3-body{background:rgba(10,10,10,.95);padding:16px 32px}.ds-l3-n{margin:0;font:700 36px/1.1 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;text-transform:uppercase;letter-spacing:.025em;color:#fff}.ds-l3-s{margin:4px 0 0;font:600 14px/1 Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.7)}"
+      "description": "On-air graphic in 1920x1080 stage pixels: Broadcast Red bar, Broadcast Slate slab, slides in from the left (Appear slide-left) over a transparent page.",
+      "html": "<div class=\"ds-l3\"><div class=\"ds-l3-bar\"></div><div class=\"ds-l3-body\"><p class=\"ds-l3-n\">Sofia Delgado</p><p class=\"ds-l3-s\">Intermediate Female · Box 787</p></div></div>",
+      "css": ".ds-l3{display:inline-flex;align-items:stretch;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);animation:ds-l3-in 300ms cubic-bezier(0.2,0.8,0.2,1) both}.ds-l3-bar{width:12px;background:#e0122f}.ds-l3-body{display:flex;flex-direction:column;justify-content:center;background:#1c1c1e;padding:20px 40px}.ds-l3-n{margin:0;font:700 64px/1 'Barlow Condensed','Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:.025em;color:#fff}.ds-l3-s{margin:10px 0 0;font:500 26px/1 Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.75)}@keyframes ds-l3-in{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion: reduce){.ds-l3{animation:none}}"
     }
   ],
   "narrative": {
