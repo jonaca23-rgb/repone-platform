@@ -11,6 +11,7 @@ const TABS = [
   { slug: "scores", label: "Scores" },
   { slug: "heats", label: "Heats" },
   { slug: "sponsors", label: "Sponsors" },
+  { slug: "displays", label: "Displays" },
   { slug: "commentary", label: "Commentary" },
 ];
 
