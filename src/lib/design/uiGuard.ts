@@ -7,8 +7,9 @@ export interface GuardViolation {
 
 /**
  * Patterns the design system replaced (docs/superpowers/specs/
- * 2026-10-02-design-system-foundation-design.md §4). Overlays and
- * components/graphics are out of scope; components/ui is shadcn's own code.
+ * 2026-10-02-design-system-foundation-design.md §4). Overlays, the venue
+ * display and components/graphics|display are out of scope (broadcast
+ * palette, stage pixels); components/ui is shadcn's own code.
  */
 /**
  * Server action files moved to ActionResult (docs/superpowers/specs/

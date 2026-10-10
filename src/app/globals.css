@@ -48,6 +48,8 @@
   --broadcast-fg: #ffffff;
   --broadcast-accent: #e0122f;
   --broadcast-muted: #1c1c1e;
+  /* Secondary words on Broadcast Black (affiliates, meta): never opacity. */
+  --broadcast-dim: #a1a1aa;
   color-scheme: dark;
 }
 
@@ -64,6 +66,7 @@
   --color-broadcast-fg: var(--broadcast-fg);
   --color-broadcast-accent: var(--broadcast-accent);
   --color-broadcast-muted: var(--broadcast-muted);
+  --color-broadcast-dim: var(--broadcast-dim);
   /* Broadcast type scale, in stage pixels (the 1920x1080 overlay stage scales them). */
   --text-bc-hero: 112px;
   --text-bc-title: 64px;
