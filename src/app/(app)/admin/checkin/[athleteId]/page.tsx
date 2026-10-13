@@ -28,6 +28,8 @@ type RegistrationRow = {
   events: { name: string; status: string } | null;
   divisions: { name: string } | null;
   payments: { status: PaymentStatus; amount_cents: number; payment_method: string } | null;
+  /** Set when this is the registration of the athlete's team, which pays one fee (0036). */
+  teams?: { name: string } | null;
 };
 
 type Props = { params: Promise<{ athleteId: string }> };
@@ -65,7 +67,25 @@ export default async function AthleteCheckInPage({ params }: Props) {
     )
     .eq("athlete_id", athleteId);
 
-  const typedRegistrations = (registrations ?? []) as unknown as RegistrationRow[];
+  // A team member has no registration of their own: their team's is what was paid.
+  const { data: memberships } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("athlete_id", athleteId);
+  const teamIds = (memberships ?? []).map((m) => m.team_id);
+  const { data: teamRegistrations } = teamIds.length
+    ? await supabase
+        .from("registrations")
+        .select(
+          "id, event_id, bib_number, events(name, status), divisions(name), payments(status, amount_cents, payment_method), teams(name)",
+        )
+        .in("team_id", teamIds)
+    : { data: [] };
+
+  const typedRegistrations = [
+    ...(registrations ?? []),
+    ...(teamRegistrations ?? []),
+  ] as unknown as RegistrationRow[];
 
   const name = `${athlete.first_name} ${athlete.last_name}`;
 
@@ -109,7 +129,7 @@ export default async function AthleteCheckInPage({ params }: Props) {
       {typedRegistrations.length === 0 && (
         <EmptyState
           title="No event registrations yet"
-          description="Register this athlete into a division from an event's Athletes page first."
+          description="Register this athlete into a division from an event's Athletes page, or add them to a team on its Teams page, first."
           action={
             <Button asChild variant="outline">
               <Link href="/admin">Go to Events</Link>
@@ -135,6 +155,7 @@ export default async function AthleteCheckInPage({ params }: Props) {
                 </p>
                 <p className="mt-1 text-sm font-semibold uppercase tracking-wide">
                   {r.events?.name ?? "Event"} — {r.divisions?.name ?? "—"}
+                  {r.teams ? ` — Team ${r.teams.name}` : ""}
                   {r.bib_number ? ` — Bib #${r.bib_number}` : ""}
                 </p>
                 {r.payments?.amount_cents ? (

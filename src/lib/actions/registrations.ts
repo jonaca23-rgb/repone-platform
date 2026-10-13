@@ -26,15 +26,15 @@ const AthleteRegistrationForm = z.object({
   bib_number: field.optionalText({ max: 20, label: "Bib number" }),
 });
 
-const TeamRegistrationForm = z.object({
-  division_id: field.id("Division"),
-  team_id: field.id("Team"),
-  bib_number: field.optionalText({ max: 20, label: "Bib number" }),
-});
-
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-/** The division must belong to this event; returns the failure, or null. */
+const TEAM_DIVISION = "That division is for teams. Add the athlete to a team instead.";
+
+/**
+ * The division must belong to this event and be for individuals (a team
+ * division is entered by creating a team, see ./teams); returns the failure,
+ * or null.
+ */
 async function divisionFailure(
   supabase: Supabase,
   eventId: string,
@@ -42,16 +42,19 @@ async function divisionFailure(
 ): Promise<ActionFailure | null> {
   const { data, error } = await supabase
     .from("divisions")
-    .select("id")
+    .select("id, entry_format")
     .eq("id", divisionId)
     .eq("event_id", eventId)
     .maybeSingle();
   if (error) return fail(error.message);
-  return data
+  if (!data) {
+    return fail("That division isn't part of this event.", {
+      division_id: ["Choose one of this event's divisions."],
+    });
+  }
+  return data.entry_format === "individual"
     ? null
-    : fail("That division isn't part of this event.", {
-        division_id: ["Choose one of this event's divisions."],
-      });
+    : fail(TEAM_DIVISION, { division_id: [TEAM_DIVISION] });
 }
 
 async function rememberDivision(eventId: string, divisionId: string) {
@@ -105,49 +108,6 @@ export async function registerAthlete(eventId: string, formData: FormData): Prom
   });
 }
 
-export async function registerTeam(eventId: string, formData: FormData): Promise<ActionResult> {
-  return safeAction(async () => {
-    const { organizationId } = await requireEventAccess(eventId);
-    const { division_id, team_id, bib_number } = parseForm(TeamRegistrationForm, formData);
-    const supabase = await createClient();
-
-    const divisionProblem = await divisionFailure(supabase, eventId, division_id);
-    if (divisionProblem) return divisionProblem;
-
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .eq("id", team_id)
-      .eq("organization_id", organizationId)
-      .maybeSingle();
-    if (teamError) return fail(teamError.message);
-    if (!team) return fail("That team isn't in this event's organization.");
-
-    const { data: existing, error: existingError } = await supabase
-      .from("registrations")
-      .select("id")
-      .eq("event_id", eventId)
-      .eq("division_id", division_id)
-      .eq("team_id", team_id)
-      .maybeSingle();
-    if (existingError) return fail(existingError.message);
-    if (existing) return fail("This team is already registered in this division/category.");
-
-    const { error } = await supabase
-      .from("registrations")
-      .insert({ event_id: eventId, division_id, team_id, bib_number });
-    if (error) {
-      if (error.code === "23505")
-        return fail("This team is already registered in this division/category.");
-      return fail(error.message);
-    }
-
-    await rememberDivision(eventId, division_id);
-    revalidatePath(`/admin/events/${eventId}/athletes`);
-    return ok();
-  });
-}
-
 export async function removeRegistration(
   eventId: string,
   registrationId: string,
@@ -155,6 +115,20 @@ export async function removeRegistration(
   return safeAction(async () => {
     await requireEventAccess(eventId);
     const supabase = await createClient();
+
+    // A team's registration goes with the team: removing it alone would leave
+    // a team that never reaches heats or payments.
+    const { data: registration, error } = await supabase
+      .from("registrations")
+      .select("team_id")
+      .eq("id", registrationId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (registration?.team_id) {
+      return fail("A team's registration goes with the team. Delete the team on the Teams page.");
+    }
+
     expectChanged(
       await supabase
         .from("registrations")

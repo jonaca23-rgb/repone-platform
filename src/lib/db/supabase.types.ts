@@ -508,24 +508,30 @@ export type Database = {
       divisions: {
         Row: {
           created_at: string
+          entry_format: Database["public"]["Enums"]["competitor_entry_type"]
           event_id: string
           id: string
           name: string
           sort_order: number
+          team_size: number | null
         }
         Insert: {
           created_at?: string
+          entry_format?: Database["public"]["Enums"]["competitor_entry_type"]
           event_id: string
           id?: string
           name: string
           sort_order?: number
+          team_size?: number | null
         }
         Update: {
           created_at?: string
+          entry_format?: Database["public"]["Enums"]["competitor_entry_type"]
           event_id?: string
           id?: string
           name?: string
           sort_order?: number
+          team_size?: number | null
         }
         Relationships: [
           {
@@ -1947,16 +1953,19 @@ export type Database = {
       team_members: {
         Row: {
           athlete_id: string
+          event_id: string
           id: string
           team_id: string
         }
         Insert: {
           athlete_id: string
+          event_id: string
           id?: string
           team_id: string
         }
         Update: {
           athlete_id?: string
+          event_id?: string
           id?: string
           team_id?: string
         }
@@ -1966,6 +1975,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
@@ -1980,37 +1996,51 @@ export type Database = {
       teams: {
         Row: {
           affiliate: string | null
+          captain_athlete_id: string | null
           created_at: string
-          entry_format: Database["public"]["Enums"]["entry_format"]
+          division_id: string
+          event_id: string
           id: string
           name: string
-          organization_id: string
-          team_size: number | null
         }
         Insert: {
           affiliate?: string | null
+          captain_athlete_id?: string | null
           created_at?: string
-          entry_format?: Database["public"]["Enums"]["entry_format"]
+          division_id: string
+          event_id: string
           id?: string
           name: string
-          organization_id: string
-          team_size?: number | null
         }
         Update: {
           affiliate?: string | null
+          captain_athlete_id?: string | null
           created_at?: string
-          entry_format?: Database["public"]["Enums"]["entry_format"]
+          division_id?: string
+          event_id?: string
           id?: string
           name?: string
-          organization_id?: string
-          team_size?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "teams_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "teams_captain_athlete_id_fkey"
+            columns: ["captain_athlete_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_division_id_fkey"
+            columns: ["division_id"]
+            isOneToOne: false
+            referencedRelation: "divisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
@@ -2305,7 +2335,6 @@ export type Database = {
       athlete_gender: "male" | "female"
       competitor_entry_type: "individual" | "pair" | "team" | "custom"
       display_block_type: "current_heat" | "next_heat" | "leaderboard"
-      entry_format: "pair" | "team" | "custom"
       event_assignment_status: "active" | "inactive" | "removed"
       event_status: "draft" | "scheduled" | "live" | "completed" | "archived"
       expense_category:
@@ -2493,7 +2522,6 @@ export const Constants = {
       athlete_gender: ["male", "female"],
       competitor_entry_type: ["individual", "pair", "team", "custom"],
       display_block_type: ["current_heat", "next_heat", "leaderboard"],
-      entry_format: ["pair", "team", "custom"],
       event_assignment_status: ["active", "inactive", "removed"],
       event_status: ["draft", "scheduled", "live", "completed", "archived"],
       expense_category: [

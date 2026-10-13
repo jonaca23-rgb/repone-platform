@@ -26,32 +26,26 @@ export default async function EventAthletesPage({ params }: Props) {
   const cookieStore = await cookies();
   const lastDivisionId = cookieStore.get(`repone_last_division_${eventId}`)?.value ?? "";
 
-  const [
-    adminEvent,
-    { data: divisions },
-    { data: athletes },
-    { data: teams },
-    { data: registrations },
-  ] = await Promise.all([
-    requireAdminEvent(eventId),
-    supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
-    supabase
-      .from("athletes")
-      .select("id, first_name, last_name, affiliate, gender")
-      .eq("organization_id", ctx?.organizationId ?? "")
-      .order("last_name"),
-    supabase
-      .from("teams")
-      .select("id, name, affiliate, entry_format")
-      .eq("organization_id", ctx?.organizationId ?? "")
-      .order("name"),
-    supabase
-      .from("registrations")
-      .select(
-        "id, bib_number, division_id, athlete_id, athletes(first_name, last_name, affiliate, gender), teams(name, affiliate, entry_format)",
-      )
-      .eq("event_id", eventId),
-  ]);
+  const [adminEvent, { data: divisions }, { data: athletes }, { data: registrations }] =
+    await Promise.all([
+      requireAdminEvent(eventId),
+      supabase
+        .from("divisions")
+        .select("id, name, entry_format")
+        .eq("event_id", eventId)
+        .order("sort_order"),
+      supabase
+        .from("athletes")
+        .select("id, first_name, last_name, affiliate, gender")
+        .eq("organization_id", ctx?.organizationId ?? "")
+        .order("last_name"),
+      supabase
+        .from("registrations")
+        .select(
+          "id, bib_number, division_id, athlete_id, athletes(first_name, last_name, affiliate, gender), teams(name, affiliate)",
+        )
+        .eq("event_id", eventId),
+    ]);
 
   // Category is computed as of the event's date, per RepOne's masters rules —
   // falls back to today only if the event has no start date set yet.
@@ -70,7 +64,7 @@ export default async function EventAthletesPage({ params }: Props) {
       affiliate: string | null;
       gender: Gender | null;
     } | null;
-    teams: { name: string; affiliate: string | null; entry_format: string } | null;
+    teams: { name: string; affiliate: string | null } | null;
   }>;
   const privateDetails = await getAthletePrivateDetails(
     supabase,
@@ -101,6 +95,8 @@ export default async function EventAthletesPage({ params }: Props) {
     );
   }
 
+  // Athletes register on their own only in individual divisions (0036).
+  const individual = divisions.filter((d) => d.entry_format === "individual");
   const divisionOrder = new Map(divisions.map((d, i) => [d.id, i]));
   const divisionName = new Map(divisions.map((d) => [d.id, d.name]));
   const rows: RegistrationRow[] = typedRegistrations
@@ -108,9 +104,9 @@ export default async function EventAthletesPage({ params }: Props) {
       id: r.id,
       name: r.athletes
         ? `${r.athletes.first_name} ${r.athletes.last_name}`
-        : (r.teams?.name ?? "This entry"),
+        : `Team · ${r.teams?.name ?? "Unknown team"}`,
       affiliate: r.athletes ? r.athletes.affiliate : (r.teams?.affiliate ?? null),
-      type: r.athletes ? "individual" : (r.teams?.entry_format ?? "team"),
+      type: r.athletes ? ("individual" as const) : ("team" as const),
       divisionId: r.division_id,
       divisionName: divisionName.get(r.division_id) ?? "—",
       bib: r.bib_number,
@@ -137,12 +133,12 @@ export default async function EventAthletesPage({ params }: Props) {
         <Link href="/admin/athletes" className="text-brand-text underline">
           Athletes
         </Link>
-        ) and registered per event into a division here. Pairs, teams and custom-format entries come
-        from{" "}
-        <Link href="/admin/teams" className="text-brand-text underline">
+        ) and registered per event into an individual division here. Pairs and teams are created on
+        this event&apos;s{" "}
+        <Link href={`/admin/events/${eventId}/teams`} className="text-brand-text underline">
           Teams
-        </Link>
-        . Set registration fees on{" "}
+        </Link>{" "}
+        page, which registers them. Set registration fees on{" "}
         <Link href={`/admin/events/${eventId}/fees`} className="text-brand-text underline">
           Fees
         </Link>{" "}
@@ -165,12 +161,11 @@ export default async function EventAthletesPage({ params }: Props) {
           id: a.id,
           label: `${a.first_name} ${a.last_name}${a.affiliate ? ` (${a.affiliate})` : ""}`,
         }))}
-        teams={(teams ?? []).map((t) => ({
-          id: t.id,
-          label: `${t.name}${t.affiliate ? ` (${t.affiliate})` : ""}`,
-        }))}
+        individualDivisions={individual.map((d) => ({ id: d.id, label: d.name }))}
         defaultDivisionId={
-          divisions.some((d) => d.id === lastDivisionId) ? lastDivisionId : divisions[0].id
+          individual.some((d) => d.id === lastDivisionId)
+            ? lastDivisionId
+            : (individual[0]?.id ?? "")
         }
       />
     </div>

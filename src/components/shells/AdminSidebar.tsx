@@ -82,7 +82,6 @@ const ORG_ITEMS: NavItem[] = [
   { href: "/admin/circuits", label: "Circuits", icon: Route },
   { href: "/admin/athletes", label: "Athletes", icon: Users },
   { href: "/admin/checkin", label: "Check-In", icon: ScanLine },
-  { href: "/admin/teams", label: "Teams", icon: UsersRound },
   { href: "/admin/sponsors", label: "Sponsors", icon: BadgeDollarSign },
 ];
 const MEMBERS: NavItem = { href: "/admin/team", label: "Members", icon: ShieldCheck };
@@ -93,6 +92,7 @@ const EVENT_ITEMS: { slug: string; label: string; icon: LucideIcon }[] = [
   { slug: "venues", label: "Venues", icon: MapPin },
   { slug: "divisions", label: "Divisions", icon: Tags },
   { slug: "athletes", label: "Athletes", icon: Users },
+  { slug: "teams", label: "Teams", icon: UsersRound },
   { slug: "wods", label: "WODs", icon: Dumbbell },
   { slug: "heats", label: "Heats", icon: ListOrdered },
   { slug: "staff", label: "Staff", icon: UserCog },

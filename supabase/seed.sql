@@ -74,3 +74,21 @@ join sponsor_packages p on p.organization_id = '00000000-0000-0000-0000-00000000
 insert into display_devices (id, event_id, floor_id, name) values
   ('00000000-0000-0000-0000-000000000090', '00000000-0000-0000-0000-000000000010',
    '00000000-0000-0000-0000-000000000030', 'Entrance Display');
+
+-- A pairs division with one complete team (0036): event teams for local work.
+insert into divisions (id, event_id, name, sort_order, entry_format, team_size) values
+  ('00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-000000000010', 'Intermediate Pairs', 1, 'pair', 2);
+
+insert into teams (id, event_id, division_id, name, affiliate) values
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000010',
+   '00000000-0000-0000-0000-000000000041', 'Aprieta Duo', 'CrossFit Aprieta');
+
+insert into team_members (team_id, athlete_id, event_id) values
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000065', '00000000-0000-0000-0000-000000000010'),
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000066', '00000000-0000-0000-0000-000000000010');
+
+update teams set captain_athlete_id = '00000000-0000-0000-0000-000000000065'
+where id = '00000000-0000-0000-0000-0000000000a1';
+
+insert into registrations (event_id, division_id, team_id) values
+  ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-0000000000a1');

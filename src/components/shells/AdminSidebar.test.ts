@@ -11,9 +11,9 @@ describe("activeHref", () => {
     ["/admin/checkin/abc", null, "/admin/checkin"],
     ["/admin/messages/xyz", null, "/admin/messages"],
     ["/admin/team", null, "/admin/team"],
-    ["/admin/teams", null, "/admin/teams"],
     [`/admin/events/${EV}`, EV, `/admin/events/${EV}`],
     [`/admin/events/${EV}/athletes`, EV, `/admin/events/${EV}/athletes`],
+    [`/admin/events/${EV}/teams`, EV, `/admin/events/${EV}/teams`],
     [`/admin/events/${EV}/heats/h1`, EV, `/admin/events/${EV}/heats`],
     [`/admin/events/${EV}/unknown`, EV, "/admin"],
   ])("%s marks %s", (path, eventId, expected) => {

@@ -17,7 +17,11 @@ export default async function DivisionsPage({ params }: Props) {
   const supabase = await createClient();
   const [event, { data: divisions }] = await Promise.all([
     requireAdminEvent(eventId),
-    supabase.from("divisions").select("id, name").eq("event_id", eventId).order("sort_order"),
+    supabase
+      .from("divisions")
+      .select("id, name, entry_format, team_size")
+      .eq("event_id", eventId)
+      .order("sort_order"),
   ]);
 
   return (
