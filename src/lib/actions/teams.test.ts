@@ -40,11 +40,8 @@ const newTeam = () =>
 beforeEach(() => vi.clearAllMocks());
 
 describe("createTeam", () => {
-  it("creates the team and registers it in its division", async () => {
-    const fake = fakeSupabase({
-      teams: [{ data: { id: TEAM } }],
-      registrations: [{ error: null }],
-    });
+  it("creates the team; the database registers it in the same step", async () => {
+    const fake = fakeSupabase({ teams: [{ error: null }] });
     db.current = fake.client;
     expect(await createTeam(EVENT, newTeam())).toEqual({ ok: true });
     expect(fake.calls).toContainEqual([
@@ -59,25 +56,7 @@ describe("createTeam", () => {
         },
       ],
     ]);
-    expect(fake.calls).toContainEqual([
-      "registrations",
-      "insert",
-      [{ event_id: EVENT, division_id: DIVISION, team_id: TEAM }],
-    ]);
-  });
-
-  it("takes the team back when it can't be registered", async () => {
-    const fake = fakeSupabase({
-      teams: [{ data: { id: TEAM } }, { data: [{ id: TEAM }] }],
-      registrations: [dbError("registration_kind: that division is for individuals")],
-    });
-    db.current = fake.client;
-    const result = await createTeam(EVENT, newTeam());
-    expect(result).toMatchObject({
-      ok: false,
-      message: "That division is for individuals. Choose a team division.",
-    });
-    expect(fake.calls.some(([t, m]) => t === "teams" && m === "delete")).toBe(true);
+    expect(fake.calls.some(([t]) => t === "registrations")).toBe(false);
   });
 
   it("refuses an individual division on its field", async () => {

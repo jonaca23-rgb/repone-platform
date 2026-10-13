@@ -52,6 +52,12 @@ declare
   v_event uuid;
   v_format competitor_entry_type;
 begin
+  -- A team stays where it was created: its registration, heats and results
+  -- are in that division.
+  if tg_op = 'UPDATE' and (new.division_id is distinct from old.division_id
+                           or new.event_id is distinct from old.event_id) then
+    raise exception 'team_division_fixed: a team stays in the division it was created in';
+  end if;
   select event_id, entry_format into v_event, v_format from divisions where id = new.division_id;
   if v_event is distinct from new.event_id then
     raise exception 'team_division_event: that division is not part of this event';
@@ -71,6 +77,20 @@ $$ language plpgsql security definer set search_path = public;
 create trigger teams_guard
   before insert or update of event_id, division_id, captain_athlete_id on teams
   for each row execute function guard_team();
+
+-- Creating a team registers it, in the same statement: a team never exists
+-- without the registration its fee, heats and payments hang from.
+create or replace function register_new_team() returns trigger as $$
+begin
+  insert into registrations (event_id, division_id, team_id)
+  values (new.event_id, new.division_id, new.id);
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger teams_register
+  after insert on teams
+  for each row execute function register_new_team();
 
 -- A member row carries its team's event, so "one team per athlete per event"
 -- is a unique constraint. The size check locks the team so two adds of the
@@ -114,6 +134,18 @@ create trigger team_members_guard
   before insert on team_members
   for each row execute function guard_team_member();
 
+-- Members are added and removed, never edited: an update would skip every
+-- check above.
+create or replace function refuse_team_member_update() returns trigger as $$
+begin
+  raise exception 'team_member_fixed: remove the member and add them again instead';
+end;
+$$ language plpgsql set search_path = public;
+
+create trigger team_members_no_update
+  before update on team_members
+  for each row execute function refuse_team_member_update();
+
 -- A captain who leaves the roster stops being captain.
 create or replace function clear_departed_captain() returns trigger as $$
 begin
@@ -155,6 +187,25 @@ $$ language plpgsql security definer set search_path = public;
 create trigger registrations_guard_kind
   before insert or update of event_id, division_id, athlete_id, team_id on registrations
   for each row execute function guard_registration_kind();
+
+-- A division's format is fixed once anyone is in it: athletes and teams
+-- registered under one format can't be reinterpreted as the other.
+create or replace function guard_division_format() returns trigger as $$
+begin
+  if new.entry_format is distinct from old.entry_format
+     or new.team_size is distinct from old.team_size then
+    if exists (select 1 from registrations where division_id = new.id)
+       or exists (select 1 from teams where division_id = new.id) then
+      raise exception 'division_format_locked: this division already has registrations';
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger divisions_guard_format
+  before update of entry_format, team_size on divisions
+  for each row execute function guard_division_format();
 
 -- RLS ------------------------------------------------------------------------
 -- Reads stay public (the live page and the overlays run signed out). The

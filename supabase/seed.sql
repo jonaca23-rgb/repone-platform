@@ -76,6 +76,7 @@ insert into display_devices (id, event_id, floor_id, name) values
    '00000000-0000-0000-0000-000000000030', 'Entrance Display');
 
 -- A pairs division with one complete team (0036): event teams for local work.
+-- Creating the team registers it (teams_register).
 insert into divisions (id, event_id, name, sort_order, entry_format, team_size) values
   ('00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-000000000010', 'Intermediate Pairs', 1, 'pair', 2);
 
@@ -89,6 +90,3 @@ insert into team_members (team_id, athlete_id, event_id) values
 
 update teams set captain_athlete_id = '00000000-0000-0000-0000-000000000065'
 where id = '00000000-0000-0000-0000-0000000000a1';
-
-insert into registrations (event_id, division_id, team_id) values
-  ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-0000000000a1');

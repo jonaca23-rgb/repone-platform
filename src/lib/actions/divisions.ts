@@ -93,15 +93,16 @@ export async function updateDivision(
       if (teams.data?.length) return fail(FORMAT_LOCKED);
     }
 
-    expectChanged(
-      await supabase
-        .from("divisions")
-        .update(shape)
-        .eq("id", divisionId)
-        .eq("event_id", eventId)
-        .select("id"),
-      "save the division",
-    );
+    const saved = await supabase
+      .from("divisions")
+      .update(shape)
+      .eq("id", divisionId)
+      .eq("event_id", eventId)
+      .select("id");
+    // The database refuses too (0036), for a registration that landed between
+    // the check above and this update.
+    if (saved.error?.message.includes("division_format_locked")) return fail(FORMAT_LOCKED);
+    expectChanged(saved, "save the division");
     revalidatePath(`/admin/events/${eventId}/divisions`);
     return ok();
   });

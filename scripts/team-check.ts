@@ -201,10 +201,75 @@ async function main() {
         "registration_kind",
       ),
     );
-    const mine = await admin
-      .from("registrations")
-      .insert({ event_id: EVENT_ID, division_id: PAIRS, team_id: T1 });
-    expect("a team registers in its own division", !mine.error, mine.error);
+    const mine = await service.from("registrations").select("id").eq("team_id", T1);
+    expect(
+      "creating a team registers it in its division, in the same step",
+      (mine.data ?? []).length === 1,
+      mine,
+    );
+
+    // The rules hold for edits too, not only for new rows.
+    expect(
+      "a member row can't be moved to another team",
+      refused(
+        await admin.from("team_members").update({ team_id: T2 }).eq("team_id", T1).select("id"),
+        "team_member_fixed",
+      ),
+    );
+    const threes = await service
+      .from("divisions")
+      .insert({ event_id: EVENT_ID, name: "Check Threes", entry_format: "team", team_size: 3 })
+      .select("id")
+      .single();
+    cleanup.push(() =>
+      service
+        .from("divisions")
+        .delete()
+        .eq("id", threes.data?.id ?? ""),
+    );
+    expect(
+      "a team can't be moved to another division",
+      refused(
+        await admin
+          .from("teams")
+          .update({ division_id: threes.data?.id })
+          .eq("id", T1)
+          .select("id"),
+        "team_division_fixed",
+      ),
+    );
+    expect(
+      "a division with teams can't change its format",
+      refused(
+        await admin
+          .from("divisions")
+          .update({ entry_format: "individual", team_size: null })
+          .eq("id", PAIRS)
+          .select("id"),
+        "division_format_locked",
+      ),
+    );
+    expect(
+      "a division with athletes registered can't become a team division",
+      refused(
+        await admin
+          .from("divisions")
+          .update({ entry_format: "team", team_size: 3 })
+          .eq("id", INDIVIDUAL_DIVISION_ID)
+          .select("id"),
+        "division_format_locked",
+      ),
+    );
+    const rename = await admin
+      .from("divisions")
+      .update({ name: "Check Pairs 2" })
+      .eq("id", PAIRS)
+      .select("id");
+    expect(
+      "a division with teams can still be renamed",
+      (rename.data ?? []).length === 1,
+      rename.error,
+    );
     if (otherDivision) {
       const { data: otherEvent } = await service
         .from("divisions")

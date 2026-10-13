@@ -91,6 +91,27 @@ describe("division format", () => {
     expect(fake.calls.some(([t, m]) => t === "divisions" && m === "update")).toBe(false);
   });
 
+  it("explains the database's refusal when someone registered in between", async () => {
+    db.current = fakeSupabase({
+      divisions: [
+        { data: { entry_format: "individual", team_size: null } },
+        { error: { message: "division_format_locked: this division already has registrations" } },
+      ],
+      registrations: [{ data: [] }],
+      teams: [{ data: [] }],
+    }).client;
+    expect(
+      await updateDivision(
+        "ev-1",
+        "d-1",
+        form({ name: "RX", entry_format: "team", team_size: "4" }),
+      ),
+    ).toEqual({
+      ok: false,
+      message: "This division already has registrations, so its format can't change.",
+    });
+  });
+
   it("renames a division with registrations when the format stays", async () => {
     const fake = fakeSupabase({
       divisions: [

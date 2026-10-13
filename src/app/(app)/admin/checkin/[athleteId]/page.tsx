@@ -68,19 +68,21 @@ export default async function AthleteCheckInPage({ params }: Props) {
     .eq("athlete_id", athleteId);
 
   // A team member has no registration of their own: their team's is what was paid.
-  const { data: memberships } = await supabase
+  const { data: memberships, error: membershipsError } = await supabase
     .from("team_members")
     .select("team_id")
     .eq("athlete_id", athleteId);
+  if (membershipsError) throw new Error(membershipsError.message);
   const teamIds = (memberships ?? []).map((m) => m.team_id);
-  const { data: teamRegistrations } = teamIds.length
+  const { data: teamRegistrations, error: teamRegistrationsError } = teamIds.length
     ? await supabase
         .from("registrations")
         .select(
           "id, event_id, bib_number, events(name, status), divisions(name), payments(status, amount_cents, payment_method), teams(name)",
         )
         .in("team_id", teamIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (teamRegistrationsError) throw new Error(teamRegistrationsError.message);
 
   const typedRegistrations = [
     ...(registrations ?? []),

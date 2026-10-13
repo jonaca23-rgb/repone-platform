@@ -81,33 +81,18 @@ export async function createTeam(eventId: string, formData: FormData): Promise<A
     const f = parseForm(TeamForm, formData);
     const supabase = await createClient();
 
-    const created = await supabase
-      .from("teams")
-      .insert({
-        event_id: eventId,
-        division_id: f.division_id,
-        name: f.name,
-        affiliate: f.affiliate,
-      })
-      .select("id")
-      .single();
-    if (created.error) {
-      const refusal = teamRefusal(created.error.message);
+    // The database registers the team in the same statement (teams_register,
+    // 0036), so it never exists without the registration its fee hangs from.
+    const { error } = await supabase.from("teams").insert({
+      event_id: eventId,
+      division_id: f.division_id,
+      name: f.name,
+      affiliate: f.affiliate,
+    });
+    if (error) {
+      const refusal = teamRefusal(error.message);
       if (refusal) return refusal;
-      throw new Error(created.error.message);
-    }
-
-    // The team's one registration is what its fee is recorded on. Without it
-    // the team would exist but never reach heats or payments, so a failure
-    // here takes the team back.
-    const registered = await supabase
-      .from("registrations")
-      .insert({ event_id: eventId, division_id: f.division_id, team_id: created.data.id });
-    if (registered.error) {
-      await supabase.from("teams").delete().eq("id", created.data.id).eq("event_id", eventId);
-      const refusal = teamRefusal(registered.error.message);
-      if (refusal) return refusal;
-      throw new Error(registered.error.message);
+      throw new Error(error.message);
     }
 
     revalidate(eventId, true);
