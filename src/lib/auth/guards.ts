@@ -55,6 +55,14 @@ export async function requireFloorAccess(floorId: string, staff: EventStaffRole[
   return { ...(await requireEventAccess(eventId, staff)), floorId };
 }
 
+/**
+ * An admin or event director of this organization: the people who may correct
+ * a finished heat's results (0034_finished_heats_lock.sql).
+ */
+export function isOrgManager(ctx: SessionContext | null, organizationId: string): boolean {
+  return orgManagerOf(ctx) === organizationId;
+}
+
 /** Access to a heat's event; returns the heat's server-side event/WOD/division/floor. */
 export async function requireHeatAccess(heatId: string, staff: EventStaffRole[]) {
   const heat = await heatScope(await createClient(), heatId);

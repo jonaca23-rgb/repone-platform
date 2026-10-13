@@ -5,6 +5,7 @@ import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
+import { orgManagerOf } from "@/lib/auth/authorize";
 import { OperatorShell } from "@/components/shells/OperatorShell";
 import type { LaneResult } from "@/lib/scoring/format";
 import { ScoreKeeperClient, type ScoreKeeperStanding } from "./ScoreKeeperClient";
@@ -39,6 +40,15 @@ export default async function ScoreKeeperPage({ params }: Props) {
     (await isAssignedToEvent(ctx, context.eventId, "scorekeeper")) ||
     (await isAssignedToEvent(ctx, context.eventId, "producer"));
   if (!allowed) redirect("/scorekeeper");
+
+  const supabaseForEvent = await createClient();
+  const { data: event } = await supabaseForEvent
+    .from("events")
+    .select("organization_id")
+    .eq("id", context.eventId)
+    .maybeSingle();
+  // Only the event's organizers correct a heat once it is finished (0034).
+  const canAdjustFinished = !!event && orgManagerOf(ctx) === event.organization_id;
 
   const heatIds = context.heats.map((h) => h.id);
   // One WOD/division can span several heats — dedupe so we only query
@@ -109,6 +119,7 @@ export default async function ScoreKeeperPage({ params }: Props) {
         initialBroadcastState={broadcastState ?? null}
         resultsByHeatId={resultsByHeatId}
         standingsByHeatId={standingsByHeatId}
+        canAdjustFinished={canAdjustFinished}
       />
     </OperatorShell>
   );

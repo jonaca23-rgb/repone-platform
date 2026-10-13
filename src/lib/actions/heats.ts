@@ -152,6 +152,7 @@ export async function deleteHeat(eventId: string, heatId: string): Promise<Actio
 export async function finishHeat(heatId: string): Promise<ActionResult> {
   return safeAction(async () => {
     const { eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+    if (heat.ended_at) return fail("This heat is already finished.");
     const supabase = await createClient();
     const [finished] = expectChanged(
       await supabase

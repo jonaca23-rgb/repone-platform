@@ -194,7 +194,7 @@ export async function floorEventId(db: Db, floorId: string): Promise<string | nu
 export async function heatScope(db: Db, heatId: string) {
   const { data } = await db
     .from("heats")
-    .select("id, event_id, wod_id, division_id, floor_id")
+    .select("id, event_id, wod_id, division_id, floor_id, ended_at")
     .eq("id", heatId)
     .maybeSingle();
   return data;
