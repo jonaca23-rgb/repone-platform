@@ -98,6 +98,25 @@ describe("enterResult on a finished heat", () => {
   });
 });
 
+describe("enterResult for a Tabata WOD", () => {
+  it("saves the total reps", async () => {
+    const fake = fakeSupabase({
+      wods: [{ data: { scoring_type: "tabata" } }],
+      lanes: [{ data: [{ athlete_id: ATHLETE, team_id: null }] }],
+      registrations: [{ data: [] }],
+      results: [{ data: null }],
+    });
+    db.current = fake.client;
+    expect(await enterResult("h-1", form({ competitor_id: ATHLETE, reps: "120" }))).toEqual({
+      ok: true,
+    });
+    const upsert = fake.calls.find(([t, m]) => t === "results" && m === "upsert");
+    const row = upsert?.[2][0] as { reps?: number | null; points?: number | null };
+    expect(row).toMatchObject({ athlete_id: ATHLETE, reps: 120 });
+    expect(row.points ?? null).toBeNull();
+  });
+});
+
 describe("finishHeat", () => {
   it("says so when the heat is already finished", async () => {
     access.endedAt = "2026-10-12T15:00:00Z";

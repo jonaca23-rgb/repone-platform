@@ -24,6 +24,10 @@ describe("formatResult", () => {
     expect(formatResult({ ...base, points: 7 }, "other")).toBe("7 pts");
   });
 
+  it("tabata shows total reps", () => {
+    expect(formatResult({ ...base, reps: 120 }, "tabata")).toBe("120 reps");
+    expect(formatResult(base, "tabata")).toBe("—");
+  });
   it("a non-completed status wins over any value", () => {
     expect(formatResult({ ...base, status: "dns", time_seconds: 200 }, "for_time")).toBe("DNS");
     expect(formatResult({ ...base, status: "dnf" }, "amrap")).toBe("DNF");

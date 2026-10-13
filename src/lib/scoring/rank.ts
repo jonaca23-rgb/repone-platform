@@ -1,4 +1,4 @@
-import type { RankedResult, RawResult, WodScoringConfig } from "./types";
+import { countsReps, type RankedResult, type RawResult, type WodScoringConfig } from "./types";
 
 /**
  * Returns a comparator value for two raw results under a given WOD's rules.
@@ -20,7 +20,7 @@ function compareCompleted(a: RawResult, b: RawResult, config: WodScoringConfig):
     return compareScores(a.timeSeconds, b.timeSeconds, "lower") || tiebreak(a, b);
   }
 
-  if (config.scoringType === "amrap") {
+  if (countsReps(config.scoringType)) {
     return compareScores(a.reps, b.reps, "higher") || tiebreak(a, b);
   }
 

@@ -1,6 +1,7 @@
 import { formatClock } from "@/lib/timer/compute";
+import { countsReps } from "./types";
 
-export type ScoringType = "for_time" | "amrap" | "max_load" | "points" | "other";
+export type ScoringType = "for_time" | "amrap" | "tabata" | "max_load" | "points" | "other";
 export type ResultStatus = "completed" | "dns" | "dnf" | "dq";
 
 /** One saved result, as the lane list and the score drawer read it. */
@@ -56,7 +57,7 @@ export function scoreSummary(result: LaneResult | undefined, scoringType: Scorin
     if (result.capped) return result.reps === null ? "CAP" : `CAP ${result.reps}`;
     return result.time_seconds === null ? "—" : formatClock(result.time_seconds);
   }
-  if (scoringType === "amrap") return result.reps === null ? "—" : `${result.reps} reps`;
+  if (countsReps(scoringType)) return result.reps === null ? "—" : `${result.reps} reps`;
   if (scoringType === "max_load") return result.load === null ? "—" : String(result.load);
   return result.points === null ? "—" : `${result.points} pts`;
 }
@@ -64,6 +65,7 @@ export function scoreSummary(result: LaneResult | undefined, scoringType: Scorin
 const SCORING_LABEL: Record<string, string> = {
   for_time: "For time",
   amrap: "AMRAP",
+  tabata: "Tabata",
   max_load: "Max load",
   points: "Points",
   other: "Other",

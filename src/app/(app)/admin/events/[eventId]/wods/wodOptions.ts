@@ -1,6 +1,7 @@
 export const SCORING_TYPES = [
   ["for_time", "For Time"],
   ["amrap", "AMRAP"],
+  ["tabata", "Tabata (total reps)"],
   ["max_load", "Max Load"],
   ["points", "Points"],
   ["other", "Other"],

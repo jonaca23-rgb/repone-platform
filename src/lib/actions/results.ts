@@ -7,6 +7,7 @@ import { isOrgManager, NotAuthorizedError, requireHeatAccess } from "@/lib/auth/
 import { createClient } from "@/lib/db/server";
 import { Constants } from "@/lib/db/supabase.types";
 import { recomputeWodStandings } from "@/lib/scoring/recompute";
+import { countsReps } from "@/lib/scoring/types";
 import { field, parseForm } from "@/lib/validation/form";
 import type { Insert, ScoringTypeDb } from "@/lib/db/database.types";
 import { safeAction } from "./safeAction";
@@ -100,7 +101,7 @@ function scoreColumns(card: Scorecard, scoringType: ScoringTypeDb): Partial<Inse
   if (scoringType === "for_time") {
     return { time_seconds: card.time_seconds, reps: card.capped ? card.reps : null };
   }
-  if (scoringType === "amrap") return { reps: card.reps };
+  if (countsReps(scoringType)) return { reps: card.reps };
   if (scoringType === "max_load") return { load: card.load };
   return { points: card.points };
 }
