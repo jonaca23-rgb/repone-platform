@@ -319,6 +319,83 @@ async function finishedHeatsLockResults(admin: SupabaseClient, producer: Supabas
     expect("scorekeeper cannot reopen a finished heat", still.data?.ended_at !== null, still.data);
 
     expect("admin corrects a finished heat's results", await tryInsert(admin));
+
+    // Nothing else about a finished heat is the floor's to change either:
+    // moving it to another division would take its results off the leaderboard.
+    const { data: otherDivision } = await service
+      .from("divisions")
+      .insert({ event_id: EVENT_ID, name: "RLS finished-heat check" })
+      .select("id")
+      .single();
+    await scorekeeper
+      .from("heats")
+      .update({ division_id: otherDivision?.id })
+      .eq("id", SEED_HEAT_ID);
+    const moved = await service.from("heats").select("division_id").eq("id", SEED_HEAT_ID).single();
+    expect(
+      "scorekeeper cannot move a finished heat to another division",
+      moved.data?.division_id === SEED_DIVISION_ID,
+      moved.data,
+    );
+    await service.from("heats").update({ division_id: SEED_DIVISION_ID }).eq("id", SEED_HEAT_ID);
+    await service
+      .from("divisions")
+      .delete()
+      .eq("id", otherDivision?.id ?? "");
+    await scorekeeper.from("heats").delete().eq("id", SEED_HEAT_ID);
+    const kept = await service.from("heats").select("id").eq("id", SEED_HEAT_ID);
+    expect("scorekeeper cannot delete a finished heat", (kept.data?.length ?? 0) === 1);
+
+    // An organizer deleting a whole event must still take its finished heats with it.
+    const { data: tmpEvent } = await service
+      .from("events")
+      .insert({ organization_id: ORG_ID, name: "RLS finished-heat event" })
+      .select("id")
+      .single();
+    const tmpId = tmpEvent?.id ?? "";
+    const { data: tmpDivision } = await service
+      .from("divisions")
+      .insert({ event_id: tmpId, name: "D" })
+      .select("id")
+      .single();
+    const { data: tmpWod } = await service
+      .from("wods")
+      .insert({ event_id: tmpId, name: "W", scoring_type: "for_time" })
+      .select("id")
+      .single();
+    const { data: tmpVenue } = await service
+      .from("venues")
+      .insert({ event_id: tmpId, name: "V" })
+      .select("id")
+      .single();
+    const { data: tmpFloor } = await service
+      .from("floors")
+      .insert({ venue_id: tmpVenue?.id, name: "F" })
+      .select("id")
+      .single();
+    const tmpHeat = await service
+      .from("heats")
+      .insert({
+        event_id: tmpId,
+        floor_id: tmpFloor?.id,
+        wod_id: tmpWod?.id,
+        division_id: tmpDivision?.id,
+        heat_number: 1,
+        ended_at: new Date().toISOString(),
+      })
+      .select("id");
+    expect(
+      "fixture: a finished heat in a throwaway event",
+      (tmpHeat.data?.length ?? 0) === 1,
+      tmpHeat.error,
+    );
+    const dropped = await admin.from("events").delete().eq("id", tmpId).select("id");
+    expect(
+      "admin deletes an event that has finished heats",
+      !dropped.error && (dropped.data?.length ?? 0) === 1,
+      dropped.error,
+    );
+    await service.from("events").delete().eq("id", tmpId);
   } finally {
     await service
       .from("results")

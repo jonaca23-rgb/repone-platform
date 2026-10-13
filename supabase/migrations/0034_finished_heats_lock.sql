@@ -38,9 +38,12 @@ create policy "floor staff manage results of open heats" on results for all
            or has_role(e.organization_id, array['scoring_operator','production_director']::user_role[]))));
 
 -- Finishing is one-way for floor staff: once ended_at is set, only a manager
--- changes it or deletes the heat (which would take its results with it).
--- Requests with no user (migrations, seeds, the service role) pass; RLS
--- already keeps anonymous visitors from writing heats.
+-- changes the heat at all (reopening it, or moving it to another WOD or
+-- division, would take its results off the leaderboard) or deletes it (which
+-- would take its results with it). Requests with no user (migrations, seeds,
+-- the service role) pass; RLS already keeps anonymous visitors from writing
+-- heats. When the event itself is being deleted its row is already gone and
+-- the cascade passes: deleting events has its own policy.
 create or replace function guard_finished_heat() returns trigger as $$
 declare
   v_org uuid;
@@ -48,10 +51,10 @@ begin
   if old.ended_at is null or auth.uid() is null then
     return coalesce(new, old);
   end if;
-  if tg_op = 'UPDATE' and new.ended_at is not distinct from old.ended_at then
-    return new;
-  end if;
   select organization_id into v_org from events where id = old.event_id;
+  if v_org is null then
+    return coalesce(new, old);
+  end if;
   if not has_role(v_org, array['admin','event_director']::user_role[]) then
     raise exception 'heat_finished: only an admin or event director can change a finished heat'
       using errcode = '42501';
