@@ -10,7 +10,7 @@ vi.mock("@/lib/auth/guards", async (orig) => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { createDivision, deleteDivision } from "./divisions";
+import { createDivision, deleteDivision, updateDivision } from "./divisions";
 import { addFloor } from "./venues";
 
 function form(values: Record<string, string>) {
@@ -37,6 +37,108 @@ describe("divisions", () => {
       ok: true,
     });
     expect(await deleteDivision("ev-1", "d-1")).toEqual({ ok: true });
+  });
+});
+
+describe("division format", () => {
+  const inserted = (fake: ReturnType<typeof fakeSupabase>) =>
+    fake.calls.find(([t, m]) => t === "divisions" && m === "insert")?.[2][0];
+
+  it("an individual division stores no team size, whatever is posted", async () => {
+    const fake = fakeSupabase({ divisions: [{ error: null }] });
+    db.current = fake.client;
+    await createDivision("ev-1", form({ name: "RX", entry_format: "individual", team_size: "4" }));
+    expect(inserted(fake)).toEqual({
+      event_id: "ev-1",
+      name: "RX",
+      entry_format: "individual",
+      team_size: null,
+    });
+  });
+
+  it("a pair is two per team, whatever is posted", async () => {
+    const fake = fakeSupabase({ divisions: [{ error: null }] });
+    db.current = fake.client;
+    await createDivision("ev-1", form({ name: "Pairs", entry_format: "pair", team_size: "3" }));
+    expect(inserted(fake)).toMatchObject({ entry_format: "pair", team_size: 2 });
+  });
+
+  it("a team division needs its size", async () => {
+    db.current = fakeSupabase({}).client;
+    expect(await createDivision("ev-1", form({ name: "Teams", entry_format: "team" }))).toEqual({
+      ok: false,
+      message: "Athletes per team is required.",
+      fieldErrors: { team_size: ["Athletes per team is required."] },
+    });
+  });
+
+  it("refuses a format change once the division has registrations", async () => {
+    const fake = fakeSupabase({
+      divisions: [{ data: { entry_format: "individual", team_size: null } }],
+      registrations: [{ data: [{ id: "r-1" }] }],
+    });
+    db.current = fake.client;
+    expect(
+      await updateDivision(
+        "ev-1",
+        "d-1",
+        form({ name: "RX", entry_format: "team", team_size: "4" }),
+      ),
+    ).toEqual({
+      ok: false,
+      message: "This division already has registrations, so its format can't change.",
+    });
+    expect(fake.calls.some(([t, m]) => t === "divisions" && m === "update")).toBe(false);
+  });
+
+  it("explains the database's refusal when someone registered in between", async () => {
+    db.current = fakeSupabase({
+      divisions: [
+        { data: { entry_format: "individual", team_size: null } },
+        { error: { message: "division_format_locked: this division already has registrations" } },
+      ],
+      registrations: [{ data: [] }],
+      teams: [{ data: [] }],
+    }).client;
+    expect(
+      await updateDivision(
+        "ev-1",
+        "d-1",
+        form({ name: "RX", entry_format: "team", team_size: "4" }),
+      ),
+    ).toEqual({
+      ok: false,
+      message: "This division already has registrations, so its format can't change.",
+    });
+  });
+
+  it("renames a division with registrations when the format stays", async () => {
+    const fake = fakeSupabase({
+      divisions: [
+        { data: { entry_format: "individual", team_size: null } },
+        { data: [{ id: "d-1" }] },
+      ],
+    });
+    db.current = fake.client;
+    expect(await updateDivision("ev-1", "d-1", form({ name: "RX Female" }))).toEqual({ ok: true });
+  });
+
+  it("changes the format of a division nobody is in yet", async () => {
+    db.current = fakeSupabase({
+      divisions: [
+        { data: { entry_format: "individual", team_size: null } },
+        { data: [{ id: "d-1" }] },
+      ],
+      registrations: [{ data: [] }],
+      teams: [{ data: [] }],
+    }).client;
+    expect(
+      await updateDivision(
+        "ev-1",
+        "d-1",
+        form({ name: "RX", entry_format: "team", team_size: "4" }),
+      ),
+    ).toEqual({ ok: true });
   });
 });
 

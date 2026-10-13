@@ -41,7 +41,7 @@ export default async function EventPaymentsPage({ params }: Props) {
     supabase
       .from("registrations")
       .select(
-        "id, bib_number, division_id, athletes(first_name, last_name), teams(name, entry_format), payments(id, status, payment_method, amount_cents, fee_schedule_id, notes)",
+        "id, bib_number, division_id, athletes(first_name, last_name), teams(name), payments(id, status, payment_method, amount_cents, fee_schedule_id, notes)",
       )
       .eq("event_id", eventId),
     ctx?.organizationId
@@ -58,7 +58,7 @@ export default async function EventPaymentsPage({ params }: Props) {
     bib_number: string | null;
     division_id: string;
     athletes: { first_name: string; last_name: string } | null;
-    teams: { name: string; entry_format: string } | null;
+    teams: { name: string } | null;
     payments: {
       id: string;
       status: PaymentStatus;
@@ -73,7 +73,7 @@ export default async function EventPaymentsPage({ params }: Props) {
   const rows: PaymentRow[] = typedRegistrations.map((r) => ({
     id: r.id,
     name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : (r.teams?.name ?? "—"),
-    kind: r.athletes ? "Individual" : (r.teams?.entry_format ?? ""),
+    kind: r.athletes ? "Individual" : "Team",
     divisionId: r.division_id,
     divisionName: divisionName.get(r.division_id) ?? "—",
     bib: r.bib_number,

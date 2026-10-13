@@ -60,6 +60,34 @@ describe("generateHeats", () => {
   });
 });
 
+describe("generateHeats in a team division", () => {
+  it("lanes the division's teams, one per lane", async () => {
+    const fake = fakeSupabase({
+      ...refsFound(),
+      heats: [{ data: [] }, { data: { id: HEAT } }],
+      registrations: [
+        {
+          data: [
+            { athlete_id: null, team_id: "t-1" },
+            { athlete_id: null, team_id: "t-2" },
+          ],
+        },
+      ],
+      lanes: [{ error: null }],
+    });
+    db.current = fake.client;
+    expect(await generateHeats("ev-1", form({ ...REFS, lanes_per_heat: "3" }))).toEqual({
+      ok: true,
+    });
+    const lanes = fake.calls.find(([t, m]) => t === "lanes" && m === "insert")?.[2][0];
+    expect(lanes).toEqual([
+      { heat_id: HEAT, lane_number: 1, athlete_id: null, team_id: "t-1" },
+      { heat_id: HEAT, lane_number: 2, athlete_id: null, team_id: "t-2" },
+      { heat_id: HEAT, lane_number: 3, athlete_id: null, team_id: null },
+    ]);
+  });
+});
+
 describe("createHeat", () => {
   it("refuses another event's WOD", async () => {
     db.current = fakeSupabase({

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { registerAthlete, registerTeam } from "@/lib/actions/registrations";
+import { registerAthlete } from "@/lib/actions/registrations";
 import { fieldErrorsOf, useServerAction } from "@/lib/use-server-action";
 import { FormAlert } from "@/components/app/FormAlert";
 import { FormField } from "@/components/app/FormField";
@@ -18,34 +18,32 @@ import {
 export type Option = { id: string; label: string };
 
 /**
- * Registers an athlete (or a pair, team or custom entry) into one of this
- * event's divisions. The division defaults to the last one used here.
+ * Registers an athlete into one of this event's individual divisions. The
+ * division defaults to the last one used here. Pairs and teams are created,
+ * and registered, on the event's Teams page.
  */
 export function RegisterForm({
-  kind,
   eventId,
-  competitors,
+  athletes,
   divisions,
   defaultDivisionId,
   close,
 }: {
-  kind: "athlete" | "team";
   eventId: string;
-  competitors: Option[];
+  athletes: Option[];
   divisions: Option[];
   defaultDivisionId: string;
   close: () => void;
 }) {
-  const register = useServerAction(
-    (fd: FormData) =>
-      kind === "athlete" ? registerAthlete(eventId, fd) : registerTeam(eventId, fd),
-    { success: "Registered", toastErrors: false, onSuccess: close },
-  );
+  const register = useServerAction((fd: FormData) => registerAthlete(eventId, fd), {
+    success: "Registered",
+    toastErrors: false,
+    onSuccess: close,
+  });
   const errors = fieldErrorsOf(register.error);
-  const field = kind === "athlete" ? "athlete_id" : "team_id";
 
-  if (competitors.length === 0) {
-    return kind === "athlete" ? (
+  if (athletes.length === 0) {
+    return (
       <p className="text-muted-foreground">
         Your organization has no athletes yet.{" "}
         <Link href="/admin/athletes" className="text-brand-text underline">
@@ -53,13 +51,16 @@ export function RegisterForm({
         </Link>{" "}
         first.
       </p>
-    ) : (
+    );
+  }
+  if (divisions.length === 0) {
+    return (
       <p className="text-muted-foreground">
-        Your organization has no teams yet.{" "}
-        <Link href="/admin/teams" className="text-brand-text underline">
-          Create a team
-        </Link>{" "}
-        first.
+        This event has no individual division. Athletes join a pair or team division through{" "}
+        <Link href={`/admin/events/${eventId}/teams`} className="text-brand-text underline">
+          Teams
+        </Link>
+        .
       </p>
     );
   }
@@ -72,18 +73,14 @@ export function RegisterForm({
         register.mutate(new FormData(e.currentTarget));
       }}
     >
-      <FormField
-        label={kind === "athlete" ? "Athlete" : "Team or entry"}
-        name={field}
-        errors={errors?.[field]}
-      >
+      <FormField label="Athlete" name="athlete_id" errors={errors?.athlete_id}>
         {({ name, ...c }) => (
-          <Select name={name} defaultValue={competitors[0].id}>
+          <Select name={name} defaultValue={athletes[0].id}>
             <SelectTrigger {...c} className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {competitors.map((o) => (
+              {athletes.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.label}
                 </SelectItem>

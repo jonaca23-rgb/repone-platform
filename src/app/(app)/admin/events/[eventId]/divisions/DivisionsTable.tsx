@@ -1,32 +1,42 @@
 "use client";
 
-import { Plus, Tags } from "lucide-react";
-import { createDivision, deleteDivision } from "@/lib/actions/divisions";
+import { Pencil, Plus, Tags } from "lucide-react";
+import { deleteDivision } from "@/lib/actions/divisions";
+import { type EntryFormat, formatLabel } from "@/lib/teams/format";
 import { dataTableColumns } from "@/lib/data-table";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { DataTable } from "@/components/app/data-table/DataTable";
 import { createTableContext } from "@/components/app/data-table/tableContext";
 import { EmptyState } from "@/components/app/EmptyState";
 import { FormDialog } from "@/components/app/FormDialog";
-import { NameForm } from "@/components/app/NameForm";
 import { RowActions, useEntityDialogs } from "@/components/app/RowActions";
 import { Button } from "@/components/ui/button";
+import { DivisionForm } from "./DivisionForm";
 
-export type DivisionRow = { id: string; name: string };
+export type DivisionRow = {
+  id: string;
+  name: string;
+  entry_format: EntryFormat;
+  team_size: number | null;
+};
 
 function DivisionActions({ d }: { d: DivisionRow }) {
   const { eventId } = useDivisions();
-  const dialogs = useEntityDialogs<"remove">();
+  const dialogs = useEntityDialogs<"edit" | "remove">();
   return (
     <>
       <RowActions
         label={`Actions for ${d.name}`}
+        secondary={[{ label: "Edit", icon: Pencil, onSelect: dialogs.show("edit") }]}
         destructive={[{ label: "Remove division", onSelect: dialogs.show("remove") }]}
       />
+      <FormDialog {...dialogs.props("edit")} title={`Edit ${d.name}`}>
+        {(close) => <DivisionForm eventId={eventId} division={d} close={close} />}
+      </FormDialog>
       <ConfirmAction
         {...dialogs.props("remove")}
         title={`Remove ${d.name}?`}
-        description="The division is deleted with its registrations, heats and results. This cannot be undone."
+        description="The division is deleted with its registrations, teams, heats and results. This cannot be undone."
         confirmLabel="Remove division"
         onConfirm={() => deleteDivision(eventId, d.id)}
       />
@@ -42,6 +52,11 @@ const columns = [
     header: "Division",
     enableSorting: false,
     cell: ({ getValue }) => <span className="font-semibold">{getValue()}</span>,
+  }),
+  col.accessor((d) => formatLabel(d.entry_format, d.team_size), {
+    id: "format",
+    header: "Format",
+    enableSorting: false,
   }),
   col.display({
     id: "actions",
@@ -61,17 +76,7 @@ export function DivisionsTable({ eventId, rows }: { eventId: string; rows: Divis
         </Button>
       }
     >
-      {(close) => (
-        <NameForm
-          action={(fd) => createDivision(eventId, fd)}
-          label="Division name"
-          placeholder="Intermediate Female"
-          submitLabel="Add division"
-          pendingLabel="Adding…"
-          success="Division added"
-          close={close}
-        />
-      )}
+      {(close) => <DivisionForm eventId={eventId} close={close} />}
     </FormDialog>
   );
   return (

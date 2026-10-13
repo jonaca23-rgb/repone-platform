@@ -1,3 +1,4 @@
+import { circuitCompetitorKey } from "@/lib/scoring/circuitKey";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -68,7 +69,7 @@ export default async function LiveCircuitPage({ params }: Props) {
   const { data: standingsRows } = divisionIds.length
     ? await supabase
         .from("standings")
-        .select("division_id, athlete_id, team_id, placement, points")
+        .select("division_id, athlete_id, team_id, placement, points, teams(name)")
         .in("division_id", divisionIds)
         .is("wod_id", null)
     : {
@@ -81,6 +82,14 @@ export default async function LiveCircuitPage({ params }: Props) {
         }>,
       };
 
+  type StandingRow = {
+    division_id: string;
+    athlete_id: string | null;
+    team_id: string | null;
+    placement: number | null;
+    points: number | null;
+    teams: { name: string } | null;
+  };
   type Row = {
     eventId: string;
     competitorId: string;
@@ -90,10 +99,19 @@ export default async function LiveCircuitPage({ params }: Props) {
   };
   const rowsByDivisionName = new Map<string, { displayName: string; rows: Row[] }>();
 
-  for (const r of standingsRows ?? []) {
+  // Teams are created per event, so a team is matched across stops by name.
+  const teamNameByKey = new Map<string, string>();
+  for (const r of (standingsRows ?? []) as unknown as StandingRow[]) {
     const division = divisionById.get(r.division_id);
-    const competitorId = r.athlete_id ?? r.team_id;
+    const competitorId = circuitCompetitorKey({
+      athleteId: r.athlete_id,
+      teamId: r.team_id,
+      teamName: r.teams?.name ?? null,
+    });
     if (!division || !competitorId) continue;
+    if (r.team_id && !teamNameByKey.has(competitorId)) {
+      teamNameByKey.set(competitorId, r.teams?.name.trim() ?? "Unknown team");
+    }
     const key = division.name.trim().toLowerCase();
     const group: { displayName: string; rows: Row[] } = rowsByDivisionName.get(key) ?? {
       displayName: division.name.trim(),
@@ -110,24 +128,18 @@ export default async function LiveCircuitPage({ params }: Props) {
   }
 
   const athleteIds = new Set<string>();
-  const teamIds = new Set<string>();
   for (const group of rowsByDivisionName.values()) {
-    for (const row of group.rows) (row.isTeam ? teamIds : athleteIds).add(row.competitorId);
+    for (const row of group.rows) if (!row.isTeam) athleteIds.add(row.competitorId);
   }
-  const [{ data: athletes }, { data: teams }] = await Promise.all([
-    athleteIds.size
-      ? supabase
-          .from("athletes")
-          .select("id, first_name, last_name")
-          .in("id", Array.from(athleteIds))
-      : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
-    teamIds.size
-      ? supabase.from("teams").select("id, name").in("id", Array.from(teamIds))
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
+  const { data: athletes } = athleteIds.size
+    ? await supabase
+        .from("athletes")
+        .select("id, first_name, last_name")
+        .in("id", Array.from(athleteIds))
+    : { data: [] as { id: string; first_name: string; last_name: string }[] };
   const nameById = new Map<string, string>();
   for (const a of athletes ?? []) nameById.set(a.id, `${a.first_name} ${a.last_name}`);
-  for (const t of teams ?? []) nameById.set(t.id, t.name);
+  for (const [key, name] of teamNameByKey) nameById.set(key, name);
 
   const divisionLeaderboards = Array.from(rowsByDivisionName.values()).map((group) => {
     const byEvent = new Map<string, RankedResult[]>();

@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Users, UsersRound } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
 import { removeRegistration } from "@/lib/actions/registrations";
 import { dataTableColumns } from "@/lib/data-table";
 import { AGE_CATEGORY_LABELS, type AgeCategory } from "@/lib/scoring/ageCategory";
@@ -18,8 +18,8 @@ export type RegistrationRow = {
   id: string;
   name: string;
   affiliate: string | null;
-  /** "individual", or the team's entry format. */
-  type: string;
+  /** A team's registration is created and removed with the team, on the Teams page. */
+  type: "individual" | "team";
   divisionId: string;
   divisionName: string;
   bib: string | null;
@@ -29,6 +29,7 @@ export type RegistrationRow = {
 function RegistrationActions({ r }: { r: RegistrationRow }) {
   const { eventId } = useRegistrations();
   const dialogs = useEntityDialogs<"remove">();
+  if (r.type === "team") return null;
   return (
     <>
       <RowActions
@@ -122,14 +123,15 @@ export function RegistrationsTable({
   rows,
   divisions,
   athletes,
-  teams,
+  individualDivisions,
   defaultDivisionId,
 }: {
   eventId: string;
   rows: RegistrationRow[];
   divisions: Option[];
   athletes: Option[];
-  teams: Option[];
+  /** The divisions an athlete can be registered into on their own. */
+  individualDivisions: Option[];
   defaultDivisionId: string;
 }) {
   const registerAthlete = (
@@ -143,31 +145,9 @@ export function RegistrationsTable({
     >
       {(close) => (
         <RegisterForm
-          kind="athlete"
           eventId={eventId}
-          competitors={athletes}
-          divisions={divisions}
-          defaultDivisionId={defaultDivisionId}
-          close={close}
-        />
-      )}
-    </FormDialog>
-  );
-  const registerTeam = (
-    <FormDialog
-      title="Register a pair, team or custom entry"
-      trigger={
-        <Button variant="outline">
-          <UsersRound aria-hidden /> Register team
-        </Button>
-      }
-    >
-      {(close) => (
-        <RegisterForm
-          kind="team"
-          eventId={eventId}
-          competitors={teams}
-          divisions={divisions}
+          athletes={athletes}
+          divisions={individualDivisions}
           defaultDivisionId={defaultDivisionId}
           close={close}
         />
@@ -194,27 +174,17 @@ export function RegistrationsTable({
             allLabel: "Individuals and teams",
             options: [
               ["individual", "Individuals"],
-              ["team", "Pairs, teams and custom"],
+              ["team", "Pairs and teams"],
             ],
           },
         ]}
-        toolbar={
-          <>
-            {registerAthlete}
-            {registerTeam}
-          </>
-        }
+        toolbar={registerAthlete}
         empty={
           <EmptyState
             icon={Users}
             title="No registrations yet"
-            description="Register athletes and teams into this event's divisions."
-            action={
-              <span className="flex flex-wrap justify-center gap-2">
-                {registerAthlete}
-                {registerTeam}
-              </span>
-            }
+            description="Register athletes into this event's individual divisions. Teams are added on the Teams page."
+            action={registerAthlete}
           />
         }
       />

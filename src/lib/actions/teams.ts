@@ -3,140 +3,231 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { type ActionResult, fail, ok } from "@/lib/action-result";
-import { expectChanged, requireOrgManager } from "@/lib/auth/guards";
+import { expectChanged, requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { Constants } from "@/lib/db/supabase.types";
 import { field, parseForm } from "@/lib/validation/form";
 import { safeAction } from "./safeAction";
 
+// A team belongs to one event and one of its team divisions (0036). The
+// event's organizers create it, which also registers it (one registration,
+// one fee), and manage its roster. The database enforces the rules: one team
+// per athlete per event, the division's team size, the same organization.
+// Its tagged refusals are turned into messages here.
+
 const TeamForm = z.object({
   name: field.text("Team name", { max: 200 }),
+  division_id: field.id("Division"),
   affiliate: field.optionalText({ max: 200, label: "Affiliate" }),
-  entry_format: field.oneOf(Constants.public.Enums.entry_format, "entry format").default("team"),
-  team_size: field
-    .optionalNumber("Headcount", { min: 1, max: 100 })
-    .refine((n) => n === null || Number.isInteger(n), "Headcount must be a whole number."),
 });
-
+const TeamEditForm = TeamForm.omit({ division_id: true });
 const TeamMemberForm = z.object({
   athlete_id: z.guid({ error: "Choose an athlete to add." }),
 });
 
-/**
- * Teams have existed in the schema since 0001_init.sql (referenced by
- * lanes/results/registrations) but had no UI at all until this module —
- * flagged as a gap in the Requirements Audit. `team_size` here is purely
- * informational for display and fee-matching; it is never a constraint, per
- * the product rule that no fixed roster size (e.g. "teams of 3") is assumed.
- */
-export async function createTeam(formData: FormData): Promise<ActionResult> {
-  return safeAction(async () => {
-    const { organizationId } = await requireOrgManager();
-    const f = parseForm(TeamForm, formData);
+const INDIVIDUAL_DIVISION = "That division is for individuals. Choose a team division.";
+const NAME_TAKEN = "A team with that name already exists in this event.";
+const OTHER_TEAM = "That athlete is already on another team in this event.";
+const OTHER_ORG = "That athlete isn't part of this organization.";
+const HAS_RESULTS = "This team has results and can't be deleted. Remove its results first.";
+const NOT_A_MEMBER = "Only a member of the team can be its captain.";
+const NOT_THIS_EVENT = "That team isn't part of this event.";
 
-    const supabase = await createClient();
-    const { error } = await supabase
-      .from("teams")
-      .insert({ organization_id: organizationId, ...f });
-    if (error) throw new Error(error.message);
-
-    revalidatePath("/admin/teams");
-    return ok();
-  });
+/** A database refusal about the team itself, as a message under the right field. */
+function teamRefusal(message: string): ActionResult | null {
+  if (message.includes("team_division_individual") || message.includes("registration_kind")) {
+    return fail(INDIVIDUAL_DIVISION, { division_id: [INDIVIDUAL_DIVISION] });
+  }
+  if (message.includes("team_division_event") || message.includes("registration_team_mismatch")) {
+    const text = "That division isn't part of this event.";
+    return fail(text, { division_id: [text] });
+  }
+  if (message.includes("teams_event_name_key")) return fail(NAME_TAKEN, { name: [NAME_TAKEN] });
+  if (message.includes("team_captain_not_member")) return fail(NOT_A_MEMBER);
+  return null;
 }
 
-export async function deleteTeam(teamId: string): Promise<ActionResult> {
-  return safeAction(async () => {
-    const { organizationId } = await requireOrgManager();
-    const supabase = await createClient();
-    expectChanged(
-      await supabase
-        .from("teams")
-        .delete()
-        .eq("id", teamId)
-        .eq("organization_id", organizationId)
-        .select("id"),
-      "delete the team",
+function memberRefusal(message: string, teamSize: number | null): ActionResult | null {
+  if (
+    message.includes("team_member_other_team") ||
+    message.includes("team_members_event_athlete_key")
+  ) {
+    return fail(OTHER_TEAM);
+  }
+  if (message.includes("team_full")) {
+    return fail(
+      teamSize
+        ? `This team is full: its division takes ${teamSize} per team.`
+        : "This team is full.",
     );
-    revalidatePath("/admin/teams");
-    return ok();
-  });
+  }
+  if (message.includes("team_member_org")) return fail(OTHER_ORG);
+  if (message.includes("team_members_team_id_athlete_id_key")) {
+    return fail("That athlete is already on this team.");
+  }
+  return null;
 }
 
-export async function addTeamMember(teamId: string, formData: FormData): Promise<ActionResult> {
+function revalidate(eventId: string, registrations = false) {
+  revalidatePath(`/admin/events/${eventId}/teams`);
+  if (registrations) {
+    revalidatePath(`/admin/events/${eventId}/athletes`);
+    revalidatePath(`/admin/events/${eventId}/payments`);
+  }
+}
+
+export async function createTeam(eventId: string, formData: FormData): Promise<ActionResult> {
   return safeAction(async () => {
-    const { organizationId } = await requireOrgManager();
-    const { athlete_id } = parseForm(TeamMemberForm, formData);
-
+    await requireEventAccess(eventId);
+    const f = parseForm(TeamForm, formData);
     const supabase = await createClient();
-    const [{ data: team, error: teamError }, { data: athlete, error: athleteError }] =
-      await Promise.all([
-        supabase
-          .from("teams")
-          .select("id")
-          .eq("id", teamId)
-          .eq("organization_id", organizationId)
-          .maybeSingle(),
-        supabase
-          .from("athletes")
-          .select("id")
-          .eq("id", athlete_id)
-          .eq("organization_id", organizationId)
-          .maybeSingle(),
-      ]);
-    if (teamError) throw new Error(teamError.message);
-    if (athleteError) throw new Error(athleteError.message);
-    if (!team) return fail("That team doesn't belong to your organization.");
-    if (!athlete) return fail("That athlete doesn't belong to your organization.");
 
-    const { error } = await supabase
-      .from("team_members")
-      .insert({ team_id: team.id, athlete_id: athlete.id });
+    // The database registers the team in the same statement (teams_register,
+    // 0036), so it never exists without the registration its fee hangs from.
+    const { error } = await supabase.from("teams").insert({
+      event_id: eventId,
+      division_id: f.division_id,
+      name: f.name,
+      affiliate: f.affiliate,
+    });
     if (error) {
-      if (error.message.includes("team_members_team_id_athlete_id_key")) {
-        return fail("That athlete is already on this team's roster.");
-      }
+      const refusal = teamRefusal(error.message);
+      if (refusal) return refusal;
       throw new Error(error.message);
     }
 
-    revalidatePath("/admin/teams");
+    revalidate(eventId, true);
     return ok();
   });
 }
 
-export async function removeTeamMember(teamMemberId: string): Promise<ActionResult> {
+export async function updateTeam(
+  eventId: string,
+  teamId: string,
+  formData: FormData,
+): Promise<ActionResult> {
   return safeAction(async () => {
-    const { organizationId } = await requireOrgManager();
+    await requireEventAccess(eventId);
+    const f = parseForm(TeamEditForm, formData);
+    const supabase = await createClient();
+    const res = await supabase
+      .from("teams")
+      .update({ name: f.name, affiliate: f.affiliate })
+      .eq("id", teamId)
+      .eq("event_id", eventId)
+      .select("id");
+    if (res.error) {
+      const refusal = teamRefusal(res.error.message);
+      if (refusal) return refusal;
+    }
+    expectChanged(res, "save the team");
+    revalidate(eventId, true);
+    return ok();
+  });
+}
+
+export async function deleteTeam(eventId: string, teamId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
     const supabase = await createClient();
 
-    // team_members has no organization column; it's owned through its team.
-    const { data: member, error: memberError } = await supabase
-      .from("team_members")
-      .select("id, team_id")
-      .eq("id", teamMemberId)
-      .maybeSingle();
-    if (memberError) throw new Error(memberError.message);
-    if (!member) return fail("That roster entry doesn't exist.");
+    // Deleting a team cascades to its results; scored teams are kept.
+    const results = await supabase.from("results").select("id").eq("team_id", teamId).limit(1);
+    if (results.error) throw new Error(results.error.message);
+    if (results.data?.length) return fail(HAS_RESULTS);
 
-    const { data: team, error: teamError } = await supabase
+    expectChanged(
+      await supabase.from("teams").delete().eq("id", teamId).eq("event_id", eventId).select("id"),
+      "delete the team",
+    );
+    revalidate(eventId, true);
+    return ok();
+  });
+}
+
+export async function addTeamMember(
+  eventId: string,
+  teamId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    const { athlete_id } = parseForm(TeamMemberForm, formData);
+    const supabase = await createClient();
+
+    const { data, error: teamError } = await supabase
       .from("teams")
-      .select("id")
-      .eq("id", member.team_id)
-      .eq("organization_id", organizationId)
+      .select("id, divisions(team_size)")
+      .eq("id", teamId)
+      .eq("event_id", eventId)
       .maybeSingle();
     if (teamError) throw new Error(teamError.message);
-    if (!team) return fail("That team doesn't belong to your organization.");
+    const team = data as unknown as {
+      id: string;
+      divisions: { team_size: number | null } | null;
+    } | null;
+    if (!team) return fail(NOT_THIS_EVENT);
 
+    const { error } = await supabase
+      .from("team_members")
+      .insert({ team_id: team.id, athlete_id, event_id: eventId });
+    if (error) {
+      const refusal = memberRefusal(error.message, team.divisions?.team_size ?? null);
+      if (refusal) return refusal;
+      throw new Error(error.message);
+    }
+
+    revalidate(eventId);
+    return ok();
+  });
+}
+
+export async function removeTeamMember(
+  eventId: string,
+  teamId: string,
+  teamMemberId: string,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    const supabase = await createClient();
     expectChanged(
       await supabase
         .from("team_members")
         .delete()
-        .eq("id", member.id)
-        .eq("team_id", team.id)
+        .eq("id", teamMemberId)
+        .eq("team_id", teamId)
+        .eq("event_id", eventId)
         .select("id"),
-      "remove the team member",
+      "remove the athlete from the team",
     );
-    revalidatePath("/admin/teams");
+    revalidate(eventId);
+    return ok();
+  });
+}
+
+/** Names the team's captain, or clears it with `null`. The captain must be on the roster. */
+export async function setTeamCaptain(
+  eventId: string,
+  teamId: string,
+  athleteId: string | null,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    if (athleteId !== null && !z.guid().safeParse(athleteId).success) {
+      return fail("Choose a member of the team.");
+    }
+    const supabase = await createClient();
+    const res = await supabase
+      .from("teams")
+      .update({ captain_athlete_id: athleteId })
+      .eq("id", teamId)
+      .eq("event_id", eventId)
+      .select("id");
+    if (res.error) {
+      const refusal = teamRefusal(res.error.message);
+      if (refusal) return refusal;
+    }
+    expectChanged(res, "set the captain");
+    revalidate(eventId);
     return ok();
   });
 }

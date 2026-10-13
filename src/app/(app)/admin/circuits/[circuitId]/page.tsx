@@ -1,3 +1,4 @@
+import { circuitCompetitorKey } from "@/lib/scoring/circuitKey";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -47,8 +48,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * placement-based points method `computeOverallStandings` already uses to
  * combine multiple WODs into one event's overall standings — just applied
  * one level up (events instead of WODs). See 0008_circuits.sql for the
- * reasoning and its limits (competitors are matched by their stable
- * athlete_id/team_id; divisions are matched across events by name, so a
+ * reasoning and its limits (athletes are matched by their stable id and
+ * teams, which are created per event since 0036, by name — see
+ * lib/scoring/circuitKey.ts; divisions are matched across events by name, so a
  * circuit only works cleanly if the same division names — e.g. "Rx Male" —
  * are reused at every stop).
  */
@@ -90,7 +92,7 @@ export default async function CircuitDetailPage({ params, searchParams }: Props)
   const { data: standingsRows } = divisionIds.length
     ? await supabase
         .from("standings")
-        .select("division_id, athlete_id, team_id, placement, points")
+        .select("division_id, athlete_id, team_id, placement, points, teams(name)")
         .in("division_id", divisionIds)
         .is("wod_id", null)
     : {
@@ -105,6 +107,14 @@ export default async function CircuitDetailPage({ params, searchParams }: Props)
 
   // Group standings rows by normalized division name, then by event, so each
   // division-name group can be fed through computeOverallStandings.
+  type StandingRow = {
+    division_id: string;
+    athlete_id: string | null;
+    team_id: string | null;
+    placement: number | null;
+    points: number | null;
+    teams: { name: string } | null;
+  };
   type Row = {
     eventId: string;
     competitorId: string;
@@ -114,10 +124,19 @@ export default async function CircuitDetailPage({ params, searchParams }: Props)
   };
   const rowsByDivisionName = new Map<string, { displayName: string; rows: Row[] }>();
 
-  for (const r of standingsRows ?? []) {
+  // Teams are created per event, so a team is matched across stops by name.
+  const teamNameByKey = new Map<string, string>();
+  for (const r of (standingsRows ?? []) as unknown as StandingRow[]) {
     const division = divisionById.get(r.division_id);
-    const competitorId = r.athlete_id ?? r.team_id;
+    const competitorId = circuitCompetitorKey({
+      athleteId: r.athlete_id,
+      teamId: r.team_id,
+      teamName: r.teams?.name ?? null,
+    });
     if (!division || !competitorId) continue;
+    if (r.team_id && !teamNameByKey.has(competitorId)) {
+      teamNameByKey.set(competitorId, r.teams?.name.trim() ?? "Unknown team");
+    }
     const key = division.name.trim().toLowerCase();
     const group: { displayName: string; rows: Row[] } = rowsByDivisionName.get(key) ?? {
       displayName: division.name.trim(),
@@ -135,24 +154,18 @@ export default async function CircuitDetailPage({ params, searchParams }: Props)
 
   // Look up display names for every athlete/team that shows up anywhere above.
   const athleteIds = new Set<string>();
-  const teamIds = new Set<string>();
   for (const group of rowsByDivisionName.values()) {
-    for (const row of group.rows) (row.isTeam ? teamIds : athleteIds).add(row.competitorId);
+    for (const row of group.rows) if (!row.isTeam) athleteIds.add(row.competitorId);
   }
-  const [{ data: athletes }, { data: teams }] = await Promise.all([
-    athleteIds.size
-      ? supabase
-          .from("athletes")
-          .select("id, first_name, last_name")
-          .in("id", Array.from(athleteIds))
-      : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
-    teamIds.size
-      ? supabase.from("teams").select("id, name").in("id", Array.from(teamIds))
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
+  const { data: athletes } = athleteIds.size
+    ? await supabase
+        .from("athletes")
+        .select("id, first_name, last_name")
+        .in("id", Array.from(athleteIds))
+    : { data: [] as { id: string; first_name: string; last_name: string }[] };
   const nameById = new Map<string, string>();
   for (const a of athletes ?? []) nameById.set(a.id, `${a.first_name} ${a.last_name}`);
-  for (const t of teams ?? []) nameById.set(t.id, t.name);
+  for (const [key, name] of teamNameByKey) nameById.set(key, name);
 
   const divisionLeaderboards = Array.from(rowsByDivisionName.values()).map((group) => {
     const byEvent = new Map<string, RankedResult[]>();
@@ -228,7 +241,8 @@ export default async function CircuitDetailPage({ params, searchParams }: Props)
               <p className="text-sm text-muted-foreground">
                 Lower total is better: the same placement-as-points method used to combine WODs into
                 one event&apos;s standings, applied here across events. Only divisions with at least
-                one completed, scored event show up below.
+                one completed, scored event show up below. Athletes are the same record at every
+                stop; teams are created per event, so a team is matched across stops by its name.
               </p>
             </div>
 
