@@ -144,6 +144,12 @@ describe("ScoreDrawer", () => {
     expect(screen.getByLabelText("Reps")).toBeTruthy();
   });
 
+  it("shows one total-reps field for Tabata", () => {
+    setup({ scoringType: "tabata" });
+    expect(screen.getByLabelText("Total reps")).toBeTruthy();
+    expect(screen.queryByLabelText("Points")).toBeNull();
+  });
+
   it("shows one field for AMRAP", () => {
     setup({ scoringType: "amrap" });
     expect(screen.getByLabelText("Total reps")).toBeTruthy();

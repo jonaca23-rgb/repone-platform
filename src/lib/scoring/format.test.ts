@@ -41,6 +41,12 @@ describe("joinClock", () => {
     expect(joinClock("3", "7x")).toBe("3:7x"));
 });
 
+describe("tabata", () => {
+  it("shows total reps on a lane row", () =>
+    expect(scoreSummary({ ...base, reps: 120 }, "tabata")).toBe("120 reps"));
+  it("is labelled Tabata", () => expect(scoringLabel("tabata")).toBe("Tabata"));
+});
+
 describe("scoreSummary", () => {
   it("is a dash with no result", () => expect(scoreSummary(undefined, "for_time")).toBe("—"));
   it("shows DNF", () => expect(scoreSummary({ ...base, status: "dnf" }, "amrap")).toBe("DNF"));

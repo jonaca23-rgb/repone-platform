@@ -19,6 +19,7 @@ export function formatResult(result: ResultValue | null, scoringType: ScoringTyp
       if (result.capped) return result.reps != null ? `CAP+${result.reps}` : "CAP";
       return result.time_seconds != null ? formatClock(Number(result.time_seconds)) : "—";
     case "amrap":
+    case "tabata":
       return result.reps != null ? `${result.reps} reps` : "—";
     case "max_load":
       return result.load != null ? `${Number(result.load)} lb` : "—";

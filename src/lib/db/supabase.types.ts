@@ -2333,7 +2333,13 @@ export type Database = {
       payment_method_type: "unpaid" | "cash" | "manual_other" | "stripe"
       payment_status: "unpaid" | "paid" | "waived" | "refunded"
       result_status: "completed" | "dns" | "dnf" | "dq"
-      scoring_type: "for_time" | "amrap" | "max_load" | "points" | "other"
+      scoring_type:
+        | "for_time"
+        | "amrap"
+        | "max_load"
+        | "points"
+        | "other"
+        | "tabata"
       tiebreak_type: "none" | "time" | "reps" | "load" | "points"
       timer_direction: "count_up" | "count_down"
       timer_status: "idle" | "running" | "paused" | "ended"
@@ -2517,7 +2523,14 @@ export const Constants = {
       payment_method_type: ["unpaid", "cash", "manual_other", "stripe"],
       payment_status: ["unpaid", "paid", "waived", "refunded"],
       result_status: ["completed", "dns", "dnf", "dq"],
-      scoring_type: ["for_time", "amrap", "max_load", "points", "other"],
+      scoring_type: [
+        "for_time",
+        "amrap",
+        "max_load",
+        "points",
+        "other",
+        "tabata",
+      ],
       tiebreak_type: ["none", "time", "reps", "load", "points"],
       timer_direction: ["count_up", "count_down"],
       timer_status: ["idle", "running", "paused", "ended"],

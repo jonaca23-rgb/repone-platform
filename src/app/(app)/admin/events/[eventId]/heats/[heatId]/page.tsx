@@ -60,7 +60,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
     floor_id: string;
     wods: {
       name: string;
-      scoring_type: "for_time" | "amrap" | "max_load" | "points" | "other";
+      scoring_type: ScoringType;
       time_cap_seconds: number | null;
     } | null;
     divisions: { name: string } | null;

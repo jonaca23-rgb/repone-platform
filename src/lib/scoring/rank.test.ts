@@ -77,6 +77,26 @@ describe("rankWodResults — for_time", () => {
   });
 });
 
+describe("rankWodResults — tabata", () => {
+  const tabata: WodScoringConfig = { ...amrap, id: "wod-tabata", scoringType: "tabata" };
+
+  it("ranks by total reps descending, with DNF last", () => {
+    const ranked = rankWodResults(
+      [
+        { competitorId: "a", reps: 96 },
+        { competitorId: "b", reps: 120 },
+        { competitorId: "c", status: "dnf" },
+      ],
+      tabata,
+    );
+    expect(ranked.map((r) => [r.competitorId, r.placement])).toEqual([
+      ["b", 1],
+      ["a", 2],
+      ["c", null],
+    ]);
+  });
+});
+
 describe("rankWodResults — amrap", () => {
   it("ranks by reps descending", () => {
     const results: RawResult[] = [

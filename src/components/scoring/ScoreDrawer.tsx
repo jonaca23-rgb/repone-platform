@@ -11,6 +11,7 @@ import {
   type ScoringType,
   splitClock,
 } from "@/lib/scoring/format";
+import { countsReps } from "@/lib/scoring/types";
 import { fieldErrorsOf, useServerAction } from "@/lib/use-server-action";
 import { FormAlert } from "@/components/app/FormAlert";
 import { FormDialog } from "@/components/app/FormDialog";
@@ -301,7 +302,7 @@ function ScoreForm({
         </>
       )}
       {status === "completed" &&
-        scoringType === "amrap" &&
+        countsReps(scoringType) &&
         numberField("Total reps", "reps", reps, setReps, "numeric")}
       {status === "completed" &&
         scoringType === "max_load" &&
