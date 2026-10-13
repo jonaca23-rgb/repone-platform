@@ -5,9 +5,16 @@ vi.mock("server-only", () => ({}));
 const db = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock("@/lib/db/server", () => ({ createClient: async () => db.current }));
 const HEAT = { id: "h-1", event_id: "ev-1", wod_id: "w-1", division_id: "d-1", floor_id: "f-1" };
+const access = vi.hoisted(() => ({ endedAt: null as string | null, manager: false }));
 vi.mock("@/lib/auth/guards", async (orig) => ({
   ...(await orig<typeof import("@/lib/auth/guards")>()),
-  requireHeatAccess: async () => ({ ctx: { userId: "u-1" }, eventId: "ev-1", heat: HEAT }),
+  requireHeatAccess: async () => ({
+    ctx: { userId: "u-1" },
+    eventId: "ev-1",
+    organizationId: "org-1",
+    heat: { ...HEAT, ended_at: access.endedAt },
+  }),
+  isOrgManager: () => access.manager,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/scoring/recompute", () => ({
@@ -36,7 +43,11 @@ function laned(extra: Record<string, { data?: unknown; error?: { message: string
   });
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  access.endedAt = null;
+  access.manager = false;
+});
 
 describe("enterResult", () => {
   it("refuses a competitor outside the heat", async () => {
@@ -65,7 +76,40 @@ describe("enterResult", () => {
   });
 });
 
+describe("enterResult on a finished heat", () => {
+  const card = () => form({ competitor_id: ATHLETE, time_seconds: "3:45" });
+
+  it("refuses a scorekeeper and says who can correct it", async () => {
+    access.endedAt = "2026-10-12T15:00:00Z";
+    const fake = laned({ results: [{ data: null }] });
+    db.current = fake.client;
+    expect(await enterResult("h-1", card())).toEqual({
+      ok: false,
+      message: "This heat is finished. An admin or event director can correct its results.",
+    });
+    expect(fake.calls.some(([t, m]) => t === "results" && m === "upsert")).toBe(false);
+  });
+
+  it("lets an admin or event director correct it", async () => {
+    access.endedAt = "2026-10-12T15:00:00Z";
+    access.manager = true;
+    db.current = laned({ results: [{ data: null }] }).client;
+    expect(await enterResult("h-1", card())).toEqual({ ok: true });
+  });
+});
+
 describe("finishHeat", () => {
+  it("says so when the heat is already finished", async () => {
+    access.endedAt = "2026-10-12T15:00:00Z";
+    const fake = fakeSupabase({});
+    db.current = fake.client;
+    expect(await finishHeat("h-1")).toEqual({
+      ok: false,
+      message: "This heat is already finished.",
+    });
+    expect(fake.calls.some(([t, m]) => t === "heats" && m === "update")).toBe(false);
+  });
+
   it("says which heat finished", async () => {
     db.current = fakeSupabase({ heats: [{ data: [{ id: "h-1", heat_number: 6 }] }] }).client;
     expect(await finishHeat("h-1")).toEqual({ ok: true, message: "Heat 6 finished." });

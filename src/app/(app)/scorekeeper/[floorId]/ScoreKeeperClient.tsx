@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, ListOrdered, Radio, Users } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ListOrdered, Lock, Radio, Users } from "lucide-react";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
 import { floorWatches } from "@/lib/realtime/floorWatches";
 import { useRefreshOnChanges } from "@/lib/realtime/useRefreshOnChanges";
@@ -55,12 +55,15 @@ export function ScoreKeeperClient({
   initialBroadcastState,
   resultsByHeatId,
   standingsByHeatId,
+  canAdjustFinished = false,
 }: {
   floorId: string;
   heats: ScoreKeeperHeat[];
   initialBroadcastState: BroadcastStateRow | null;
   resultsByHeatId: Record<string, LaneResult[]>;
   standingsByHeatId: Record<string, ScoreKeeperStanding[]>;
+  /** An admin or event director: may still correct a finished heat. */
+  canAdjustFinished?: boolean;
 }) {
   const { state, connected } = useBroadcastState(floorId, initialBroadcastState);
   const liveHeatId = state?.current_heat_id ?? null;
@@ -124,6 +127,8 @@ export function ScoreKeeperClient({
     setManualHeatId(id);
   };
   const subtitle = `${heat.wod.name} · ${heat.division.name}`;
+  // Finished heats are read-only here for everyone but the organizers.
+  const locked = !!heat.endedAt && !canAdjustFinished;
   const heldBack =
     open && following && liveHeat && liveHeat.id !== open.heatId
       ? `Production moved to ${heatLabel(liveHeat)}. You'll go there when you close this lane.`
@@ -228,12 +233,20 @@ export function ScoreKeeperClient({
       {/* Lane list */}
       <section aria-label="Lanes" className="flex-1 px-4 py-4">
         {lanes.length > 0 ? (
-          <LaneList
-            lanes={lanes}
-            resultsByAthlete={results}
-            scoringType={scoringType}
-            onOpen={(lane) => setOpen({ heatId: heat.id, lane })}
-          />
+          <div className="flex flex-col gap-3">
+            {locked ? (
+              <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+                This heat is finished. An admin or event director can correct its results.
+              </p>
+            ) : null}
+            <LaneList
+              lanes={lanes}
+              resultsByAthlete={results}
+              scoringType={scoringType}
+              onOpen={locked ? undefined : (lane) => setOpen({ heatId: heat.id, lane })}
+            />
+          </div>
         ) : (
           <EmptyState
             icon={Users}

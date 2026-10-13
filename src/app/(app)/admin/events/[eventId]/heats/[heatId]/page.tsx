@@ -45,13 +45,14 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
   const { data: heatRaw } = await supabase
     .from("heats")
     .select(
-      "id, heat_number, heat_count, division_id, wod_id, floor_id, wods(name, scoring_type, time_cap_seconds), divisions(name), floors(name)",
+      "id, heat_number, heat_count, division_id, wod_id, floor_id, ended_at, wods(name, scoring_type, time_cap_seconds), divisions(name), floors(name)",
     )
     .eq("id", heatId)
     .single();
   // See lib/db/queries.ts header comment: cast many-to-one embeds back to single objects.
   const heat = heatRaw as unknown as {
     id: string;
+    ended_at: string | null;
     heat_number: number;
     heat_count: number | null;
     division_id: string;
@@ -275,8 +276,9 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
         ) : tab === "results" ? (
           <section className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">
-              Saving here doesn&apos;t finish the heat. The heat is marked Completed from the Score
-              Keeper screen.
+              {heat.ended_at
+                ? "This heat is finished. Only admins and event directors can correct its results; saving here updates the standings."
+                : "Saving here doesn't finish the heat. The heat is marked Completed from the Score Keeper screen."}
             </p>
             {scoringLanes.length > 0 ? (
               <LaneScoring

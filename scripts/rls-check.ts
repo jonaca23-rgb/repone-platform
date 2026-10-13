@@ -262,6 +262,73 @@ async function orgWideStaffMatchTheirPermissions(cleanup: Array<() => PromiseLik
   }
 }
 
+// Once a heat is finished its results are the organizers' to correct: the
+// scorekeeper and producer who entered them, and the org-wide working roles,
+// can no longer write them or reopen the heat (0034_finished_heats_lock.sql).
+async function finishedHeatsLockResults(admin: SupabaseClient, producer: SupabaseClient) {
+  console.log("\nA finished heat's results are locked to organizers");
+  const scorekeeper = (await signIn("scorekeeper@repone.test")).client;
+  const row = { heat_id: SEED_HEAT_ID, wod_id: SEED_WOD_ID, athlete_id: SPARE_ATHLETE_ID, reps: 1 };
+  const tryInsert = async (c: SupabaseClient) => {
+    const r = await c.from("results").insert(row).select("id");
+    await service
+      .from("results")
+      .delete()
+      .eq("heat_id", SEED_HEAT_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID);
+    return !r.error && (r.data?.length ?? 0) === 1;
+  };
+  try {
+    expect("scorekeeper enters a result while the heat is open", await tryInsert(scorekeeper));
+    await service.from("results").insert(row);
+    const finish = await scorekeeper
+      .from("heats")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", SEED_HEAT_ID)
+      .select("id");
+    expect("scorekeeper finishes the heat", (finish.data?.length ?? 0) === 1, finish.error);
+
+    const edit = await scorekeeper
+      .from("results")
+      .update({ reps: 99 })
+      .eq("heat_id", SEED_HEAT_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID)
+      .select("id");
+    expect(
+      "scorekeeper cannot change a finished heat's result",
+      (edit.data?.length ?? 0) === 0,
+      edit,
+    );
+    const remove = await scorekeeper
+      .from("results")
+      .delete()
+      .eq("heat_id", SEED_HEAT_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID)
+      .select("id");
+    expect("scorekeeper cannot delete a finished heat's result", (remove.data?.length ?? 0) === 0);
+    await service
+      .from("results")
+      .delete()
+      .eq("heat_id", SEED_HEAT_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID);
+    expect("scorekeeper cannot add a result to a finished heat", !(await tryInsert(scorekeeper)));
+    expect("producer cannot add a result to a finished heat", !(await tryInsert(producer)));
+
+    await scorekeeper.from("heats").update({ ended_at: null }).eq("id", SEED_HEAT_ID);
+    const still = await service.from("heats").select("ended_at").eq("id", SEED_HEAT_ID).single();
+    expect("scorekeeper cannot reopen a finished heat", still.data?.ended_at !== null, still.data);
+
+    expect("admin corrects a finished heat's results", await tryInsert(admin));
+  } finally {
+    await service
+      .from("results")
+      .delete()
+      .eq("heat_id", SEED_HEAT_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID);
+    await service.from("heats").update({ ended_at: null }).eq("id", SEED_HEAT_ID);
+  }
+}
+
 async function main() {
   const anon = createClient(target.apiUrl, publishableKey, options);
   if (process.env.RLS_ONLY === "auth-tables") {
@@ -276,6 +343,7 @@ async function main() {
   const cleanup: Array<() => PromiseLike<unknown>> = [];
 
   try {
+    await finishedHeatsLockResults(admin.client, producer.client);
     console.log("\nC1 athlete personal data");
     for (const column of ["email", "phone", "date_of_birth", "auth_user_id"]) {
       const r = await anon.from("athletes").select(column).limit(1);

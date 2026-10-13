@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { type ActionResult, fail, ok } from "@/lib/action-result";
-import { NotAuthorizedError, requireHeatAccess } from "@/lib/auth/guards";
+import { isOrgManager, NotAuthorizedError, requireHeatAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { Constants } from "@/lib/db/supabase.types";
 import { recomputeWodStandings } from "@/lib/scoring/recompute";
@@ -47,6 +47,7 @@ const EnterResultForm = ScoreFields.extend({
 type Scorecard = z.infer<typeof ScoreFields>;
 
 const NO_WOD = "This heat's WOD no longer exists.";
+const HEAT_FINISHED = "This heat is finished. An admin or event director can correct its results.";
 
 /** The heat's WOD scoring type, or null when the WOD is gone. */
 async function wodScoringType(
@@ -132,7 +133,13 @@ function resultRow(
  */
 export async function enterResult(heatId: string, formData: FormData): Promise<ActionResult> {
   return safeAction(async () => {
-    const { ctx, eventId, heat } = await requireHeatAccess(heatId, ["scorekeeper", "producer"]);
+    const { ctx, eventId, organizationId, heat } = await requireHeatAccess(heatId, [
+      "scorekeeper",
+      "producer",
+    ]);
+    // Floor staff score a heat until it is finished; after that its results
+    // are the organizers' to correct (RLS enforces the same, 0034).
+    if (heat.ended_at && !isOrgManager(ctx, organizationId)) return fail(HEAT_FINISHED);
     const form = parseForm(EnterResultForm, formData);
 
     const supabase = await createClient();

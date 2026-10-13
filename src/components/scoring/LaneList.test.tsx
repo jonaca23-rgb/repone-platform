@@ -53,4 +53,17 @@ describe("LaneList", () => {
     await userEvent.setup().click(row3);
     expect(onOpen).toHaveBeenCalledWith(LANES[2]);
   });
+
+  it("is a plain list with no way to open a lane when read-only", () => {
+    render(
+      <LaneList
+        lanes={LANES}
+        scoringType="for_time"
+        resultsByAthlete={resultsByAthlete([result({ athlete_id: "a-1" })])}
+      />,
+    );
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getByText("Maria Rivera")).toBeTruthy();
+    expect(screen.getByText("Recorded")).toBeTruthy();
+  });
 });
