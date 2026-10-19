@@ -220,7 +220,7 @@ from tmp_athletes a
 join tmp_divisions d on d.division_seq = a.division_seq;
 
 -- ---------------------------------------------------------------------------
--- 7. WODs — 3 per event, one of each scoring type
+-- 7. WODs — 4 per event, one of each scoring type that ranks by a number
 -- ---------------------------------------------------------------------------
 create temporary table tmp_wod_seed(
   wod_seq int, name text, scoring_type scoring_type, time_cap_seconds int,
@@ -233,8 +233,8 @@ insert into tmp_wod_seed values
    '12-Minute AMRAP: 10 Box Jumps, 10 Wall Balls, 10 Kettlebell Swings'),
   (3, 'WOD 3', 'max_load', null, 'none', false,
    '1-Rep-Max Clean & Jerk, 10-minute window'),
-  (4, 'WOD 4', 'tabata', 480, 'none', false,
-   'Tabata: 8 rounds each of Air Squats, Push-ups, Sit-ups, Burpees — total reps');
+  (4, 'WOD 4', 'tabata', 240, 'none', false,
+   'Tabata Burpees: 8 rounds of 20s work, 10s rest — total reps');
 
 create temporary table tmp_wods as
 with ins as (
@@ -304,7 +304,7 @@ with ins as (
     case when r.scoring_type = 'for_time' then 480 + r.rn * 6 + floor(random() * 20) end,
     case
       when r.scoring_type = 'amrap' then greatest(50, 220 - r.rn * 4 - floor(random() * 12))::int
-      when r.scoring_type = 'tabata' then greatest(80, 340 - r.rn * 6 - floor(random() * 15))::int
+      when r.scoring_type = 'tabata' then greatest(40, 120 - r.rn * 2 - floor(random() * 8))::int
     end,
     case when r.scoring_type = 'max_load' then greatest(95, 315 - r.rn * 5 - floor(random() * 10)) end,
     false, 'completed'
