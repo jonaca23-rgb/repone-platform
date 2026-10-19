@@ -7,6 +7,7 @@ export type ResultStatus = "completed" | "dns" | "dnf" | "dq";
 /** One saved result, as the lane list and the score drawer read it. */
 export interface LaneResult {
   athlete_id: string | null;
+  team_id: string | null;
   time_seconds: number | null;
   reps: number | null;
   load: number | null;
@@ -17,12 +18,22 @@ export interface LaneResult {
   manually_adjusted: boolean;
 }
 
-/** A lane with an athlete in it. */
+/** A lane with an athlete or a team in it: who a result is entered for. */
 export interface ScoringLane {
   laneNumber: number;
-  athleteId: string;
+  competitorType: "athlete" | "team";
+  competitorId: string;
   name: string;
   affiliate: string | null;
+}
+
+/** A standings row's name: the athlete's, the team's, or a dash. */
+export function standingName(row: {
+  athletes: { first_name: string; last_name: string } | null;
+  teams: { name: string } | null;
+}): string {
+  if (row.athletes) return `${row.athletes.first_name} ${row.athletes.last_name}`;
+  return row.teams?.name ?? "—";
 }
 
 /** 225 → { "3", "45" }; 65.5 → { "1", "05.5" }; null → blanks. */

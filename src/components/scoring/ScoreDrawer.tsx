@@ -208,8 +208,8 @@ function ScoreForm({
         </p>
       ) : null}
 
-      <input type="hidden" name="competitor_type" value="athlete" />
-      <input type="hidden" name="competitor_id" value={lane.athleteId} />
+      <input type="hidden" name="competitor_type" value={lane.competitorType} />
+      <input type="hidden" name="competitor_id" value={lane.competitorId} />
       <input type="hidden" name="status" value={status} />
 
       <div className="grid gap-2">

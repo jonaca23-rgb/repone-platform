@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  standingName,
   joinClock,
   type LaneResult,
   ordinal,
@@ -11,6 +12,7 @@ import {
 
 const base: LaneResult = {
   athlete_id: "a",
+  team_id: null,
   time_seconds: null,
   reps: null,
   load: null,
@@ -104,4 +106,14 @@ describe("ordinal", () => {
     [101, "101st"],
     [111, "111th"],
   ])("%i is %s", (n, s) => expect(ordinal(n)).toBe(s));
+});
+
+describe("standingName", () => {
+  it("is the athlete's name, the team's, or a dash", () => {
+    expect(
+      standingName({ athletes: { first_name: "Maria", last_name: "Rivera" }, teams: null }),
+    ).toBe("Maria Rivera");
+    expect(standingName({ athletes: null, teams: { name: "Aprieta Duo" } })).toBe("Aprieta Duo");
+    expect(standingName({ athletes: null, teams: null })).toBe("—");
+  });
 });

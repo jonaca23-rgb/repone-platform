@@ -27,15 +27,34 @@ vi.mock("@/lib/actions/results", () => ({ enterResult }));
 
 import { ScoreDrawer } from "./ScoreDrawer";
 
-const LANE = { laneNumber: 3, athleteId: "a-3", name: "Carla Ortiz", affiliate: null };
+const LANE = {
+  laneNumber: 3,
+  competitorType: "athlete" as const,
+  competitorId: "a-3",
+  name: "Carla Ortiz",
+  affiliate: null,
+};
+const TEAM_LANE = {
+  laneNumber: 5,
+  competitorType: "team" as const,
+  competitorId: "t-9",
+  name: "Aprieta Duo",
+  affiliate: "CrossFit Aprieta",
+};
 
-function setup(opts: { scoringType?: ScoringType; existing?: LaneResult } = {}) {
+function setup(
+  opts: {
+    scoringType?: ScoringType;
+    existing?: LaneResult;
+    lane?: typeof LANE | typeof TEAM_LANE;
+  } = {},
+) {
   const onClose = vi.fn();
   const view = render(
     <QueryClientProvider client={new QueryClient()}>
       <ScoreDrawer
         heatId="h-1"
-        lane={LANE}
+        lane={opts.lane ?? LANE}
         existing={opts.existing}
         scoringType={opts.scoringType ?? "for_time"}
         subtitle="WOD 2 · Intermediate Female"
@@ -52,6 +71,17 @@ afterEach(() => {
 });
 
 describe("ScoreDrawer", () => {
+  it("posts a team's lane as the team", async () => {
+    enterResult.mockResolvedValue({ ok: true });
+    const { user, onClose } = setup({ lane: TEAM_LANE });
+    await user.type(screen.getByLabelText("Minutes"), "5");
+    await user.click(screen.getByRole("button", { name: "Save lane" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const fd = enterResult.mock.calls[0][1] as FormData;
+    expect(fd.get("competitor_type")).toBe("team");
+    expect(fd.get("competitor_id")).toBe("t-9");
+  });
+
   it("posts minutes and seconds as m:ss", async () => {
     enterResult.mockResolvedValue({ ok: true });
     const { user, onClose } = setup();
@@ -119,6 +149,7 @@ describe("ScoreDrawer", () => {
           lane={LANE}
           existing={{
             athlete_id: "a-3",
+            team_id: null,
             time_seconds: 60,
             reps: null,
             load: null,
@@ -164,7 +195,7 @@ describe("ScoreDrawer", () => {
     const drawer = (lane: typeof LANE) => (
       <QueryClientProvider client={client}>
         <ScoreDrawer
-          key={lane.athleteId}
+          key={lane.competitorId}
           heatId="h-1"
           lane={lane}
           existing={undefined}
@@ -183,7 +214,13 @@ describe("ScoreDrawer", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
 
     view.rerender(
-      drawer({ laneNumber: 4, athleteId: "a-4", name: "Valentina Cruz", affiliate: null }),
+      drawer({
+        laneNumber: 4,
+        competitorType: "athlete" as const,
+        competitorId: "a-4",
+        name: "Valentina Cruz",
+        affiliate: null,
+      }),
     );
     await act(async () => finish({ ok: true }));
     expect(onClose).toHaveBeenCalledTimes(1);

@@ -98,6 +98,36 @@ describe("enterResult on a finished heat", () => {
   });
 });
 
+describe("enterResult for a team", () => {
+  const TEAM = "00000000-0000-4000-8000-0000000000a1";
+  const teamLaned = (extra: Record<string, { data?: unknown }[]> = {}) =>
+    fakeSupabase({
+      wods: [{ data: { scoring_type: "for_time" } }],
+      lanes: [{ data: [{ athlete_id: null, team_id: TEAM }] }],
+      registrations: [{ data: [] }],
+      ...extra,
+    });
+  const card = () => form({ competitor_type: "team", competitor_id: TEAM, time_seconds: "5:00" });
+
+  it("saves a team's result", async () => {
+    const fake = teamLaned({ results: [{ data: null }] });
+    db.current = fake.client;
+    expect(await enterResult("h-1", card())).toEqual({ ok: true });
+    const upsert = fake.calls.find(([t, m]) => t === "results" && m === "upsert");
+    expect(upsert?.[2][0]).toMatchObject({ team_id: TEAM, athlete_id: null, time_seconds: 300 });
+    expect(upsert?.[2][1]).toEqual({ onConflict: "heat_id,team_id" });
+  });
+
+  it("refuses floor staff on a finished heat, and lets an organizer correct it", async () => {
+    access.endedAt = "2026-10-18T15:00:00Z";
+    db.current = teamLaned({ results: [{ data: null }] }).client;
+    expect(await enterResult("h-1", card())).toMatchObject({ ok: false });
+    access.manager = true;
+    db.current = teamLaned({ results: [{ data: null }] }).client;
+    expect(await enterResult("h-1", card())).toEqual({ ok: true });
+  });
+});
+
 describe("enterResult for a Tabata WOD", () => {
   it("saves the total reps", async () => {
     const fake = fakeSupabase({
