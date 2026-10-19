@@ -4,8 +4,7 @@
 // second overall row for the same competitor.
 //
 //   pnpm db:standings-check     (needs pnpm dev:accounts to have run)
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { signInAs } from "./auth-helpers";
+import { createClient } from "@supabase/supabase-js";
 import { requireLocal } from "./env";
 
 const DIVISION_ID = "00000000-0000-0000-0000-000000000040"; // seed.sql
@@ -36,23 +35,15 @@ async function overallRows() {
 }
 
 async function main() {
-  let scorekeeper: SupabaseClient;
-  try {
-    scorekeeper = (await signInAs("scorekeeper@repone.test")).db as unknown as SupabaseClient;
-  } catch (e) {
-    console.error(
-      `Cannot sign in as scorekeeper (${e instanceof Error ? e.message : e}). Run \`pnpm dev:accounts\`.`,
-    );
-    process.exit(1);
-  }
-
+  // Standings are written by the server only (0038): this runs as the
+  // service connection, the way the app's server writes them.
   const before = await overallRows();
   try {
     console.log("\nC3 concurrent standings rewrites");
     // Each writer publishes a different ordering, as two saves computed from
     // slightly different results would.
     const writes = Array.from({ length: CONCURRENT_WRITES }, (_, w) =>
-      scorekeeper.rpc("replace_standings", {
+      service.rpc("replace_standings", {
         p_division_id: DIVISION_ID,
         p_wod_id: null,
         p_rows: ATHLETE_IDS.map((id, i) => ({

@@ -162,7 +162,7 @@ async function orgWideStaffMatchTheirPermissions(cleanup: Array<() => PromiseLik
   expect("org production director manages heats", await canUpdateHeat(pd));
   expect("org production director manages lanes", await canInsertLane(pd));
   expect("org production director enters results", await canInsertResult(pd));
-  expect("org production director writes standings", await canInsertStanding(pd));
+  expect("org production director cannot write standings directly", !(await canInsertStanding(pd)));
   expect("org production director drives broadcast_state", await canUpdateBroadcast(pd));
   expect("org production director reads the event's registrations", await canReadRegistrations(pd));
 
@@ -170,7 +170,7 @@ async function orgWideStaffMatchTheirPermissions(cleanup: Array<() => PromiseLik
   expect("org scoring operator manages heats", await canUpdateHeat(so));
   expect("org scoring operator manages lanes", await canInsertLane(so));
   expect("org scoring operator enters results", await canInsertResult(so));
-  expect("org scoring operator writes standings", await canInsertStanding(so));
+  expect("org scoring operator cannot write standings directly", !(await canInsertStanding(so)));
   expect("org scoring operator cannot drive broadcast_state", !(await canUpdateBroadcast(so)));
   expect("org scoring operator reads the event's registrations", await canReadRegistrations(so));
 
@@ -181,6 +181,26 @@ async function orgWideStaffMatchTheirPermissions(cleanup: Array<() => PromiseLik
   expect("org commentator cannot enter results", !(await canInsertResult(cm)));
   expect("org commentator cannot write standings", !(await canInsertStanding(cm)));
   expect("org commentator cannot drive broadcast_state", !(await canUpdateBroadcast(cm)));
+
+  // A finished heat is the organizers' (0034): the org-wide working roles
+  // lose its results like the event's own scorekeepers and producers do, and
+  // an event director keeps them.
+  const directorEmail = "rls-org-event-director@repone.test";
+  const directorId = await createOrResetUser(directorEmail, "RLS event_director", DEV_PASSWORD);
+  await service.from("member").delete().eq("user_id", directorId);
+  await service
+    .from("member")
+    .insert({ organization_id: ORG_ID, user_id: directorId, role: "event_director" });
+  cleanup.push(() => service.from("user").delete().eq("id", directorId));
+  const director = (await signIn(directorEmail)).client;
+  await service.from("heats").update({ ended_at: new Date().toISOString() }).eq("id", SEED_HEAT_ID);
+  try {
+    expect("org production director cannot score a finished heat", !(await canInsertResult(pd)));
+    expect("org scoring operator cannot score a finished heat", !(await canInsertResult(so)));
+    expect("event director corrects a finished heat", await canInsertResult(director));
+  } finally {
+    await service.from("heats").update({ ended_at: null }).eq("id", SEED_HEAT_ID);
+  }
 
   // None of the working roles manage the event itself or its registrations.
   // The athlete is new, so only RLS (42501) can refuse the registration.
@@ -356,6 +376,81 @@ async function finishedHeatsLockResults(admin: SupabaseClient, producer: Supabas
     const kept = await service.from("heats").select("id").eq("id", SEED_HEAT_ID);
     expect("scorekeeper cannot delete a finished heat", (kept.data?.length ?? 0) === 1);
 
+    // Nor its lanes: removing a lane would hide that competitor and block the
+    // organizer's correction (0039).
+    const { data: lane } = await service
+      .from("lanes")
+      .select("id, athlete_id")
+      .eq("heat_id", SEED_HEAT_ID)
+      .not("athlete_id", "is", null)
+      .limit(1)
+      .single();
+    const laneEdit = await scorekeeper
+      .from("lanes")
+      .update({ athlete_id: null })
+      .eq("id", lane?.id ?? "")
+      .select("id");
+    const laneAfter = await service
+      .from("lanes")
+      .select("athlete_id")
+      .eq("id", lane?.id ?? "")
+      .single();
+    expect(
+      "scorekeeper cannot change a finished heat's lanes",
+      laneAfter.data?.athlete_id === lane?.athlete_id,
+      laneEdit.error ?? laneEdit.data,
+    );
+    const laneAdd = await scorekeeper
+      .from("lanes")
+      .insert({ heat_id: SEED_HEAT_ID, lane_number: 98 })
+      .select("id");
+    await service.from("lanes").delete().eq("heat_id", SEED_HEAT_ID).eq("lane_number", 98);
+    expect("scorekeeper cannot add a lane to a finished heat", (laneAdd.data ?? []).length === 0);
+    // Moving a lane out to an open heat empties the finished one just the same.
+    const { data: openHeat } = await service
+      .from("heats")
+      .insert({
+        event_id: EVENT_ID,
+        floor_id: FLOOR_ID,
+        wod_id: SEED_WOD_ID,
+        division_id: SEED_DIVISION_ID,
+        heat_number: 97,
+      })
+      .select("id")
+      .single();
+    await scorekeeper
+      .from("lanes")
+      .update({ heat_id: openHeat?.id })
+      .eq("id", lane?.id ?? "");
+    const laneHome = await service
+      .from("lanes")
+      .select("heat_id")
+      .eq("id", lane?.id ?? "")
+      .single();
+    await service
+      .from("lanes")
+      .update({ heat_id: SEED_HEAT_ID })
+      .eq("id", lane?.id ?? "");
+    await service
+      .from("heats")
+      .delete()
+      .eq("id", openHeat?.id ?? "");
+    expect(
+      "scorekeeper cannot move a lane out of a finished heat",
+      laneHome.data?.heat_id === SEED_HEAT_ID,
+      laneHome.data,
+    );
+    const adminLane = await admin
+      .from("lanes")
+      .insert({ heat_id: SEED_HEAT_ID, lane_number: 98 })
+      .select("id");
+    await service.from("lanes").delete().eq("heat_id", SEED_HEAT_ID).eq("lane_number", 98);
+    expect(
+      "admin adds a lane to a finished heat",
+      (adminLane.data ?? []).length === 1,
+      adminLane.error,
+    );
+
     // An organizer deleting a whole event must still take its finished heats with it.
     const { data: tmpEvent } = await service
       .from("events")
@@ -416,6 +511,122 @@ async function finishedHeatsLockResults(admin: SupabaseClient, producer: Supabas
   }
 }
 
+// A heat's WOD, division and floor belong to the heat's own event (0040).
+// The server writes standings for whatever division and WOD a heat names,
+// so a heat pointed at another event's would let floor staff of one event
+// rewrite another's leaderboard.
+async function heatsStayInTheirEvent() {
+  console.log("\nA heat's WOD, division and floor belong to its event");
+  const scorekeeper = (await signIn("scorekeeper@repone.test")).client;
+  const { data: other } = await service
+    .from("events")
+    .insert({ organization_id: ORG_ID, name: "RLS other event's heat parts" })
+    .select("id")
+    .single();
+  const otherId = other?.id ?? "";
+  try {
+    const { data: division } = await service
+      .from("divisions")
+      .insert({ event_id: otherId, name: "D" })
+      .select("id")
+      .single();
+    const { data: wod } = await service
+      .from("wods")
+      .insert({ event_id: otherId, name: "W", scoring_type: "for_time" })
+      .select("id")
+      .single();
+    const { data: venue } = await service
+      .from("venues")
+      .insert({ event_id: otherId, name: "V" })
+      .select("id")
+      .single();
+    const { data: floor } = await service
+      .from("floors")
+      .insert({ venue_id: venue?.id, name: "F" })
+      .select("id")
+      .single();
+    const before = await service
+      .from("heats")
+      .select("division_id, wod_id, floor_id")
+      .eq("id", SEED_HEAT_ID)
+      .single();
+    for (const [column, id] of [
+      ["division_id", division?.id],
+      ["wod_id", wod?.id],
+      ["floor_id", floor?.id],
+    ] as const) {
+      await scorekeeper
+        .from("heats")
+        .update({ [column]: id })
+        .eq("id", SEED_HEAT_ID);
+      const after = await service
+        .from("heats")
+        .select("division_id, wod_id, floor_id")
+        .eq("id", SEED_HEAT_ID)
+        .single();
+      expect(
+        `scorekeeper cannot point a heat at another event's ${column.replace("_id", "")}`,
+        after.data?.[column] === before.data?.[column],
+        after.data,
+      );
+      await service
+        .from("heats")
+        .update({ [column]: before.data?.[column] })
+        .eq("id", SEED_HEAT_ID);
+    }
+    const mixed = await service
+      .from("heats")
+      .insert({
+        event_id: EVENT_ID,
+        floor_id: FLOOR_ID,
+        wod_id: SEED_WOD_ID,
+        division_id: division?.id,
+        heat_number: 96,
+      })
+      .select("id");
+    expect("nobody creates a heat with another event's division", !!mixed.error, mixed.data);
+    const rpc = await service.rpc("replace_standings", {
+      p_division_id: SEED_DIVISION_ID,
+      p_wod_id: wod?.id ?? "",
+      p_rows: [],
+    });
+    expect("replace_standings refuses a WOD from another event", !!rpc.error, rpc.error);
+  } finally {
+    await service.from("events").delete().eq("id", otherId);
+  }
+}
+
+// Standings are computed from results on the server and written there
+// (0038): nobody's token writes them, so a leaderboard can't be edited
+// around its results through the API.
+async function standingsAreServerOnly(clients: Array<[string, SupabaseClient]>) {
+  console.log("\nStandings are written by the server only");
+  for (const [label, c] of clients) {
+    const insert = await c
+      .from("standings")
+      .insert({
+        event_id: EVENT_ID,
+        division_id: SEED_DIVISION_ID,
+        wod_id: SEED_WOD_ID,
+        athlete_id: SPARE_ATHLETE_ID,
+        placement: 1,
+      })
+      .select("id");
+    await service
+      .from("standings")
+      .delete()
+      .eq("wod_id", SEED_WOD_ID)
+      .eq("athlete_id", SPARE_ATHLETE_ID);
+    expect(`${label} cannot insert standings`, (insert.data ?? []).length === 0, insert.data);
+    const rpc = await c.rpc("replace_standings", {
+      p_division_id: SEED_DIVISION_ID,
+      p_wod_id: SEED_WOD_ID,
+      p_rows: [],
+    });
+    expect(`${label} cannot call replace_standings`, !!rpc.error, rpc.error);
+  }
+}
+
 async function main() {
   const anon = createClient(target.apiUrl, publishableKey, options);
   if (process.env.RLS_ONLY === "auth-tables") {
@@ -431,6 +642,12 @@ async function main() {
 
   try {
     await finishedHeatsLockResults(admin.client, producer.client);
+    await heatsStayInTheirEvent();
+    await standingsAreServerOnly([
+      ["admin", admin.client],
+      ["producer", producer.client],
+      ["scorekeeper", (await signIn("scorekeeper@repone.test")).client],
+    ]);
     console.log("\nC1 athlete personal data");
     for (const column of ["email", "phone", "date_of_birth", "auth_user_id"]) {
       const r = await anon.from("athletes").select(column).limit(1);

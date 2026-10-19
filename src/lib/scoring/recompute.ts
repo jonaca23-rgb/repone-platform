@@ -3,7 +3,7 @@
 // functions in one of those become public endpoints any browser can call,
 // and these take bare WOD/division ids with no guard of their own.
 import { createClient } from "@/lib/db/server";
-import { sqlNull } from "@/lib/db/sqlNull";
+import { replaceStandings } from "./writeStandings";
 import {
   rankWodResults,
   computeOverallStandings,
@@ -154,13 +154,9 @@ function competitorKinds(
   return kinds;
 }
 
-/**
- * Replaces one division's standings for one WOD (or overall) atomically via
- * replace_standings (0026_atomic_standings.sql), so concurrent saves queue
- * instead of interleaving into a duplicated or empty leaderboard.
- */
+/** Writes one division's standings for one WOD (or overall) on the server (0038). */
 async function writeStandings(
-  supabase: SupabaseServerClient,
+  _supabase: SupabaseServerClient,
   args: {
     wodId: string | null;
     divisionId: string;
@@ -168,18 +164,21 @@ async function writeStandings(
     kinds: Map<string, CompetitorKind>;
   },
 ) {
-  const { error } = await supabase.rpc("replace_standings", {
-    p_division_id: args.divisionId,
-    p_wod_id: sqlNull(args.wodId),
-    p_rows: args.rows.map((r) => {
-      const isTeam = args.kinds.get(r.competitorId) === "team";
-      return {
-        athlete_id: isTeam ? null : r.competitorId,
-        team_id: isTeam ? r.competitorId : null,
-        placement: r.placement,
-        points: r.points,
-      };
-    }),
-  });
-  if (error) throw new Error(`Could not update standings: ${error.message}`);
+  try {
+    await replaceStandings(
+      args.divisionId,
+      args.wodId,
+      args.rows.map((r) => {
+        const isTeam = args.kinds.get(r.competitorId) === "team";
+        return {
+          athlete_id: isTeam ? null : r.competitorId,
+          team_id: isTeam ? r.competitorId : null,
+          placement: r.placement,
+          points: r.points,
+        };
+      }),
+    );
+  } catch (e) {
+    throw new Error(`Could not update standings: ${e instanceof Error ? e.message : e}`);
+  }
 }
