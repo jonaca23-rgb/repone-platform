@@ -286,6 +286,52 @@ async function main() {
       );
     }
 
+    // A team member reads their team's registration and its payment (0037);
+    // anyone else doesn't. athlete@ is linked to the seeded athlete …061.
+    const athleteClient = await signIn("athlete@repone.test");
+    const outsiderClient = await signIn("new-athlete@repone.test");
+    const memberTeam = await admin
+      .from("teams")
+      .insert(team("Check Member Team"))
+      .select("id")
+      .single();
+    const MT = memberTeam.data?.id as string;
+    await admin.from("team_members").insert(member(MT, A1));
+    const { data: memberRegistration } = await service
+      .from("registrations")
+      .select("id")
+      .eq("team_id", MT)
+      .single();
+    await service
+      .from("payments")
+      .insert({ registration_id: memberRegistration?.id, amount_cents: 5000, status: "paid" });
+    const ownRead = await athleteClient.from("registrations").select("id").eq("team_id", MT);
+    expect(
+      "a team member reads their team's registration",
+      (ownRead.data ?? []).length === 1,
+      ownRead,
+    );
+    const ownPayment = await athleteClient
+      .from("payments")
+      .select("id")
+      .eq("registration_id", memberRegistration?.id ?? "");
+    expect(
+      "a team member reads their team's payment",
+      (ownPayment.data ?? []).length === 1,
+      ownPayment,
+    );
+    const otherRead = await outsiderClient.from("registrations").select("id").eq("team_id", MT);
+    expect(
+      "another athlete doesn't read that registration",
+      (otherRead.data ?? []).length === 0,
+      otherRead,
+    );
+    const otherPayment = await outsiderClient
+      .from("payments")
+      .select("id")
+      .eq("registration_id", memberRegistration?.id ?? "");
+    expect("another athlete doesn't read that payment", (otherPayment.data ?? []).length === 0);
+
     const anonRead = await anon.from("teams").select("id").eq("id", T1);
     expect(
       "anon reads teams (live page, overlays)",

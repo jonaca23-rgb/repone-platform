@@ -8,7 +8,7 @@ const HEATS = [
     heatCount: 9,
     wod: { name: "WOD 2" },
     division: { name: "Intermediate Female" },
-    lanes: [{ athleteId: "a-1", name: "Maria Rivera" }],
+    lanes: [{ athleteId: "a-1", teamId: null, members: [], name: "Maria Rivera" }],
   },
 ];
 const SPONSORS = [{ id: "s-1", business_name: "Hoka" }];

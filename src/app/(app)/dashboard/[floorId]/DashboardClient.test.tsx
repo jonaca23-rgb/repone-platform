@@ -38,7 +38,16 @@ const heat = (n: number): DashboardHeat => ({
   heatCount: 2,
   wod: { id: "w", name: "WOD 2", scoring_type: "for_time", time_cap_seconds: 600 },
   division: { id: "d", name: "Intermediate Female" },
-  lanes: [{ laneNumber: 1, athleteId: `a-${n}`, name: `Athlete ${n}`, affiliate: null }],
+  lanes: [
+    {
+      laneNumber: 1,
+      athleteId: `a-${n}`,
+      teamId: null,
+      members: [],
+      name: `Athlete ${n}`,
+      affiliate: null,
+    },
+  ],
 });
 const HEATS = [heat(1), heat(2)];
 
@@ -78,6 +87,35 @@ afterEach(() => {
 });
 
 describe("DashboardClient", () => {
+  it("says the lower third shows athletes when the heat's lanes hold teams", () => {
+    const teamHeat: DashboardHeat = {
+      ...heat(1),
+      lanes: [
+        {
+          laneNumber: 1,
+          athleteId: null,
+          teamId: "t-1",
+          members: [],
+          name: "Aprieta Duo",
+          affiliate: null,
+        },
+      ],
+    };
+    render(
+      <DashboardClient
+        floorId="f"
+        eventId="ev"
+        eventName="Aprieta"
+        heats={[teamHeat]}
+        initialBroadcastState={state("idle")}
+        sponsors={[]}
+      />,
+    );
+    expect(
+      screen.getByText("The lower third shows athletes; this heat's lanes hold teams."),
+    ).toBeTruthy();
+  });
+
   it("switches heats at once when the timer is idle", async () => {
     const user = setup(state("idle"));
     await user.click(screen.getByRole("button", { name: /Next heat/ }));

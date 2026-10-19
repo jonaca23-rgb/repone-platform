@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/db/server";
+import { chooseCurrentRegistration, registrationLabel } from "@/lib/athlete/myRegistrations";
 import { LIFT_LABELS, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
 import { resolveCounterparts } from "@/lib/db/messages";
@@ -148,42 +149,48 @@ export async function getAthleteCurrentStanding(
   athleteId: string,
 ): Promise<CurrentStanding | null> {
   const supabase = await createClient();
-  const { data: registrations } = await supabase
-    .from("registrations")
-    .select("event_id, division_id, events(id, name, status, starts_on), divisions(id, name)")
+  // Their own registrations, and those of the teams they're on (0036).
+  const { data: memberships } = await supabase
+    .from("team_members")
+    .select("team_id")
     .eq("athlete_id", athleteId);
+  const teamIds = (memberships ?? []).map((m) => m.team_id);
+  const select =
+    "event_id, division_id, athlete_id, team_id, events(id, name, status, starts_on), divisions(id, name), teams(name)";
+  const [own, ofTeams] = await Promise.all([
+    supabase.from("registrations").select(select).eq("athlete_id", athleteId),
+    teamIds.length
+      ? supabase.from("registrations").select(select).in("team_id", teamIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
-  const rows = (registrations ?? []) as unknown as Array<{
+  const rows = [...(own.data ?? []), ...(ofTeams.data ?? [])] as unknown as Array<{
     event_id: string;
     division_id: string;
+    athlete_id: string | null;
+    team_id: string | null;
     events: { id: string; name: string; status: string; starts_on: string | null } | null;
     divisions: { id: string; name: string } | null;
+    teams: { name: string } | null;
   }>;
-  if (rows.length === 0) return null;
-
-  const withEvents = rows.filter((r) => r.events);
-  const live = withEvents.find((r) => r.events!.status === "live");
-  const chosen =
-    live ??
-    withEvents.sort((a, b) =>
-      (b.events!.starts_on ?? "").localeCompare(a.events!.starts_on ?? ""),
-    )[0] ??
-    null;
+  const chosen = chooseCurrentRegistration(rows);
   if (!chosen || !chosen.events) return null;
 
-  const { data: standing } = await supabase
+  const standingQuery = supabase
     .from("standings")
     .select("placement, points")
-    .eq("athlete_id", athleteId)
     .eq("event_id", chosen.event_id)
     .eq("division_id", chosen.division_id)
-    .is("wod_id", null)
-    .maybeSingle();
+    .is("wod_id", null);
+  const { data: standing } = await (chosen.team_id
+    ? standingQuery.eq("team_id", chosen.team_id)
+    : standingQuery.eq("athlete_id", athleteId)
+  ).maybeSingle();
 
   return {
     eventName: chosen.events.name,
     eventStatus: chosen.events.status,
-    divisionName: chosen.divisions?.name ?? "—",
+    divisionName: registrationLabel(chosen),
     placement: standing?.placement ?? null,
     points: standing?.points ?? null,
   };

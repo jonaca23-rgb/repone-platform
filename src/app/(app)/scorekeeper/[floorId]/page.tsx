@@ -7,7 +7,7 @@ import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { orgManagerOf } from "@/lib/auth/authorize";
 import { OperatorShell } from "@/components/shells/OperatorShell";
-import type { LaneResult } from "@/lib/scoring/format";
+import { type LaneResult, standingName } from "@/lib/scoring/format";
 import { ScoreKeeperClient, type ScoreKeeperStanding } from "./ScoreKeeperClient";
 
 type Props = { params: Promise<{ floorId: string }> };
@@ -72,7 +72,9 @@ export default async function ScoreKeeperPage({ params }: Props) {
       wodDivisionPairs.map((pair) =>
         supabase
           .from("standings")
-          .select("placement, points, athlete_id, athletes(first_name, last_name)")
+          .select(
+            "placement, points, athlete_id, team_id, athletes(first_name, last_name), teams(name)",
+          )
           .eq("division_id", pair.divisionId)
           .eq("wod_id", pair.wodId)
           .order("placement", { ascending: true, nullsFirst: false }),
@@ -93,15 +95,17 @@ export default async function ScoreKeeperPage({ params }: Props) {
       placement: number | null;
       points: number | null;
       athlete_id: string | null;
+      team_id: string | null;
       athletes: { first_name: string; last_name: string } | null;
+      teams: { name: string } | null;
     }>;
     standingsByWodDivision.set(
       `${pair.wodId}:${pair.divisionId}`,
       rows.map((r) => ({
         placement: r.placement,
         points: r.points,
-        athlete_id: r.athlete_id,
-        name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : "—",
+        competitor_id: r.athlete_id ?? r.team_id,
+        name: standingName(r),
       })),
     );
   });

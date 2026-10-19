@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/db/server";
 import type { Database } from "@/lib/db/database.types";
 import { compareDivisionNames, compareHeatsForRunningOrder } from "@/lib/scoring/divisionOrder";
+import { FLOOR_LANES_SELECT, type FloorLane, type RawLane, toFloorLanes } from "./floorLanes";
+
+export type { FloorLane } from "./floorLanes";
 
 export interface FloorHeat {
   id: string;
@@ -22,12 +25,8 @@ export interface FloorHeat {
     created_at: string;
   };
   division: { id: string; name: string };
-  lanes: Array<{
-    laneNumber: number;
-    athleteId: string | null;
-    name: string | null;
-    affiliate: string | null;
-  }>;
+  /** Each lane's athlete or team (lib/db/floorLanes.ts). */
+  lanes: FloorLane[];
 }
 
 // Shapes matching the actual runtime rows PostgREST returns for these selects.
@@ -49,11 +48,7 @@ interface RawHeatRow {
   ended_at: string | null;
   wods: FloorHeat["wod"] | null;
   divisions: FloorHeat["division"] | null;
-  lanes: Array<{
-    lane_number: number;
-    athlete_id: string | null;
-    athletes: { first_name: string; last_name: string; affiliate: string | null } | null;
-  }> | null;
+  lanes: RawLane[] | null;
 }
 
 /**
@@ -80,7 +75,7 @@ export async function getFloorContext(floorId: string) {
   const { data: heatsRaw } = await supabase
     .from("heats")
     .select(
-      "id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(lane_number, athlete_id, athletes(first_name, last_name, affiliate))",
+      `id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(${FLOOR_LANES_SELECT})`,
     )
     .eq("floor_id", floorId);
   const heats = (heatsRaw ?? []) as unknown as RawHeatRow[];
@@ -94,15 +89,7 @@ export async function getFloorContext(floorId: string) {
       endedAt: h.ended_at,
       wod: h.wods!,
       division: h.divisions!,
-      lanes: (h.lanes ?? [])
-        .slice()
-        .sort((a, b) => a.lane_number - b.lane_number)
-        .map((l) => ({
-          laneNumber: l.lane_number,
-          athleteId: l.athlete_id,
-          name: l.athletes ? `${l.athletes.first_name} ${l.athletes.last_name}` : null,
-          affiliate: l.athletes?.affiliate ?? null,
-        })),
+      lanes: toFloorLanes(h.lanes),
     }))
     // Running order across WODs and divisions (see lib/scoring/divisionOrder.ts)
     // — heat_number alone only orders heats WITHIN one wod/division, so every
@@ -190,7 +177,7 @@ export async function getEventLiveContext(eventId: string): Promise<EventLiveCon
   const { data: heatsRaw } = await supabase
     .from("heats")
     .select(
-      "id, floor_id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(lane_number, athlete_id, athletes(first_name, last_name, affiliate))",
+      `id, floor_id, heat_number, heat_count, ended_at, wods(id, name, description, scoring_type, time_cap_seconds, created_at), divisions(id, name), lanes(${FLOOR_LANES_SELECT})`,
     )
     .eq("event_id", eventId);
   const heatsAll = (heatsRaw ?? []) as unknown as (RawHeatRow & { floor_id: string })[];
@@ -206,15 +193,7 @@ export async function getEventLiveContext(eventId: string): Promise<EventLiveCon
       endedAt: h.ended_at,
       wod: h.wods,
       division: h.divisions,
-      lanes: (h.lanes ?? [])
-        .slice()
-        .sort((a, b) => a.lane_number - b.lane_number)
-        .map((l) => ({
-          laneNumber: l.lane_number,
-          athleteId: l.athlete_id,
-          name: l.athletes ? `${l.athletes.first_name} ${l.athletes.last_name}` : null,
-          affiliate: l.athletes?.affiliate ?? null,
-        })),
+      lanes: toFloorLanes(h.lanes),
     });
     heatsByFloor.set(h.floor_id, list);
   }

@@ -73,6 +73,7 @@ const SEED_HEAT_ID = "00000000-0000-0000-0000-000000000070";
 const SEED_WOD_ID = "00000000-0000-0000-0000-000000000050";
 const SEED_DIVISION_ID = "00000000-0000-0000-0000-000000000040";
 const SPARE_ATHLETE_ID = "00000000-0000-0000-0000-000000000066"; // seeded, no result in the seed heat
+const SEED_TEAM_ID = "00000000-0000-0000-0000-0000000000a1"; // seed.sql "Aprieta Duo"
 const FLOOR_ID = "00000000-0000-0000-0000-000000000030";
 
 async function orgWideStaffMatchTheirPermissions(cleanup: Array<() => PromiseLike<unknown>>) {
@@ -313,6 +314,15 @@ async function finishedHeatsLockResults(admin: SupabaseClient, producer: Supabas
       .eq("athlete_id", SPARE_ATHLETE_ID);
     expect("scorekeeper cannot add a result to a finished heat", !(await tryInsert(scorekeeper)));
     expect("producer cannot add a result to a finished heat", !(await tryInsert(producer)));
+    // The lock doesn't depend on who the result is for: a team's is refused too.
+    const teamRow = { heat_id: SEED_HEAT_ID, wod_id: SEED_WOD_ID, team_id: SEED_TEAM_ID, reps: 1 };
+    const teamTry = await scorekeeper.from("results").insert(teamRow).select("id");
+    await service.from("results").delete().eq("heat_id", SEED_HEAT_ID).eq("team_id", SEED_TEAM_ID);
+    expect(
+      "scorekeeper cannot add a team's result to a finished heat",
+      !!teamTry.error || (teamTry.data?.length ?? 0) === 0,
+      teamTry.data,
+    );
 
     await scorekeeper.from("heats").update({ ended_at: null }).eq("id", SEED_HEAT_ID);
     const still = await service.from("heats").select("ended_at").eq("id", SEED_HEAT_ID).single();

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { TeamCard } from "./TeamCard";
 import { AthleteCard } from "./AthleteCard";
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
@@ -88,7 +89,10 @@ export function CommentatorClient({
     );
   }
 
-  const lanes = heat.lanes.filter((l) => l.athleteId).sort((a, b) => a.laneNumber - b.laneNumber);
+  // Every occupied lane, athlete or team.
+  const lanes = heat.lanes
+    .filter((l) => l.athleteId || l.teamId)
+    .sort((a, b) => a.laneNumber - b.laneNumber);
 
   return (
     <div className="flex flex-col">
@@ -209,12 +213,16 @@ export function CommentatorClient({
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {lanes.map((lane) => (
               <li key={lane.laneNumber}>
-                <AthleteCard lane={lane} details={detailsByAthleteId[lane.athleteId!]} />
+                {lane.athleteId ? (
+                  <AthleteCard lane={lane} details={detailsByAthleteId[lane.athleteId]} />
+                ) : (
+                  <TeamCard lane={lane} />
+                )}
               </li>
             ))}
           </ul>
         ) : (
-          <EmptyState icon={Users} title="No athletes assigned to lanes for this heat yet" />
+          <EmptyState icon={Users} title="No one in lanes for this heat yet." />
         )}
       </section>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import type { FloorLane } from "@/lib/db/floorLanes";
 import { useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, ListOrdered, Lock, Radio, Users } from "lucide-react";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
@@ -10,7 +11,8 @@ import type { Database } from "@/lib/db/database.types";
 import type { LaneResult, ScoringLane, ScoringType } from "@/lib/scoring/format";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { EmptyState } from "@/components/app/EmptyState";
-import { LaneList, resultsByAthlete } from "@/components/scoring/LaneList";
+import { LaneList, resultsByCompetitor } from "@/components/scoring/LaneList";
+import { laneCompetitor } from "@/lib/db/floorLanes";
 import { type LeaderboardRow, LeaderboardSheet } from "@/components/scoring/LeaderboardSheet";
 import { ScoreDrawer } from "@/components/scoring/ScoreDrawer";
 import { Badge } from "@/components/ui/badge";
@@ -33,16 +35,12 @@ export interface ScoreKeeperHeat {
   endedAt: string | null;
   wod: { id: string; name: string; scoring_type: string; time_cap_seconds: number | null };
   division: { id: string; name: string };
-  lanes: Array<{
-    laneNumber: number;
-    athleteId: string | null;
-    name: string | null;
-    affiliate: string | null;
-  }>;
+  lanes: FloorLane[];
 }
 
 export interface ScoreKeeperStanding extends LeaderboardRow {
-  athlete_id: string | null;
+  /** The athlete's or the team's id. */
+  competitor_id: string | null;
 }
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
@@ -94,7 +92,7 @@ export function ScoreKeeperClient({
   const heat = heats.find((h) => h.id === currentId) ?? heats[0] ?? null;
   const liveHeat = heats.find((h) => h.id === liveHeatId) ?? null;
   const results = useMemo(
-    () => resultsByAthlete(heat ? (resultsByHeatId[heat.id] ?? []) : []),
+    () => resultsByCompetitor(heat ? (resultsByHeatId[heat.id] ?? []) : []),
     [heat, resultsByHeatId],
   );
 
@@ -111,15 +109,22 @@ export function ScoreKeeperClient({
   }
 
   const scoringType = heat.wod.scoring_type as ScoringType;
-  const lanes: ScoringLane[] = heat.lanes
-    .filter((l) => l.athleteId)
-    .map((l) => ({
-      laneNumber: l.laneNumber,
-      athleteId: l.athleteId as string,
-      name: l.name ?? "—",
-      affiliate: l.affiliate,
-    }));
-  const recorded = lanes.filter((l) => results.has(l.athleteId)).length;
+  // Every occupied lane, athlete or team (lib/db/floorLanes.ts).
+  const lanes: ScoringLane[] = heat.lanes.flatMap((l) => {
+    const competitor = laneCompetitor(l);
+    return competitor
+      ? [
+          {
+            laneNumber: l.laneNumber,
+            competitorType: competitor.type,
+            competitorId: competitor.id,
+            name: l.name ?? "—",
+            affiliate: l.affiliate,
+          },
+        ]
+      : [];
+  });
+  const recorded = lanes.filter((l) => results.has(l.competitorId)).length;
   const missing = lanes.length - recorded;
   const index = heats.findIndex((h) => h.id === heat.id);
   const pick = (id: string) => {
@@ -242,7 +247,7 @@ export function ScoreKeeperClient({
             ) : null}
             <LaneList
               lanes={lanes}
-              resultsByAthlete={results}
+              resultsByCompetitor={results}
               scoringType={scoringType}
               onOpen={locked ? undefined : (lane) => setOpen({ heatId: heat.id, lane })}
             />
@@ -250,7 +255,7 @@ export function ScoreKeeperClient({
         ) : (
           <EmptyState
             icon={Users}
-            title="No athletes in lanes for this heat yet"
+            title="No one in lanes for this heat yet."
             description="Set that up in Admin → Heats & Lanes."
           />
         )}
@@ -290,10 +295,10 @@ export function ScoreKeeperClient({
       </footer>
 
       <ScoreDrawer
-        key={open ? `${open.heatId}:${open.lane.athleteId}` : "closed"}
+        key={open ? `${open.heatId}:${open.lane.competitorId}` : "closed"}
         heatId={open?.heatId ?? heat.id}
         lane={open?.lane ?? null}
-        existing={open ? results.get(open.lane.athleteId) : undefined}
+        existing={open ? results.get(open.lane.competitorId) : undefined}
         scoringType={scoringType}
         subtitle={subtitle}
         notice={heldBack}

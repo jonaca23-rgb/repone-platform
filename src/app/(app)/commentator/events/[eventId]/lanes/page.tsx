@@ -36,7 +36,7 @@ export default async function CommentatorEventLanesPage({ params }: Props) {
         const liveHeatId = floor.initialBroadcastState?.current_heat_id ?? null;
         const heat = floor.heats.find((h) => h.id === liveHeatId) ?? floor.heats[0] ?? null;
         const lanes = (heat?.lanes ?? [])
-          .filter((l) => l.athleteId)
+          .filter((l) => l.athleteId || l.teamId)
           .sort((a, b) => a.laneNumber - b.laneNumber);
 
         return (
@@ -62,7 +62,7 @@ export default async function CommentatorEventLanesPage({ params }: Props) {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-20">Lane</TableHead>
-                        <TableHead>Athlete</TableHead>
+                        <TableHead>Athlete or team</TableHead>
                         <TableHead>Affiliate</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -82,9 +82,7 @@ export default async function CommentatorEventLanesPage({ params }: Props) {
                   </Table>
                 </div>
                 {lanes.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    No athletes assigned to lanes yet.
-                  </p>
+                  <p className="text-sm text-muted-foreground">No one in lanes yet.</p>
                 )}
               </>
             )}

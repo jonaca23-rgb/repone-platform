@@ -10,9 +10,15 @@ import { pickTab } from "@/lib/tabs";
 import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { getAdminEvent, requireAdminEvent } from "../../adminEvent";
-import { LaneAssignmentForm } from "./LaneAssignmentForm";
+import { LaneAssignmentForm, type LaneOption } from "./LaneAssignmentForm";
 import { LaneScoring } from "@/components/scoring/LaneScoring";
-import type { LaneResult, ScoringLane, ScoringType } from "@/lib/scoring/format";
+import {
+  type LaneResult,
+  type ScoringLane,
+  type ScoringType,
+  standingName,
+} from "@/lib/scoring/format";
+import { laneCompetitor } from "@/lib/db/floorLanes";
 
 type Props = {
   params: Promise<{ eventId: string; heatId: string }>;
@@ -45,7 +51,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
   const { data: heatRaw } = await supabase
     .from("heats")
     .select(
-      "id, heat_number, heat_count, division_id, wod_id, floor_id, ended_at, wods(name, scoring_type, time_cap_seconds), divisions(name), floors(name)",
+      "id, heat_number, heat_count, division_id, wod_id, floor_id, ended_at, wods(name, scoring_type, time_cap_seconds), divisions(name, entry_format), floors(name)",
     )
     .eq("id", heatId)
     .single();
@@ -63,7 +69,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
       scoring_type: ScoringType;
       time_cap_seconds: number | null;
     } | null;
-    divisions: { name: string } | null;
+    divisions: { name: string; entry_format: string } | null;
     floors: { name: string } | null;
   } | null;
   if (!heat) notFound();
@@ -119,17 +125,21 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
   ] = await Promise.all([
     supabase
       .from("lanes")
-      .select("id, lane_number, athlete_id, athletes(first_name, last_name, affiliate)")
+      .select(
+        "id, lane_number, athlete_id, team_id, athletes(first_name, last_name, affiliate), teams(name, affiliate)",
+      )
       .eq("heat_id", heatId)
       .order("lane_number"),
     supabase
       .from("registrations")
-      .select("athlete_id, athletes(id, first_name, last_name)")
+      .select("athlete_id, team_id, athletes(id, first_name, last_name), teams(id, name)")
       .eq("division_id", heat.division_id),
     supabase.from("results").select("*").eq("heat_id", heatId),
     supabase
       .from("standings")
-      .select("placement, points, athlete_id, athletes(first_name, last_name)")
+      .select(
+        "placement, points, athlete_id, team_id, athletes(first_name, last_name), teams(name)",
+      )
       .eq("division_id", heat.division_id)
       .eq("wod_id", heat.wod_id)
       .order("placement"),
@@ -140,7 +150,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
     // double-entry.
     supabase
       .from("heats")
-      .select("heat_number, lanes(lane_number, athlete_id)")
+      .select("heat_number, lanes(lane_number, athlete_id, team_id)")
       .eq("wod_id", heat.wod_id)
       .eq("division_id", heat.division_id)
       .neq("id", heatId),
@@ -150,53 +160,75 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
     id: string;
     lane_number: number;
     athlete_id: string | null;
+    team_id: string | null;
     athletes: { first_name: string; last_name: string; affiliate: string | null } | null;
+    teams: { name: string; affiliate: string | null } | null;
   }> | null;
   const otherHeatLanes = otherHeatLanesRaw as unknown as Array<{
     heat_number: number;
-    lanes: Array<{ lane_number: number; athlete_id: string | null }> | null;
+    lanes: Array<{ lane_number: number; athlete_id: string | null; team_id: string | null }> | null;
   }> | null;
 
-  // athlete_id -> where else they're already assigned (another heat of this
-  // WOD/division, or a second lane within this very heat) — used to render
-  // the red "already assigned elsewhere" warning below.
-  const conflictByAthleteId = new Map<string, string>();
+  // athlete or team id -> where else they're already assigned (another heat
+  // of this WOD/division, or a second lane within this very heat) — used to
+  // render the red "already assigned elsewhere" warning below.
+  const occupant = (l: { athlete_id: string | null; team_id: string | null }) =>
+    l.athlete_id ?? l.team_id;
+  const conflictByCompetitorId = new Map<string, string>();
   (otherHeatLanes ?? []).forEach((h) =>
     (h.lanes ?? []).forEach((l) => {
-      if (l.athlete_id) {
-        conflictByAthleteId.set(l.athlete_id, `Heat ${h.heat_number}, Lane ${l.lane_number}`);
-      }
+      const id = occupant(l);
+      if (id) conflictByCompetitorId.set(id, `Heat ${h.heat_number}, Lane ${l.lane_number}`);
     }),
   );
   (lanes ?? []).forEach((l, i) => {
-    if (!l.athlete_id) return;
-    const dupeInThisHeat = (lanes ?? []).find(
-      (other, j) => j !== i && other.athlete_id === l.athlete_id,
-    );
+    const id = occupant(l);
+    if (!id) return;
+    const dupeInThisHeat = (lanes ?? []).find((other, j) => j !== i && occupant(other) === id);
     if (dupeInThisHeat) {
-      conflictByAthleteId.set(l.athlete_id, `Lane ${dupeInThisHeat.lane_number} (this heat)`);
+      conflictByCompetitorId.set(id, `Lane ${dupeInThisHeat.lane_number} (this heat)`);
     }
   });
   const registrations = registrationsRaw as unknown as Array<{
     athlete_id: string | null;
+    team_id: string | null;
     athletes: { id: string; first_name: string; last_name: string } | null;
+    teams: { id: string; name: string } | null;
   }> | null;
+  // What this heat's lanes hold: the division's athletes, or its teams.
+  const laneOptions: LaneOption[] = (registrations ?? []).flatMap((r) =>
+    r.athletes
+      ? [{ id: r.athletes.id, label: `${r.athletes.first_name} ${r.athletes.last_name}` }]
+      : r.teams
+        ? [{ id: r.teams.id, label: r.teams.name }]
+        : [],
+  );
+  const holdsTeams = !!heat.divisions && heat.divisions.entry_format !== "individual";
   const standings = standingsRaw as unknown as Array<{
     placement: number | null;
     points: number | null;
     athlete_id: string | null;
+    team_id: string | null;
     athletes: { first_name: string; last_name: string } | null;
+    teams: { name: string } | null;
   }> | null;
 
   const scoringType = heat.wods!.scoring_type;
-  const scoringLanes: ScoringLane[] = (lanes ?? [])
-    .filter((l) => l.athlete_id)
-    .map((l) => ({
-      laneNumber: l.lane_number,
-      athleteId: l.athlete_id as string,
-      name: `${l.athletes?.first_name ?? ""} ${l.athletes?.last_name ?? ""}`.trim(),
-      affiliate: l.athletes?.affiliate ?? null,
-    }));
+  const scoringLanes: ScoringLane[] = (lanes ?? []).flatMap((l) => {
+    const competitor = laneCompetitor({ athleteId: l.athlete_id, teamId: l.team_id });
+    if (!competitor) return [];
+    return [
+      {
+        laneNumber: l.lane_number,
+        competitorType: competitor.type,
+        competitorId: competitor.id,
+        name: l.athletes
+          ? `${l.athletes.first_name} ${l.athletes.last_name}`
+          : (l.teams?.name ?? "—"),
+        affiliate: l.athletes ? l.athletes.affiliate : (l.teams?.affiliate ?? null),
+      },
+    ];
+  });
 
   const tab = pickTab(TABS, (await searchParams).tab);
   const title = `${heat.wods?.name} — Heat ${heat.heat_number}${heat.heat_count ? ` / ${heat.heat_count}` : ""}`;
@@ -262,11 +294,16 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
                   key={lane.id}
                   eventId={eventId}
                   heatId={heatId}
-                  lane={lane}
-                  registrations={registrations ?? []}
+                  lane={{
+                    id: lane.id,
+                    lane_number: lane.lane_number,
+                    occupantId: occupant(lane),
+                  }}
+                  kind={holdsTeams ? "team" : "athlete"}
+                  options={laneOptions}
                   conflictMessage={
-                    lane.athlete_id && conflictByAthleteId.get(lane.athlete_id)
-                      ? `This athlete is already registered in another lane/heat — ${conflictByAthleteId.get(lane.athlete_id)}. Remove one of the two assignments.`
+                    occupant(lane) && conflictByCompetitorId.get(occupant(lane) as string)
+                      ? `This ${lane.team_id ? "team" : "athlete"} is already in another lane/heat — ${conflictByCompetitorId.get(occupant(lane) as string)}. Remove one of the two assignments.`
                       : undefined
                   }
                 />
@@ -289,7 +326,9 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
                 subtitle={`${heat.wods?.name ?? "WOD"} · ${heat.divisions?.name ?? ""}`}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">Assign athletes to lanes first.</p>
+              <p className="text-sm text-muted-foreground">
+                Assign athletes or teams to lanes first.
+              </p>
             )}
           </section>
         ) : standings && standings.length > 0 ? (
@@ -305,7 +344,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
                 >
                   <span>
                     <span className="mr-3 font-bold text-brand-text">{s.placement ?? "—"}</span>
-                    {s.athletes?.first_name} {s.athletes?.last_name}
+                    {standingName(s)}
                   </span>
                   <span className="font-semibold">{s.points ?? "—"} pts</span>
                 </div>

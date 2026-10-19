@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const fixture = vi.hoisted(() => ({
   state: null as Record<string, unknown> | null,
   athlete: null as null | { name: string; division: string | null; affiliate: string | null },
+  results: new Map() as Map<string, unknown>,
 }));
 const HEAT = {
   id: "h-6",
@@ -20,7 +21,24 @@ const HEAT = {
     created_at: "",
   },
   division: { id: "d", name: "Intermediate Female" },
-  lanes: [{ laneNumber: 1, athleteId: "a-1", name: "Maria Rivera", affiliate: "CrossFit Aprieta" }],
+  lanes: [
+    {
+      laneNumber: 1,
+      athleteId: "a-1",
+      teamId: null,
+      members: [],
+      name: "Maria Rivera",
+      affiliate: "CrossFit Aprieta",
+    },
+    {
+      laneNumber: 2,
+      athleteId: null,
+      teamId: "t-1",
+      members: ["Gabriela Torres", "Isabella Vega"],
+      name: "Aprieta Duo",
+      affiliate: "CrossFit Aprieta",
+    },
+  ],
 };
 vi.mock("@/lib/realtime/useFloorOverlay", () => ({
   useFloorOverlay: () => ({ state: fixture.state, connected: true, currentHeat: HEAT }),
@@ -31,7 +49,7 @@ vi.mock("@/lib/realtime/useLiveTimer", () => ({
 vi.mock("@/lib/realtime/useStandings", () => ({
   useStandings: () => [{ placement: 1, points: 3, name: "Sofia Delgado" }],
 }));
-vi.mock("@/lib/realtime/useHeatResults", () => ({ useHeatResults: () => new Map() }));
+vi.mock("@/lib/realtime/useHeatResults", () => ({ useHeatResults: () => fixture.results }));
 vi.mock("@/lib/realtime/useAthleteLookup", () => ({ useAthleteLookup: () => fixture.athlete }));
 
 import { ProgramOverlayClient } from "./ProgramOverlayClient";
@@ -77,6 +95,30 @@ describe("ProgramOverlayClient", () => {
     expect(screen.getByText("07:42")).toBeTruthy();
     expect(screen.getByText(/WOD 2 · Heat 6/)).toBeTruthy();
     expect(screen.queryByText("Maria Rivera")).toBeNull();
+  });
+
+  it("shows a team's result in Heat Results", () => {
+    fixture.results = new Map([
+      [
+        "t-1",
+        {
+          result: {
+            time_seconds: 300,
+            reps: null,
+            load: null,
+            points: null,
+            capped: false,
+            status: "completed",
+          },
+          placement: 1,
+        },
+      ],
+    ]);
+    fixture.state = state("score");
+    renderProgram();
+    expect(screen.getAllByText("Aprieta Duo").length).toBeGreaterThan(0);
+    expect(screen.getByText("05:00")).toBeTruthy();
+    fixture.results = new Map();
   });
 
   it("shows a lower third over a card", () => {

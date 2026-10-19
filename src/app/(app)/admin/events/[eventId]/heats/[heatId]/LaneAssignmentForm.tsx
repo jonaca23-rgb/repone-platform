@@ -14,13 +14,15 @@ import {
 } from "@/components/ui/select";
 import { NONE } from "@/lib/validation/none";
 
-interface Registration {
-  athlete_id: string | null;
-  athletes: { id: string; first_name: string; last_name: string } | null;
+/** Someone who can take a lane in this heat: one of its division's athletes or teams. */
+export interface LaneOption {
+  id: string;
+  label: string;
 }
 
 /**
- * One lane's "who's in this lane" picker, saved on its own. A duplicate
+ * One lane's "who's in this lane" picker (an athlete, or a team in a team
+ * division), saved on its own. A duplicate
  * comes back from `assignLane` as a result and shows as a toast plus an
  * inline message. "Empty" posts NONE, which the action reads as blank and
  * clears the lane. (One Select per lane, so FormData + zod, not TanStack Form.)
@@ -33,13 +35,15 @@ export function LaneAssignmentForm({
   eventId,
   heatId,
   lane,
-  registrations,
+  kind,
+  options,
   conflictMessage,
 }: {
   eventId: string;
   heatId: string;
-  lane: { id: string; lane_number: number; athlete_id: string | null };
-  registrations: Registration[];
+  lane: { id: string; lane_number: number; occupantId: string | null };
+  kind: "athlete" | "team";
+  options: LaneOption[];
   conflictMessage?: string;
 }) {
   const save = useServerAction((fd: FormData) => assignLane(eventId, heatId, lane.id, fd), {
@@ -64,9 +68,12 @@ export function LaneAssignmentForm({
           {lane.lane_number}
         </span>
         <Label htmlFor={selectId} className="sr-only">
-          Lane {lane.lane_number} athlete
+          Lane {lane.lane_number} {kind}
         </Label>
-        <Select name="athlete_id" defaultValue={lane.athlete_id ?? NONE}>
+        <Select
+          name={kind === "team" ? "team_id" : "athlete_id"}
+          defaultValue={lane.occupantId ?? NONE}
+        >
           <SelectTrigger
             id={selectId}
             aria-invalid={message ? true : undefined}
@@ -76,13 +83,11 @@ export function LaneAssignmentForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NONE}>Empty</SelectItem>
-            {registrations
-              .filter((r) => r.athlete_id)
-              .map((r) => (
-                <SelectItem key={r.athlete_id} value={r.athlete_id as string}>
-                  {r.athletes?.first_name} {r.athletes?.last_name}
-                </SelectItem>
-              ))}
+            {options.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button

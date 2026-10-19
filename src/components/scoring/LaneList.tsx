@@ -21,9 +21,13 @@ const BADGE = {
   pending: { label: "Pending", icon: CircleDashed, className: "text-muted-foreground" },
 } as const;
 
-export function resultsByAthlete(results: LaneResult[]): Map<string, LaneResult> {
+/** Saved results by who they are for: the athlete's or the team's id. */
+export function resultsByCompetitor(results: LaneResult[]): Map<string, LaneResult> {
   const map = new Map<string, LaneResult>();
-  for (const r of results) if (r.athlete_id) map.set(r.athlete_id, r);
+  for (const r of results) {
+    const id = r.athlete_id ?? r.team_id;
+    if (id) map.set(id, r);
+  }
   return map;
 }
 
@@ -34,19 +38,19 @@ export function resultsByAthlete(results: LaneResult[]): Map<string, LaneResult>
  */
 export function LaneList({
   lanes,
-  resultsByAthlete: results,
+  resultsByCompetitor: results,
   scoringType,
   onOpen,
 }: {
   lanes: ScoringLane[];
-  resultsByAthlete: Map<string, LaneResult>;
+  resultsByCompetitor: Map<string, LaneResult>;
   scoringType: ScoringType;
   onOpen?: (lane: ScoringLane) => void;
 }) {
   return (
     <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
       {lanes.map((lane) => {
-        const result = results.get(lane.athleteId);
+        const result = results.get(lane.competitorId);
         const state = !result ? "pending" : result.manually_adjusted ? "adjusted" : "recorded";
         const badge = BADGE[state];
         const Icon = badge.icon;

@@ -37,6 +37,8 @@ const heat = (n: number, athletes: string[]): FloorHeat =>
     lanes: athletes.map((a, i) => ({
       laneNumber: i + 1,
       athleteId: a,
+      teamId: null,
+      members: [],
       name: `Athlete ${a}`,
       affiliate: i === 0 ? "CrossFit Aprieta" : null,
     })),
@@ -99,6 +101,33 @@ describe("CommentatorClient", () => {
     expect(screen.getByText("+2 more events")).toBeTruthy();
     // c has no details at all
     expect(screen.getByText("No lifts, benchmarks or history on file yet.")).toBeTruthy();
+  });
+
+  it("shows a team's lane as the team with its members", () => {
+    const teamHeat = {
+      ...heat(1, []),
+      lanes: [
+        {
+          laneNumber: 3,
+          athleteId: null,
+          teamId: "t-1",
+          members: ["Gabriela Torres", "Isabella Vega"],
+          name: "Aprieta Duo",
+          affiliate: "CrossFit Aprieta",
+        },
+      ],
+    } as FloorHeat;
+    render(
+      <CommentatorClient
+        floorId="f"
+        heats={[teamHeat]}
+        initialBroadcastState={live}
+        detailsByAthleteId={DETAILS}
+      />,
+    );
+    expect(screen.getByText("Aprieta Duo")).toBeTruthy();
+    expect(screen.getByText("Gabriela Torres")).toBeTruthy();
+    expect(screen.getByText("Isabella Vega")).toBeTruthy();
   });
 
   it("shows the current WOD and follows the live heat", async () => {

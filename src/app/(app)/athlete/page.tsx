@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { registrationLabel } from "@/lib/athlete/myRegistrations";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
@@ -36,6 +37,7 @@ type MyRegistrationRow = {
   events: { name: string; status: string } | null;
   divisions: { name: string } | null;
   payments: { status: PaymentStatus } | null;
+  teams?: { name: string } | null;
 };
 
 /**
@@ -91,6 +93,21 @@ export default async function AthleteDashboardPage({
       .eq("athlete_id", ctx.athleteId),
   ]);
 
+  // A team member's fee is paid on their team's registration (0036, 0037).
+  const { data: memberships } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("athlete_id", ctx.athleteId);
+  const teamIds = (memberships ?? []).map((m) => m.team_id);
+  const { data: teamRegistrations } = teamIds.length
+    ? await supabase
+        .from("registrations")
+        .select(
+          "id, event_id, bib_number, events(name, status), divisions(name), payments(status), teams(name)",
+        )
+        .in("team_id", teamIds)
+    : { data: [] };
+
   const liftByName = new Map(
     (liftRows ?? []).map((l) => [
       l.lift as LiftName,
@@ -101,7 +118,10 @@ export default async function AthleteDashboardPage({
   // See lib/db/queries.ts header comment on this codebase's convention:
   // cast a many-to-one embed (one payment row per registration) back to a
   // single object instead of fighting the query builder's inferred array type.
-  const myRegistrations = (registrations ?? []) as unknown as MyRegistrationRow[];
+  const myRegistrations = [
+    ...(registrations ?? []),
+    ...(teamRegistrations ?? []),
+  ] as unknown as MyRegistrationRow[];
 
   // Same QR code the admin athlete detail page already generates — an
   // absolute URL to this athlete's staff Check-In screen (built from the
@@ -183,7 +203,10 @@ export default async function AthleteDashboardPage({
                             <div className="min-w-0">
                               <p className="text-sm font-semibold">{r.events?.name ?? "Event"}</p>
                               <p className="text-xs tracking-wide text-muted-foreground uppercase">
-                                {r.divisions?.name ?? "—"}
+                                {registrationLabel({
+                                  divisions: r.divisions,
+                                  teams: r.teams ?? null,
+                                })}
                                 {r.bib_number ? ` · Bib #${r.bib_number}` : ""}
                               </p>
                             </div>
