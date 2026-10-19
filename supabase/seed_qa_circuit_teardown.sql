@@ -18,24 +18,8 @@ where name in (
 delete from circuits where name = 'QA Test Circuit — 2026 Sample Season';
 
 -- Athletes are organization-scoped, not event-scoped, so they survive the
--- event deletes above and need to be removed by name.
-delete from athletes where (first_name, last_name) in (
-  ('Carlos','Rivera'), ('Miguel','Torres'), ('Luis','Ortiz'), ('Jose','Ramirez'),
-  ('Angel','Cruz'), ('Rafael','Mendez'), ('David','Colon'), ('Emilio','Vega'),
-  ('Hector','Rosario'), ('Julio','Feliciano'), ('Manuel','Diaz'), ('Pedro','Santiago'),
-  ('Ricardo','Aponte'), ('Samuel','Nieves'), ('Victor','Maldonado'),
-  ('Ana','Delgado'), ('Camila','Ortiz'), ('Valentina','Cruz'), ('Isabella','Vega'),
-  ('Gabriela','Torres'), ('Daniela','Rosario'), ('Sofia','Feliciano'), ('Paula','Diaz'),
-  ('Carmen','Santiago'), ('Natalia','Aponte'), ('Andrea','Nieves'), ('Laura','Maldonado'),
-  ('Estrella','Mendez'), ('Yolanda','Colon'), ('Michelle','Ramirez'),
-  ('Jorge','Fuentes'), ('Roberto','Cabrera'), ('Alejandro','Reyes'), ('Francisco','Morales'),
-  ('Eduardo','Sosa'), ('Enrique','Padilla'), ('Ivan','Rosado'), ('Marcos','Villanueva'),
-  ('Nestor','Cotto'), ('Omar','Serrano'), ('Pablo','Betancourt'), ('Raul','Figueroa'),
-  ('Tomas','Guzman'), ('Wilfredo','Lugo'), ('Xavier','Perez'),
-  ('Adriana','Sanchez'), ('Brenda','Cardona'), ('Claudia','Ayala'), ('Diana','Rentas'),
-  ('Elena','Caban'), ('Fernanda','Rivas'), ('Gloria','Marrero'), ('Heidi','Class'),
-  ('Ingrid','Bermudez'), ('Jazmin','Correa'), ('Karla','Ocasio'), ('Leslie','Quinones'),
-  ('Miriam','Acevedo'), ('Noemi','Renteria'), ('Patricia','Andino')
-);
+-- event deletes above. They are removed by the email the seed gave them, not
+-- by name: seed.sql has athletes with some of the same names.
+delete from athletes where email like 'qa.athlete%@example.test';
 
 commit;
