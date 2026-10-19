@@ -1,28 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { Star, X } from "lucide-react";
+import { useId, useState } from "react";
+import { Plus, Star, X } from "lucide-react";
 import { addTeamMember, removeTeamMember, setTeamCaptain } from "@/lib/actions/teams";
-import { fieldErrorsOf, useServerAction } from "@/lib/use-server-action";
-import { FormAlert } from "@/components/app/FormAlert";
-import { FormField } from "@/components/app/FormField";
-import { SubmitButton } from "@/components/app/SubmitButton";
+import { useServerAction } from "@/lib/use-server-action";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export type RosterMember = { memberId: string; athleteId: string; name: string };
 export type RosterOption = { id: string; label: string };
 
+/** "Sofía" → "sofia": a search that ignores case and accents. */
+function fold(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
 /**
  * A team's roster: who is on it, who its captain is, and adding athletes who
- * aren't on a team in this event yet. It stays open after each change so a
+ * aren't on a team in this event yet, found by name or affiliate so a large
+ * organization still fits. It stays open after each change so a
  * whole team can be put together in one go.
  */
 export function RosterDialog({
@@ -40,12 +41,13 @@ export function RosterDialog({
   };
   available: RosterOption[];
 }) {
-  // Bumped after each add so the select starts empty again.
-  const [added, setAdded] = useState(0);
+  const searchId = useId();
+  const hintId = useId();
+  const [query, setQuery] = useState("");
   const add = useServerAction((fd: FormData) => addTeamMember(eventId, team.id, fd), {
     success: "Added to the team",
     toastErrors: false,
-    onSuccess: () => setAdded((n) => n + 1),
+    onSuccess: () => setQuery(""),
   });
   const remove = useServerAction((memberId: string) =>
     removeTeamMember(eventId, team.id, memberId),
@@ -53,7 +55,8 @@ export function RosterDialog({
   const captain = useServerAction((athleteId: string | null) =>
     setTeamCaptain(eventId, team.id, athleteId),
   );
-  const errors = fieldErrorsOf(add.error);
+  const needle = fold(query.trim());
+  const matches = available.filter((a) => fold(a.label).includes(needle));
   const full = team.size !== null && team.roster.length >= team.size;
   const busy = remove.isPending || captain.isPending;
 
@@ -105,40 +108,51 @@ export function RosterDialog({
           Every athlete of the organization is already on a team in this event.
         </p>
       ) : (
-        <form
-          key={added}
-          className="grid gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            add.mutate(new FormData(e.currentTarget));
-          }}
-        >
-          <FormField
-            label="Add athlete"
-            name="athlete_id"
-            errors={errors?.athlete_id}
-            description="Athletes who aren't on a team in this event yet."
-          >
-            {({ name, ...c }) => (
-              <Select name={name} required>
-                <SelectTrigger {...c} className="w-full">
-                  <SelectValue placeholder="Choose an athlete" />
-                </SelectTrigger>
-                <SelectContent>
-                  {available.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </FormField>
-          <FormAlert error={add.error} />
-          <SubmitButton pending={add.isPending} pendingLabel="Adding…">
-            Add to team
-          </SubmitButton>
-        </form>
+        <div className="grid gap-2">
+          <Label htmlFor={searchId}>Find an athlete</Label>
+          <Input
+            id={searchId}
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Name or affiliate"
+            autoComplete="off"
+            aria-describedby={hintId}
+          />
+          <p id={hintId} className="text-sm text-muted-foreground">
+            Athletes who aren&apos;t on a team in this event yet. Tap one to add them.
+          </p>
+          {matches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No athlete matches “{query.trim()}”.</p>
+          ) : (
+            <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+              {matches.map((a) => (
+                <li key={a.id}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="min-h-11 w-full justify-start rounded-none"
+                    disabled={add.isPending}
+                    aria-label={`Add ${a.label}`}
+                    onClick={() => {
+                      const fd = new FormData();
+                      fd.set("athlete_id", a.id);
+                      add.mutate(fd);
+                    }}
+                  >
+                    <Plus aria-hidden />
+                    <span className="truncate">{a.label}</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {add.error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {add.error.message}
+            </p>
+          ) : null}
+        </div>
       )}
     </div>
   );
