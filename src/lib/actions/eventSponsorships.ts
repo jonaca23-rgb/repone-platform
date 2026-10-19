@@ -32,6 +32,14 @@ const UpdateForm = z.object({
 
 const EXCLUSIVE = "Another active sponsor holds this category exclusively at this event.";
 const ALREADY = "That sponsor is already part of this event.";
+const NO_CATEGORY =
+  "Only a sponsor with a category can hold it exclusively. Give the sponsor a category first.";
+
+/** Exclusivity is per category, so a sponsor without one has nothing to hold. */
+function exclusiveWithoutCategory(category: string | null | undefined): ActionResult | null {
+  if (category?.trim()) return null;
+  return fail(NO_CATEGORY, { category_exclusive: [NO_CATEGORY] });
+}
 
 /** The database's refusals a manager can act on; anything else is unexpected. */
 function refusal(message: string): ActionResult | null {
@@ -72,6 +80,16 @@ export async function addEventSponsorship(
     const supabase = await ownedEvent(eventId);
     if (!supabase) return fail(NOT_OURS);
     const f = parseForm(AddForm, formData);
+    if (f.category_exclusive) {
+      const { data: sponsor, error } = await supabase
+        .from("sponsors")
+        .select("category")
+        .eq("id", f.sponsor_id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      const refused = exclusiveWithoutCategory(sponsor?.category);
+      if (refused) return refused;
+    }
     const { error } = await supabase.from("event_sponsorships").insert({ event_id: eventId, ...f });
     if (error) {
       const r = refusal(error.message);
@@ -92,6 +110,17 @@ export async function updateEventSponsorship(
     const supabase = await ownedEvent(eventId);
     if (!supabase) return fail(NOT_OURS);
     const f = parseForm(UpdateForm, formData);
+    if (f.category_exclusive) {
+      const { data: current, error } = await supabase
+        .from("event_sponsorships")
+        .select("sponsors(category)")
+        .eq("id", sponsorshipId)
+        .eq("event_id", eventId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      const refused = exclusiveWithoutCategory(current?.sponsors?.category);
+      if (refused) return refused;
+    }
     const res = await supabase
       .from("event_sponsorships")
       .update({

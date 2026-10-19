@@ -133,6 +133,83 @@ async function main() {
       recategorize.error,
     );
 
+    // A sponsor switched off org-wide shows nowhere, so it holds no category
+    // either; switching it back on is checked like re-activating its
+    // sponsorship (0042).
+    await service
+      .from("event_sponsorships")
+      .delete()
+      .in("sponsor_id", [s2.id, s3?.id ?? ""]);
+    await admin
+      .from("event_sponsorships")
+      .update({ active: true, category_exclusive: true })
+      .eq("id", first.data?.id ?? "");
+    await admin.from("sponsors").update({ active: false }).eq("id", s1.id);
+    const whileOff = await admin
+      .from("event_sponsorships")
+      .insert({ event_id: EVENT_ID, sponsor_id: s2.id, package_id: pkg.id })
+      .select("id")
+      .single();
+    expect(
+      "a sponsor switched off org-wide doesn't hold its exclusive category",
+      !whileOff.error,
+      whileOff.error,
+    );
+    const backOn = await admin
+      .from("sponsors")
+      .update({ active: true })
+      .eq("id", s1.id)
+      .select("id");
+    expect(
+      "switching it back on org-wide is refused while another sponsor is in the category",
+      !!backOn.error?.message.includes("sponsor_category_exclusive"),
+      backOn.error ?? backOn.data,
+    );
+    // The checks below read the first sponsorship as inactive.
+    await admin
+      .from("event_sponsorships")
+      .update({ active: false })
+      .eq("id", first.data?.id ?? "");
+
+    // Another organization's sponsor and files stay out of reach.
+    const { data: otherOrg } = await service
+      .from("organizations")
+      .insert({ name: "Sponsor check org", slug: `sponsor-check-${Date.now()}` })
+      .select("id")
+      .single();
+    try {
+      const { data: otherSponsor } = await service
+        .from("sponsors")
+        .insert({ organization_id: otherOrg?.id, business_name: "Other org sponsor" })
+        .select("id")
+        .single();
+      const crossAttach = await admin
+        .from("event_sponsorships")
+        .insert({ event_id: EVENT_ID, sponsor_id: otherSponsor?.id ?? "", package_id: pkg.id })
+        .select("id");
+      expect(
+        "a manager can't attach another organization's sponsor to their event",
+        !!crossAttach.error,
+        crossAttach.data,
+      );
+      const crossUpload = await admin.storage
+        .from("sponsor-creatives")
+        .upload(`${otherSponsor?.id}/check.png`, new Blob(["x"], { type: "image/png" }));
+      expect(
+        "a manager can't write another organization's sponsor files",
+        !!crossUpload.error,
+        crossUpload.data,
+      );
+      if (!crossUpload.error) {
+        await service.storage.from("sponsor-creatives").remove([`${otherSponsor?.id}/check.png`]);
+      }
+    } finally {
+      await service
+        .from("organizations")
+        .delete()
+        .eq("id", otherOrg?.id ?? "");
+    }
+
     const anonInactive = await anon
       .from("event_sponsorships")
       .select("id")

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { addEventSponsorship, updateEventSponsorship } from "@/lib/actions/eventSponsorships";
 import { fieldErrorsOf, useServerAction } from "@/lib/use-server-action";
 import { FormAlert } from "@/components/app/FormAlert";
@@ -66,15 +67,32 @@ function PackageSelect({
   );
 }
 
-function ExclusiveCheckbox({ defaultChecked }: { defaultChecked?: boolean }) {
+function ExclusiveCheckbox({
+  defaultChecked,
+  errors,
+}: {
+  defaultChecked?: boolean;
+  errors?: string[];
+}) {
+  const error = errors?.[0];
   return (
-    <div className="flex min-h-11 items-center gap-2">
-      <Checkbox
-        id="sponsorship-exclusive"
-        name="category_exclusive"
-        defaultChecked={defaultChecked}
-      />
-      <Label htmlFor="sponsorship-exclusive">Holds its category exclusively at this event</Label>
+    <div className="grid gap-1">
+      <div className="flex min-h-11 items-center gap-2">
+        <Checkbox
+          id="sponsorship-exclusive"
+          name="category_exclusive"
+          defaultChecked={defaultChecked}
+          aria-describedby="sponsorship-exclusive-hint"
+          aria-invalid={error ? true : undefined}
+        />
+        <Label htmlFor="sponsorship-exclusive">Holds its category exclusively at this event</Label>
+      </div>
+      <p
+        id="sponsorship-exclusive-hint"
+        className={error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
+      >
+        {error ?? "Only for a sponsor with a category."}
+      </p>
     </div>
   );
 }
@@ -122,7 +140,7 @@ export function AddEventSponsorForm({
         )}
       </FormField>
       <PackageSelect packages={packages} errors={errors?.package_id} />
-      <ExclusiveCheckbox />
+      <ExclusiveCheckbox errors={errors?.category_exclusive} />
       <FormAlert error={save.error} />
       <SubmitButton pending={save.isPending} pendingLabel="Adding…">
         Add sponsor
@@ -151,7 +169,9 @@ export function EditEventSponsorForm({
     { success: "Sponsorship saved", toastErrors: false, onSuccess: close },
   );
   const errors = fieldErrorsOf(save.error);
-  const pkg = packages.find((p) => p.id === sponsorship.packageId);
+  // The overrides' placeholders follow the package as it is chosen.
+  const [packageId, setPackageId] = useState(sponsorship.packageId);
+  const pkg = packages.find((p) => p.id === packageId);
   return (
     <form
       className="grid gap-4"
@@ -164,8 +184,12 @@ export function EditEventSponsorForm({
         packages={packages}
         value={sponsorship.packageId}
         errors={errors?.package_id}
+        onChange={setPackageId}
       />
-      <ExclusiveCheckbox defaultChecked={sponsorship.exclusive} />
+      <ExclusiveCheckbox
+        defaultChecked={sponsorship.exclusive}
+        errors={errors?.category_exclusive}
+      />
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           label="Seconds on screen"

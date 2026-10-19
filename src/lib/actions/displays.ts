@@ -36,6 +36,7 @@ const SettingsForm = z.object({
 });
 
 const OTHER_FLOOR = "That floor isn't part of this event.";
+const NOT_THIS_EVENT = "That display isn't part of this event, or isn't yours to change.";
 
 const pathOf = (eventId: string) => `/producer/events/${eventId}/displays`;
 
@@ -90,28 +91,21 @@ export async function updateDisplaySettings(
     await requireEventAccess(eventId, ["producer"]);
     const f = parseForm(SettingsForm, formData) as Record<string, number | boolean>;
     const supabase = await createClient();
-    expectChanged(
-      await supabase
-        .from("display_devices")
-        .update({
-          sponsors_enabled: f.sponsors_enabled as boolean,
-          info_blocks_between_sponsors: f.info_blocks_between_sponsors as number,
-        })
-        .eq("id", displayId)
-        .eq("event_id", eventId)
-        .select("id"),
-      "update the display",
-    );
-    const { error } = await supabase.from("display_blocks").upsert(
-      BLOCKS.map(({ type }) => ({
-        display_id: displayId,
+    // The device and its blocks save together (0043): a failed block can't
+    // leave the device half-saved.
+    const { error } = await supabase.rpc("save_display_settings", {
+      p_event_id: eventId,
+      p_display_id: displayId,
+      p_sponsors_enabled: f.sponsors_enabled as boolean,
+      p_info_blocks_between_sponsors: f.info_blocks_between_sponsors as number,
+      p_blocks: BLOCKS.map(({ type }) => ({
         block_type: type,
         enabled: f[`${type}_enabled`] as boolean,
         duration_seconds: f[`${type}_duration`] as number,
         weight: f[`${type}_weight`] as number,
       })),
-      { onConflict: "display_id,block_type" },
-    );
+    });
+    if (error?.message.includes("display_not_found")) return fail(NOT_THIS_EVENT);
     if (error) throw new Error(error.message);
     revalidatePath(pathOf(eventId));
     return ok();

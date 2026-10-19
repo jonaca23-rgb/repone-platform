@@ -49,6 +49,25 @@ async function ownedSponsor(sponsorId: string, organizationId: string) {
 const NOT_OURS = "That sponsor doesn't belong to your organization.";
 const CATEGORY_TAKEN =
   "Another sponsor holds that category exclusively at an event this sponsor is part of.";
+const SWITCH_ON_TAKEN =
+  "Another sponsor holds this sponsor's category exclusively at one of its events. Switch that one off there first.";
+
+/**
+ * Runs the database write that records an uploaded file, and removes the
+ * file if that write fails, so a failed save leaves no orphan in the bucket.
+ */
+async function keepOnlyIfSaved<T>(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  path: string,
+  save: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await save();
+  } catch (err) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    throw err;
+  }
+}
 
 export async function createSponsor(formData: FormData): Promise<ActionResult> {
   return safeAction(async () => {
@@ -94,15 +113,15 @@ export async function toggleSponsorActive(
     const { organizationId } = await requireOrgManager();
     if (typeof active !== "boolean") return fail("Invalid sponsor status.");
     const supabase = await createClient();
-    expectChanged(
-      await supabase
-        .from("sponsors")
-        .update({ active })
-        .eq("id", sponsorId)
-        .eq("organization_id", organizationId)
-        .select("id"),
-      "update the sponsor",
-    );
+    const res = await supabase
+      .from("sponsors")
+      .update({ active })
+      .eq("id", sponsorId)
+      .eq("organization_id", organizationId)
+      .select("id");
+    // Switching a sponsor back on brings its categories back too (0042).
+    if (res.error?.message.includes("sponsor_category_exclusive")) return fail(SWITCH_ON_TAKEN);
+    expectChanged(res, "update the sponsor");
     revalidatePath("/admin/sponsors");
     return ok();
   });
@@ -125,14 +144,16 @@ export async function uploadSponsorLogo(
     if (uploadError) throw new Error(uploadError.message);
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-    expectChanged(
-      await supabase
-        .from("sponsors")
-        .update({ logo_url: data.publicUrl })
-        .eq("id", sponsorId)
-        .eq("organization_id", organizationId)
-        .select("id"),
-      "save the logo",
+    await keepOnlyIfSaved(supabase, path, async () =>
+      expectChanged(
+        await supabase
+          .from("sponsors")
+          .update({ logo_url: data.publicUrl })
+          .eq("id", sponsorId)
+          .eq("organization_id", organizationId)
+          .select("id"),
+        "save the logo",
+      ),
     );
     revalidatePath("/admin/sponsors");
     return ok();
@@ -160,10 +181,12 @@ export async function uploadSponsorCreative(
     if (uploadError) throw new Error(uploadError.message);
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-    const { error } = await supabase
-      .from("sponsor_creatives")
-      .insert({ sponsor_id: sponsorId, storage_path: path, public_url: data.publicUrl });
-    if (error) throw new Error(error.message);
+    await keepOnlyIfSaved(supabase, path, async () => {
+      const { error } = await supabase
+        .from("sponsor_creatives")
+        .insert({ sponsor_id: sponsorId, storage_path: path, public_url: data.publicUrl });
+      if (error) throw new Error(error.message);
+    });
     revalidatePath("/admin/sponsors");
     return ok();
   });

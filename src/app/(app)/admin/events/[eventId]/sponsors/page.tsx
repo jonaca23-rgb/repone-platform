@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { effectiveDisplay } from "@/lib/sponsors/effective";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -39,7 +39,7 @@ interface RawRow {
 export default async function EventSponsorsPage({ params }: Props) {
   const { eventId } = await params;
   const event = await requireAdminEvent(eventId);
-  const orgId = (await getSessionContext())?.organizationId ?? "";
+  const { organizationId: orgId } = await requireOrgManager();
   const supabase = await createClient();
 
   const [sponsorships, sponsors, packages] = await Promise.all([

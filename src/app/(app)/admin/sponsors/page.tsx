@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { pickTab } from "@/lib/tabs";
 import { LinkTabs } from "@/components/app/LinkTabs";
@@ -22,8 +22,7 @@ type Props = { searchParams: Promise<{ tab?: string }> };
  */
 export default async function SponsorsPage({ searchParams }: Props) {
   const tab = pickTab(TABS, (await searchParams).tab);
-  const ctx = await getSessionContext();
-  const orgId = ctx?.organizationId ?? "";
+  const { organizationId: orgId } = await requireOrgManager();
   const supabase = await createClient();
 
   return (
