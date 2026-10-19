@@ -31,7 +31,16 @@ const HEAT = {
     created_at: "2026-01-01",
   },
   division: { id: "d", name: "Rx Male" },
-  lanes: [{ laneNumber: 1, athleteId: "a", name: "Maria Rivera", affiliate: "Aprieta" }],
+  lanes: [
+    {
+      laneNumber: 1,
+      athleteId: "a",
+      teamId: null,
+      members: [],
+      name: "Maria Rivera",
+      affiliate: "Aprieta",
+    },
+  ],
 };
 
 const sponsor = (id: string, name: string): EventSponsor => ({

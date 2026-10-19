@@ -1,5 +1,6 @@
 "use client";
 
+import type { FloorLane } from "@/lib/db/floorLanes";
 import { useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, ListOrdered } from "lucide-react";
 import { unstable_rethrow } from "next/navigation";
@@ -54,12 +55,7 @@ export interface DashboardHeat {
   heatCount: number | null;
   wod: { id: string; name: string; scoring_type: string; time_cap_seconds: number | null };
   division: { id: string; name: string };
-  lanes: Array<{
-    laneNumber: number;
-    athleteId: string | null;
-    name: string | null;
-    affiliate: string | null;
-  }>;
+  lanes: FloorLane[];
 }
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];

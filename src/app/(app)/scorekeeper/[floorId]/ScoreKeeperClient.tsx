@@ -1,5 +1,6 @@
 "use client";
 
+import type { FloorLane } from "@/lib/db/floorLanes";
 import { useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, ListOrdered, Lock, Radio, Users } from "lucide-react";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
@@ -33,12 +34,7 @@ export interface ScoreKeeperHeat {
   endedAt: string | null;
   wod: { id: string; name: string; scoring_type: string; time_cap_seconds: number | null };
   division: { id: string; name: string };
-  lanes: Array<{
-    laneNumber: number;
-    athleteId: string | null;
-    name: string | null;
-    affiliate: string | null;
-  }>;
+  lanes: FloorLane[];
 }
 
 export interface ScoreKeeperStanding extends LeaderboardRow {

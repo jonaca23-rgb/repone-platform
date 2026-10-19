@@ -20,6 +20,8 @@ const heat = (lanes: number) => ({
   lanes: Array.from({ length: lanes }, (_, i) => ({
     laneNumber: i + 1,
     athleteId: `a${i}`,
+    teamId: null,
+    members: [],
     name: `Athlete ${i + 1}`,
     affiliate: "Box 787",
   })),

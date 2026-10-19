@@ -37,6 +37,8 @@ const heat = (n: number, athletes: string[]): FloorHeat =>
     lanes: athletes.map((a, i) => ({
       laneNumber: i + 1,
       athleteId: a,
+      teamId: null,
+      members: [],
       name: `Athlete ${a}`,
       affiliate: i === 0 ? "CrossFit Aprieta" : null,
     })),

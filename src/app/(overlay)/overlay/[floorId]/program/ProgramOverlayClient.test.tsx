@@ -20,7 +20,16 @@ const HEAT = {
     created_at: "",
   },
   division: { id: "d", name: "Intermediate Female" },
-  lanes: [{ laneNumber: 1, athleteId: "a-1", name: "Maria Rivera", affiliate: "CrossFit Aprieta" }],
+  lanes: [
+    {
+      laneNumber: 1,
+      athleteId: "a-1",
+      teamId: null,
+      members: [],
+      name: "Maria Rivera",
+      affiliate: "CrossFit Aprieta",
+    },
+  ],
 };
 vi.mock("@/lib/realtime/useFloorOverlay", () => ({
   useFloorOverlay: () => ({ state: fixture.state, connected: true, currentHeat: HEAT }),

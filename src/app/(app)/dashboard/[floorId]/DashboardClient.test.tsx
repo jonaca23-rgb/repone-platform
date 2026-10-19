@@ -38,7 +38,16 @@ const heat = (n: number): DashboardHeat => ({
   heatCount: 2,
   wod: { id: "w", name: "WOD 2", scoring_type: "for_time", time_cap_seconds: 600 },
   division: { id: "d", name: "Intermediate Female" },
-  lanes: [{ laneNumber: 1, athleteId: `a-${n}`, name: `Athlete ${n}`, affiliate: null }],
+  lanes: [
+    {
+      laneNumber: 1,
+      athleteId: `a-${n}`,
+      teamId: null,
+      members: [],
+      name: `Athlete ${n}`,
+      affiliate: null,
+    },
+  ],
 });
 const HEATS = [heat(1), heat(2)];
 
