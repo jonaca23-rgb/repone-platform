@@ -10,9 +10,37 @@ export interface HeatResult {
   placement: number | null;
 }
 
+type ResultRow = ResultValue & { athlete_id: string | null; team_id: string | null };
+type PlaceRow = { athlete_id: string | null; team_id: string | null; placement: number | null };
+
+/** A heat's results keyed by who they are for (an athlete's or a team's id), with each one's place. */
+export function heatResultsByCompetitor(
+  results: ResultRow[],
+  places: PlaceRow[],
+): Map<string, HeatResult> {
+  const placeOf = new Map(places.map((p) => [p.athlete_id ?? p.team_id, p.placement]));
+  const next = new Map<string, HeatResult>();
+  for (const r of results) {
+    const id = r.athlete_id ?? r.team_id;
+    if (!id) continue;
+    next.set(id, {
+      result: {
+        time_seconds: r.time_seconds,
+        reps: r.reps,
+        load: r.load,
+        points: r.points,
+        capped: r.capped,
+        status: r.status,
+      },
+      placement: placeOf.get(id) ?? null,
+    });
+  }
+  return next;
+}
+
 /**
- * Live results of one heat, keyed by athlete id, with each athlete's place in
- * that WOD for the heat's division. Refetches when the heat's results or the
+ * Live results of one heat, keyed by athlete or team id, with each one's place
+ * in that WOD for the heat's division. Refetches when the heat's results or the
  * division's standings change, so a score saved on the floor reaches the
  * "Score" graphic without a reload. Pass null to stop listening.
  */
@@ -38,31 +66,19 @@ export function useHeatResults(
       const [{ data: results }, { data: places }] = await Promise.all([
         supabase
           .from("results")
-          .select("athlete_id, time_seconds, reps, load, points, capped, status")
+          .select("athlete_id, team_id, time_seconds, reps, load, points, capped, status")
           .eq("heat_id", heatId!),
         supabase
           .from("standings")
-          .select("athlete_id, placement")
+          .select("athlete_id, team_id, placement")
           .eq("division_id", divisionId!)
           .eq("wod_id", wodId!),
       ]);
       if (cancelled) return;
-      const placeOf = new Map((places ?? []).map((p) => [p.athlete_id, p.placement]));
-      const next = new Map<string, HeatResult>();
-      for (const r of results ?? []) {
-        if (!r.athlete_id) continue;
-        next.set(r.athlete_id, {
-          result: {
-            time_seconds: r.time_seconds,
-            reps: r.reps,
-            load: r.load,
-            points: r.points,
-            capped: r.capped,
-            status: r.status,
-          },
-          placement: placeOf.get(r.athlete_id) ?? null,
-        });
-      }
+      const next = heatResultsByCompetitor(
+        (results ?? []) as ResultRow[],
+        (places ?? []) as PlaceRow[],
+      );
       setByAthlete(next);
     }
 

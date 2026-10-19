@@ -100,7 +100,8 @@ export function ProgramOverlayClient({
           <HeatResults
             title={`${heat.wod.name} · Heat ${heat.heatNumber} — Results`}
             rows={heat.lanes.map((l) => {
-              const r = l.athleteId ? heatResults.get(l.athleteId) : undefined;
+              const id = l.athleteId ?? l.teamId;
+              const r = id ? heatResults.get(id) : undefined;
               return {
                 laneNumber: l.laneNumber,
                 name: l.name ?? "—",

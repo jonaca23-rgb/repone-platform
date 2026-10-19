@@ -189,6 +189,8 @@ export function DashboardClient({
   const status = state?.timer_status ?? "idle";
   const paused = status === "paused";
   const athletesInHeat = currentHeat.lanes.filter((l) => l.athleteId);
+  // The lower third is athlete-only; a team heat has nobody to show.
+  const teamHeat = athletesInHeat.length === 0 && currentHeat.lanes.some((l) => l.teamId);
   const duration =
     countDirection === "count_down"
       ? (currentHeat.wod.time_cap_seconds ?? 600)
@@ -394,6 +396,11 @@ export function DashboardClient({
             </Section>
 
             <Section title="Lower third">
+              {teamHeat ? (
+                <p className="text-sm text-muted-foreground">
+                  The lower third shows athletes; this heat&apos;s lanes hold teams.
+                </p>
+              ) : null}
               <div className="flex flex-wrap items-end gap-3">
                 <div className="grid min-w-48 flex-1 gap-2">
                   <Label htmlFor="lower-third-athlete">Lower third athlete</Label>
