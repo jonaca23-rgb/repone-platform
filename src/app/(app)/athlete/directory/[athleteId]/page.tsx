@@ -181,7 +181,7 @@ export default async function AthleteDirectoryProfilePage({
           ) : (
             <ul className="flex flex-col gap-3">
               {history.map((h) => (
-                <li key={h.eventId} className="rounded-lg border border-border p-4">
+                <li key={h.key} className="rounded-lg border border-border p-4">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-semibold">{h.eventName}</p>

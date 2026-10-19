@@ -1,4 +1,9 @@
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
+import {
+  type AthleteHistoryGroup,
+  groupCompetitionHistory,
+  type HistoryStandingRow,
+} from "@/lib/athlete/competitionHistory";
 import { createClient } from "@/lib/db/server";
 import { computeAgeCategory, type AgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { ROLE_LABELS } from "@/lib/constants/roles";
@@ -81,89 +86,53 @@ export async function getAthleteProfile(
   };
 }
 
-export interface AthleteHistoryGroup {
-  eventId: string;
-  eventName: string;
-  startsOn: string | null;
-  divisionName: string;
-  overall: { standingId: string; placement: number | null; points: number | null } | null;
-  wods: {
-    standingId: string;
-    wodId: string;
-    name: string;
-    sortOrder: number;
-    placement: number | null;
-  }[];
-}
+export type { AthleteHistoryGroup };
 
 /**
- * Same grouping logic as the admin athlete detail page's competition-history
- * section (standings rows for this athlete, grouped by event) — factored out
- * here so the athlete-facing directory profile can show the same public
- * results (standings/results are public-read, see 0002_rls_and_realtime.sql)
- * without duplicating the join/group logic.
+ * An athlete's results by event, their own and those of the teams they were
+ * on (0036), for the athlete portal, the directory profile and the
+ * commentator's cards. Standings and results are public-read (0002), so
+ * anyone signed in can see them. Grouping: groupCompetitionHistory.
  */
 export async function getAthleteCompetitionHistory(
   athleteId: string,
 ): Promise<AthleteHistoryGroup[]> {
   const supabase = await createClient();
-  const { data: standingsRows } = await supabase
-    .from("standings")
-    .select("id, event_id, division_id, wod_id, placement, points")
-    .eq("athlete_id", athleteId);
+  const columns = "id, event_id, division_id, wod_id, team_id, placement, points, teams(name)";
+  const [own, memberships] = await Promise.all([
+    supabase.from("standings").select(columns).eq("athlete_id", athleteId),
+    supabase.from("team_members").select("team_id").eq("athlete_id", athleteId),
+  ]);
+  if (own.error) throw new Error(own.error.message);
+  if (memberships.error) throw new Error(memberships.error.message);
+  const teamIds = (memberships.data ?? []).map((m) => m.team_id);
+  const ofTeams = teamIds.length
+    ? await supabase.from("standings").select(columns).in("team_id", teamIds)
+    : { data: [], error: null };
+  if (ofTeams.error) throw new Error(ofTeams.error.message);
 
-  const rows = standingsRows ?? [];
+  const rows = [...(own.data ?? []), ...(ofTeams.data ?? [])] as unknown as HistoryStandingRow[];
   const eventIds = [...new Set(rows.map((r) => r.event_id))];
   const divisionIds = [...new Set(rows.map((r) => r.division_id))];
   const wodIds = [...new Set(rows.flatMap((r) => (r.wod_id ? [r.wod_id] : [])))];
 
-  const [{ data: historyEvents }, { data: historyDivisions }, { data: historyWods }] =
-    await Promise.all([
-      eventIds.length
-        ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
-        : Promise.resolve({ data: [] as { id: string; name: string; starts_on: string | null }[] }),
-      divisionIds.length
-        ? supabase.from("divisions").select("id, name").in("id", divisionIds)
-        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-      wodIds.length
-        ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
-        : Promise.resolve({ data: [] as { id: string; name: string; sort_order: number }[] }),
-    ]);
+  const [events, divisions, wods] = await Promise.all([
+    eventIds.length
+      ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
+      : Promise.resolve({ data: [], error: null }),
+    divisionIds.length
+      ? supabase.from("divisions").select("id, name").in("id", divisionIds)
+      : Promise.resolve({ data: [], error: null }),
+    wodIds.length
+      ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-  const eventById = new Map((historyEvents ?? []).map((e) => [e.id, e]));
-  const divisionById = new Map((historyDivisions ?? []).map((d) => [d.id, d]));
-  const wodById = new Map((historyWods ?? []).map((w) => [w.id, w]));
-
-  const historyByEvent = new Map<string, AthleteHistoryGroup>();
-  for (const row of rows) {
-    const event = eventById.get(row.event_id);
-    if (!event) continue;
-    const group: AthleteHistoryGroup = historyByEvent.get(row.event_id) ?? {
-      eventId: row.event_id,
-      eventName: event.name,
-      startsOn: event.starts_on,
-      divisionName: divisionById.get(row.division_id)?.name ?? "—",
-      overall: null,
-      wods: [],
-    };
-    if (row.wod_id === null) {
-      group.overall = { standingId: row.id, placement: row.placement, points: row.points };
-    } else {
-      const wod = wodById.get(row.wod_id);
-      group.wods.push({
-        standingId: row.id,
-        wodId: row.wod_id,
-        name: wod?.name ?? "WOD",
-        sortOrder: wod?.sort_order ?? 0,
-        placement: row.placement,
-      });
-    }
-    historyByEvent.set(row.event_id, group);
-  }
-
-  return [...historyByEvent.values()]
-    .map((g) => ({ ...g, wods: g.wods.sort((a, b) => a.sortOrder - b.sortOrder) }))
-    .sort((a, b) => (b.startsOn ?? "").localeCompare(a.startsOn ?? ""));
+  return groupCompetitionHistory(rows, {
+    events: events.data ?? [],
+    divisions: divisions.data ?? [],
+    wods: wods.data ?? [],
+  });
 }
 
 // ---------------------------------------------------------------------------
