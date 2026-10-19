@@ -1,11 +1,14 @@
 // Domain types for the scoring engine.
-// IMPORTANT: this module has zero UI or DB imports. It is pure computation so it can be
+// IMPORTANT: this module has zero runtime UI or DB imports. It is pure computation so it can be
 // unit-tested in isolation and reused from server actions, edge functions, or scripts.
 
-export type ScoringType = "for_time" | "amrap" | "tabata" | "max_load" | "points" | "other";
+import type { ScoringTypeDb } from "@/lib/db/database.types";
+
+/** The database's scoring_type enum: one list, so a new type can't be missed. */
+export type ScoringType = ScoringTypeDb;
 
 /** Scored by one count of reps, highest wins: an AMRAP, or a Tabata's total across its rounds. */
-export function countsReps(scoringType: string): boolean {
+export function countsReps(scoringType: ScoringType): boolean {
   return scoringType === "amrap" || scoringType === "tabata";
 }
 export type TiebreakType = "none" | "time" | "reps" | "load" | "points";
