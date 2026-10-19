@@ -19,10 +19,18 @@ const eslintConfig = defineConfig([
     // (src/lib/auth/auth.ts), src/db itself, and src/lib/auth/invite.ts may
     // reach it. invite.ts reads "user" and member (find an account by email,
     // a member's current roles, who has never signed in), which the API cannot
-    // read; its callers authorize the inviter first. scripts/ are not linted
+    // read; its callers authorize the inviter first. src/lib/scoring/
+    // writeStandings.ts writes standings, which no token may write (0038);
+    // only recompute.ts calls it, from actions that authorized the person.
+    // scripts/ are not linted
     // by this rule. The regex catches relative spellings (../../db).
     files: ["src/**"],
-    ignores: ["src/lib/auth/auth.ts", "src/lib/auth/invite.ts", "src/db/**"],
+    ignores: [
+      "src/lib/auth/auth.ts",
+      "src/lib/auth/invite.ts",
+      "src/lib/scoring/writeStandings.ts",
+      "src/db/**",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -31,7 +39,7 @@ const eslintConfig = defineConfig([
             {
               regex: "^(@/db|(\\./|(\\.\\./)+)db)(/index|/schema(/.*)?)?$",
               message:
-                "@/db is the owner connection and bypasses RLS. Use the Supabase client (@/lib/db/server) so policies decide; only src/lib/auth/auth.ts and src/lib/auth/invite.ts may import @/db.",
+                "@/db is the owner connection and bypasses RLS. Use the Supabase client (@/lib/db/server) so policies decide; only src/lib/auth/auth.ts, src/lib/auth/invite.ts and src/lib/scoring/writeStandings.ts may import @/db.",
             },
           ],
         },
