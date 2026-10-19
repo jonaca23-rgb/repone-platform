@@ -95,6 +95,24 @@ describe("DisplayPlayer", () => {
     expect(screen.getByText("Maria Rivera")).toBeTruthy();
   });
 
+  it("moves on at once when the heat on screen ends, instead of standing by", () => {
+    const { rerender } = render(
+      <DisplayPlayer snapshot={snapshot()} initialBroadcastState={null} />,
+    );
+    start();
+    after(10);
+    expect(screen.getByText("Now on the floor")).toBeTruthy();
+    rerender(
+      <DisplayPlayer
+        snapshot={snapshot({ heats: [{ ...HEAT, endedAt: "2026-10-18T12:00:00Z" }] })}
+        initialBroadcastState={null}
+      />,
+    );
+    start();
+    expect(screen.queryByTestId("display-standby")).toBeNull();
+    expect(screen.getByText("Borinquen Nutrition")).toBeTruthy();
+  });
+
   it("stands by when there is nothing to show, and retries", () => {
     const { rerender } = render(
       <DisplayPlayer

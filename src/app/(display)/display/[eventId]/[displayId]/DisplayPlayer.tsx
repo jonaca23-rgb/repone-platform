@@ -88,6 +88,8 @@ export function DisplayPlayer({
   });
 
   const scheduler = useRef<SchedulerState>(INITIAL_SCHEDULER_STATE);
+  // Asks for the next item now, cutting the current one's time short.
+  const advanceNow = useRef<() => void>(() => {});
   const [shown, setShown] = useState<{ item: PlaylistItem | null; n: number }>({
     item: null,
     n: 0,
@@ -128,25 +130,37 @@ export function DisplayPlayer({
       );
       timer = setTimeout(advance, r.item ? r.item.slot.durationSeconds * 1000 : STANDBY_RETRY_MS);
     };
+    advanceNow.current = () => {
+      clearTimeout(timer);
+      advance();
+    };
     timer = setTimeout(advance, 0);
     return () => clearTimeout(timer);
   }, []);
 
+  // An item that can no longer be drawn (its heat ended, its sponsorship was
+  // removed) gives way to the next one at once instead of standing by for
+  // the rest of its time.
+  const content = device.enabled && shown.item ? itemContent(shown.item) : null;
+  const stale = shown.item !== null && device.enabled && content === null;
+  useEffect(() => {
+    if (stale) advanceNow.current();
+  }, [stale]);
+
   return (
     <DisplayStage>
       <Appear key={shown.n} show variant="fade" className="absolute inset-0">
-        {renderItem()}
+        {content ?? <StandbyScreen />}
       </Appear>
     </DisplayStage>
   );
 
-  function renderItem() {
-    const item = shown.item;
-    if (!device.enabled || !item) return <StandbyScreen />;
+  /** What an item shows right now, or null when it has nothing left to show. */
+  function itemContent(item: PlaylistItem) {
     if (item.kind === "sponsor") {
       // A sponsorship removed mid-turn comes off at once.
       const sponsor = snapshot.sponsors.find((s) => s.sponsorshipId === item.slot.sponsorshipId);
-      return sponsor ? <SponsorAdBlock sponsor={sponsor} /> : <StandbyScreen />;
+      return sponsor ? <SponsorAdBlock sponsor={sponsor} /> : null;
     }
     if (item.slot.type === "current_heat" && live) {
       return <CurrentHeatBlock heat={live} eventName={snapshot.eventName} />;
@@ -163,6 +177,6 @@ export function DisplayPlayer({
         />
       );
     }
-    return <StandbyScreen />;
+    return null;
   }
 }

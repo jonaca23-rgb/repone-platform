@@ -142,6 +142,48 @@ async function main() {
     .single();
   expect("anon reads the content version", anonVersion.data !== null, anonVersion.error);
 
+  // Settings save in one transaction (0043): a bad block leaves the device as it was.
+  const deviceBefore = await service
+    .from("display_devices")
+    .select("sponsors_enabled, info_blocks_between_sponsors")
+    .eq("id", DISPLAY_ID)
+    .single();
+  const block = (block_type: string, duration_seconds: number) => ({
+    block_type,
+    enabled: true,
+    duration_seconds,
+    weight: 1,
+  });
+  const badSave = await producer.rpc("save_display_settings", {
+    p_event_id: EVENT_ID,
+    p_display_id: DISPLAY_ID,
+    p_sponsors_enabled: !deviceBefore.data?.sponsors_enabled,
+    p_info_blocks_between_sponsors: 5,
+    p_blocks: [block("current_heat", 15), block("next_heat", 15), block("leaderboard", 4)],
+  });
+  const deviceAfter = await service
+    .from("display_devices")
+    .select("sponsors_enabled, info_blocks_between_sponsors")
+    .eq("id", DISPLAY_ID)
+    .single();
+  expect(
+    "a settings save with a bad block changes nothing",
+    !!badSave.error && JSON.stringify(deviceAfter.data) === JSON.stringify(deviceBefore.data),
+    { error: badSave.error?.message, before: deviceBefore.data, after: deviceAfter.data },
+  );
+  const notTheirs = await commentator.rpc("save_display_settings", {
+    p_event_id: EVENT_ID,
+    p_display_id: DISPLAY_ID,
+    p_sponsors_enabled: true,
+    p_info_blocks_between_sponsors: 1,
+    p_blocks: [],
+  });
+  expect(
+    "a commentator can't save a display's settings",
+    !!notTheirs.error?.message.includes("display_not_found"),
+    notTheirs.error,
+  );
+
   if (failures) process.exit(1);
 }
 void main();

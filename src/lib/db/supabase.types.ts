@@ -2290,6 +2290,16 @@ export type Database = {
         Args: { p_division_id: string; p_rows: Json; p_wod_id: string }
         Returns: undefined
       }
+      save_display_settings: {
+        Args: {
+          p_blocks: Json
+          p_display_id: string
+          p_event_id: string
+          p_info_blocks_between_sponsors: number
+          p_sponsors_enabled: boolean
+        }
+        Returns: undefined
+      }
       timer_command: {
         Args: {
           p_command: string

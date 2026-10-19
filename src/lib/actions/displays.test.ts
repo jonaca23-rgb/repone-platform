@@ -66,48 +66,31 @@ describe("createDisplay", () => {
 });
 
 describe("updateDisplaySettings", () => {
-  it("saves the device and its three blocks", async () => {
-    const fake = fakeSupabase({
-      display_devices: [{ data: [{ id: DISPLAY }] }],
-      display_blocks: [{ error: null }],
-    });
-    db.current = fake.client;
+  it("saves the device and its three blocks in one transaction", async () => {
+    const rpc = vi.fn(async () => ({ error: null }));
+    db.current = { rpc };
     expect(await updateDisplaySettings(EVENT, DISPLAY, form(settings))).toEqual({ ok: true });
-    expect(fake.calls).toContainEqual([
-      "display_devices",
-      "update",
-      [{ sponsors_enabled: true, info_blocks_between_sponsors: 1 }],
-    ]);
-    expect(fake.calls).toContainEqual([
-      "display_blocks",
-      "upsert",
-      [
-        [
-          {
-            display_id: DISPLAY,
-            block_type: "current_heat",
-            enabled: true,
-            duration_seconds: 15,
-            weight: 2,
-          },
-          {
-            display_id: DISPLAY,
-            block_type: "next_heat",
-            enabled: false,
-            duration_seconds: 12,
-            weight: 1,
-          },
-          {
-            display_id: DISPLAY,
-            block_type: "leaderboard",
-            enabled: true,
-            duration_seconds: 15,
-            weight: 2,
-          },
-        ],
-        { onConflict: "display_id,block_type" },
+    expect(rpc).toHaveBeenCalledWith("save_display_settings", {
+      p_event_id: EVENT,
+      p_display_id: DISPLAY,
+      p_sponsors_enabled: true,
+      p_info_blocks_between_sponsors: 1,
+      p_blocks: [
+        { block_type: "current_heat", enabled: true, duration_seconds: 15, weight: 2 },
+        { block_type: "next_heat", enabled: false, duration_seconds: 12, weight: 1 },
+        { block_type: "leaderboard", enabled: true, duration_seconds: 15, weight: 2 },
       ],
-    ]);
+    });
+  });
+
+  it("says so when the display isn't this event's", async () => {
+    db.current = {
+      rpc: async () => ({ error: { message: "display_not_found: no such display here" } }),
+    };
+    expect(await updateDisplaySettings(EVENT, DISPLAY, form(settings))).toEqual({
+      ok: false,
+      message: "That display isn't part of this event, or isn't yours to change.",
+    });
   });
 
   it("refuses a block shorter than 5 seconds on its field", async () => {
