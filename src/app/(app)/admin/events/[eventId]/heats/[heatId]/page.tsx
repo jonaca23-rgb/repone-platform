@@ -16,6 +16,7 @@ import {
   type LaneResult,
   type ScoringLane,
   type ScoringType,
+  scoringLabel,
   standingName,
 } from "@/lib/scoring/format";
 import { laneCompetitor } from "@/lib/db/floorLanes";
@@ -237,7 +238,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
     <div className="flex flex-col gap-6">
       <DetailHeader
         title={title}
-        subtitle={`${heat.divisions?.name} · ${heat.floors?.name} · ${scoringType.replace("_", " ")}${heat.wods?.time_cap_seconds ? ` · ${heat.wods.time_cap_seconds / 60} min cap` : ""}`}
+        subtitle={`${heat.divisions?.name} · ${heat.floors?.name} · ${scoringLabel(scoringType)}${heat.wods?.time_cap_seconds ? ` · ${heat.wods.time_cap_seconds / 60} min cap` : ""}`}
         breadcrumb={
           <AdminBreadcrumb
             items={eventCrumbs(

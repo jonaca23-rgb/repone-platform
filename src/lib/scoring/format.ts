@@ -1,7 +1,7 @@
 import { formatClock } from "@/lib/timer/compute";
-import { countsReps } from "./types";
+import { countsReps, type ScoringType } from "./types";
 
-export type ScoringType = "for_time" | "amrap" | "tabata" | "max_load" | "points" | "other";
+export type { ScoringType };
 export type ResultStatus = "completed" | "dns" | "dnf" | "dq";
 
 /** One saved result, as the lane list and the score drawer read it. */
@@ -73,7 +73,7 @@ export function scoreSummary(result: LaneResult | undefined, scoringType: Scorin
   return result.points === null ? "—" : `${result.points} pts`;
 }
 
-const SCORING_LABEL: Record<string, string> = {
+const SCORING_LABEL: Record<ScoringType, string> = {
   for_time: "For time",
   amrap: "AMRAP",
   tabata: "Tabata",
@@ -84,7 +84,7 @@ const SCORING_LABEL: Record<string, string> = {
 
 /** "For time", "AMRAP"…; an unknown type reads as its words. */
 export function scoringLabel(scoringType: string): string {
-  return SCORING_LABEL[scoringType] ?? scoringType.replace(/_/g, " ");
+  return SCORING_LABEL[scoringType as ScoringType] ?? scoringType.replace(/_/g, " ");
 }
 
 /** "WOD 2 · For time · 15 min cap" — a WOD in one line. */

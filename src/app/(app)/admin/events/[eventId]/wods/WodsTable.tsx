@@ -11,7 +11,8 @@ import { FormDialog } from "@/components/app/FormDialog";
 import { RowActions, useEntityDialogs } from "@/components/app/RowActions";
 import { Button } from "@/components/ui/button";
 import { WodForm, type WodValues } from "./WodForm";
-import { SCORING_LABEL, SCORING_TYPES, TIEBREAK_LABEL } from "./wodOptions";
+import { scoringLabel } from "@/lib/scoring/format";
+import { SCORING_FILTER, TIEBREAK_LABEL } from "./wodOptions";
 
 export type WodRow = WodValues & { id: string };
 
@@ -61,7 +62,7 @@ const columns = [
     header: "Scoring",
     enableSorting: false,
     filterFn: "equals",
-    cell: ({ getValue }) => SCORING_LABEL[getValue()] ?? getValue(),
+    cell: ({ getValue }) => scoringLabel(getValue()),
   }),
   col.accessor((r) => r.time_cap_seconds ?? 0, {
     id: "cap",
@@ -135,7 +136,7 @@ export function WodsTable({ eventId, rows }: { eventId: string; rows: WodRow[] }
             columnId: "scoring_type",
             label: "Scoring",
             allLabel: "All scoring types",
-            options: SCORING_TYPES,
+            options: SCORING_FILTER,
           },
         ]}
         toolbar={add}
