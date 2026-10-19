@@ -15,7 +15,9 @@ import { safeAction } from "./safeAction";
 // Its tagged refusals are turned into messages here.
 
 const TeamForm = z.object({
-  name: field.text("Team name", { max: 200 }),
+  // Inner spaces collapse, the way the unique index (0041) and circuit
+  // standings compare names, so "Aprieta  Duo" can't sit beside "Aprieta Duo".
+  name: field.text("Team name", { max: 200 }).transform((name) => name.replace(/\s+/g, " ")),
   division_id: field.id("Division"),
   affiliate: field.optionalText({ max: 200, label: "Affiliate" }),
 });

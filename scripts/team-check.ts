@@ -87,6 +87,10 @@ async function main() {
       !!(await admin.from("teams").insert(team(" check one "))).error,
     );
     expect(
+      "a team name is unique in its event, whatever its inner spacing",
+      !!(await admin.from("teams").insert(team("Check   One"))).error,
+    );
+    expect(
       "a team can't be created in an individual division",
       refused(
         await admin.from("teams").insert(team("Check Ind", INDIVIDUAL_DIVISION_ID)),
