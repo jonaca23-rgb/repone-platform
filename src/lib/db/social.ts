@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/db/server";
 import { chooseCurrentRegistration, registrationLabel } from "@/lib/athlete/myRegistrations";
+import { teamRegistrationsFor } from "@/lib/db/teamRegistrations";
 import { LIFT_LABELS, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
 import { resolveCounterparts } from "@/lib/db/messages";
@@ -150,21 +151,14 @@ export async function getAthleteCurrentStanding(
 ): Promise<CurrentStanding | null> {
   const supabase = await createClient();
   // Their own registrations, and those of the teams they're on (0036).
-  const { data: memberships } = await supabase
-    .from("team_members")
-    .select("team_id")
-    .eq("athlete_id", athleteId);
-  const teamIds = (memberships ?? []).map((m) => m.team_id);
   const select =
     "event_id, division_id, athlete_id, team_id, events(id, name, status, starts_on), divisions(id, name), teams(name)";
   const [own, ofTeams] = await Promise.all([
     supabase.from("registrations").select(select).eq("athlete_id", athleteId),
-    teamIds.length
-      ? supabase.from("registrations").select(select).in("team_id", teamIds)
-      : Promise.resolve({ data: [] }),
+    teamRegistrationsFor(supabase, athleteId, select),
   ]);
 
-  const rows = [...(own.data ?? []), ...(ofTeams.data ?? [])] as unknown as Array<{
+  const rows = [...(own.data ?? []), ...ofTeams] as unknown as Array<{
     event_id: string;
     division_id: string;
     athlete_id: string | null;

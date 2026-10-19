@@ -13,13 +13,20 @@ export function registrationLabel(row: {
 /**
  * The registration whose standing the athlete's dashboard shows: a live
  * event first, then the most recently started one. Null with none.
+ *
+ * An athlete can be registered on their own and on a team in the same event
+ * (0036). In a live event their own registration wins: the dashboard's card
+ * is "your standing", and the team's shows on its own registration row.
  */
 export function chooseCurrentRegistration<
-  R extends { events: { status: string; starts_on: string | null } | null },
+  R extends {
+    events: { status: string; starts_on: string | null } | null;
+    teams?: unknown;
+  },
 >(rows: R[]): R | null {
   const withEvents = rows.filter((r) => r.events);
-  const live = withEvents.find((r) => r.events?.status === "live");
-  if (live) return live;
+  const live = withEvents.filter((r) => r.events?.status === "live");
+  if (live.length) return live.find((r) => !r.teams) ?? live[0];
   return (
     [...withEvents].sort((a, b) =>
       (b.events?.starts_on ?? "").localeCompare(a.events?.starts_on ?? ""),
