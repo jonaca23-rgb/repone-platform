@@ -49,6 +49,9 @@ describe("RosterDialog", () => {
     await waitFor(() => expect(addTeamMember).toHaveBeenCalledOnce());
     const [eventId, teamId, fd] = addTeamMember.mock.calls[0];
     expect([eventId, teamId, (fd as FormData).get("athlete_id")]).toEqual(["e1", "t1", "a2"]);
+    // Ready for the next teammate: the search is cleared and has the focus back.
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    expect(search).toHaveProperty("value", "");
   });
 
   it("says so when nobody matches", async () => {

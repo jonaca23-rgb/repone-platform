@@ -3,6 +3,8 @@ import { registrationLabel } from "./myRegistrations";
 export interface AthleteHistoryGroup {
   /** One per event for the athlete's own results, and one per team they competed on. */
   key: string;
+  /** A team's results: the standing is the team's, not the athlete's. */
+  isTeam: boolean;
   eventId: string;
   eventName: string;
   startsOn: string | null;
@@ -54,6 +56,7 @@ export function groupCompetitionHistory(
     const key = `${row.event_id}:${row.team_id ?? "own"}`;
     const group: AthleteHistoryGroup = groups.get(key) ?? {
       key,
+      isTeam: row.team_id !== null,
       eventId: row.event_id,
       eventName: event.name,
       startsOn: event.starts_on,
@@ -79,13 +82,12 @@ export function groupCompetitionHistory(
     groups.set(key, group);
   }
 
-  const isTeam = (g: AthleteHistoryGroup) => (g.key.endsWith(":own") ? 0 : 1);
   return [...groups.values()]
     .map((g) => ({ ...g, wods: g.wods.sort((a, b) => a.sortOrder - b.sortOrder) }))
     .sort(
       (a, b) =>
         (b.startsOn ?? "").localeCompare(a.startsOn ?? "") ||
         a.eventId.localeCompare(b.eventId) ||
-        isTeam(a) - isTeam(b),
+        Number(a.isTeam) - Number(b.isTeam),
     );
 }

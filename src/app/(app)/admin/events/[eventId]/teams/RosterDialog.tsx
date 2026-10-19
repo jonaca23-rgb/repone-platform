@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Plus, Star, X } from "lucide-react";
 import { addTeamMember, removeTeamMember, setTeamCaptain } from "@/lib/actions/teams";
 import { useServerAction } from "@/lib/use-server-action";
@@ -44,10 +44,16 @@ export function RosterDialog({
   const searchId = useId();
   const hintId = useId();
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const add = useServerAction((fd: FormData) => addTeamMember(eventId, team.id, fd), {
     success: "Added to the team",
     toastErrors: false,
-    onSuccess: () => setQuery(""),
+    // The athlete just added leaves the list; the search takes the focus
+    // back, ready for the next teammate.
+    onSuccess: () => {
+      setQuery("");
+      searchRef.current?.focus();
+    },
   });
   const remove = useServerAction((memberId: string) =>
     removeTeamMember(eventId, team.id, memberId),
@@ -111,6 +117,7 @@ export function RosterDialog({
         <div className="grid gap-2">
           <Label htmlFor={searchId}>Find an athlete</Label>
           <Input
+            ref={searchRef}
             id={searchId}
             type="search"
             value={query}

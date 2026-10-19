@@ -195,7 +195,7 @@ export default async function AthleteDirectoryProfilePage({
                           Overall: {h.overall.placement ? `#${h.overall.placement}` : "—"}
                           {h.overall.points !== null ? ` (${h.overall.points} pts)` : ""}
                         </p>
-                        {!isSelf && (
+                        {!isSelf && !h.isTeam && (
                           <LikeButton
                             athleteId={athlete.id}
                             targetType="standing"
@@ -214,7 +214,7 @@ export default async function AthleteDirectoryProfilePage({
                           <Badge variant="secondary" className="h-6 px-3">
                             {w.name}: {w.placement ? `#${w.placement}` : "—"}
                           </Badge>
-                          {!isSelf && (
+                          {!isSelf && !h.isTeam && (
                             <LikeButton
                               athleteId={athlete.id}
                               targetType="standing"

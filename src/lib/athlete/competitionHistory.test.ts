@@ -52,6 +52,8 @@ describe("groupCompetitionHistory", () => {
       ["e1:t1", "Throwdown", "Pairs · Team Aprieta Duo", 2],
     ]);
     expect(groups[2].wods.map((w) => w.name)).toEqual(["WOD 1", "WOD 2"]);
+    // A team's standing is the team's, not the athlete's: nothing to like on their profile.
+    expect(groups.map((g) => g.isTeam)).toEqual([false, false, true]);
   });
 
   it("drops a row whose event it can't see", () => {
