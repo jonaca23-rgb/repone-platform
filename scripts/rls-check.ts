@@ -406,6 +406,40 @@ async function finishedHeatsLockResults(admin: SupabaseClient, producer: Supabas
       .select("id");
     await service.from("lanes").delete().eq("heat_id", SEED_HEAT_ID).eq("lane_number", 98);
     expect("scorekeeper cannot add a lane to a finished heat", (laneAdd.data ?? []).length === 0);
+    // Moving a lane out to an open heat empties the finished one just the same.
+    const { data: openHeat } = await service
+      .from("heats")
+      .insert({
+        event_id: EVENT_ID,
+        floor_id: FLOOR_ID,
+        wod_id: SEED_WOD_ID,
+        division_id: SEED_DIVISION_ID,
+        heat_number: 97,
+      })
+      .select("id")
+      .single();
+    await scorekeeper
+      .from("lanes")
+      .update({ heat_id: openHeat?.id })
+      .eq("id", lane?.id ?? "");
+    const laneHome = await service
+      .from("lanes")
+      .select("heat_id")
+      .eq("id", lane?.id ?? "")
+      .single();
+    await service
+      .from("lanes")
+      .update({ heat_id: SEED_HEAT_ID })
+      .eq("id", lane?.id ?? "");
+    await service
+      .from("heats")
+      .delete()
+      .eq("id", openHeat?.id ?? "");
+    expect(
+      "scorekeeper cannot move a lane out of a finished heat",
+      laneHome.data?.heat_id === SEED_HEAT_ID,
+      laneHome.data,
+    );
     const adminLane = await admin
       .from("lanes")
       .insert({ heat_id: SEED_HEAT_ID, lane_number: 98 })
@@ -477,6 +511,91 @@ async function finishedHeatsLockResults(admin: SupabaseClient, producer: Supabas
   }
 }
 
+// A heat's WOD, division and floor belong to the heat's own event (0040).
+// The server writes standings for whatever division and WOD a heat names,
+// so a heat pointed at another event's would let floor staff of one event
+// rewrite another's leaderboard.
+async function heatsStayInTheirEvent() {
+  console.log("\nA heat's WOD, division and floor belong to its event");
+  const scorekeeper = (await signIn("scorekeeper@repone.test")).client;
+  const { data: other } = await service
+    .from("events")
+    .insert({ organization_id: ORG_ID, name: "RLS other event's heat parts" })
+    .select("id")
+    .single();
+  const otherId = other?.id ?? "";
+  try {
+    const { data: division } = await service
+      .from("divisions")
+      .insert({ event_id: otherId, name: "D" })
+      .select("id")
+      .single();
+    const { data: wod } = await service
+      .from("wods")
+      .insert({ event_id: otherId, name: "W", scoring_type: "for_time" })
+      .select("id")
+      .single();
+    const { data: venue } = await service
+      .from("venues")
+      .insert({ event_id: otherId, name: "V" })
+      .select("id")
+      .single();
+    const { data: floor } = await service
+      .from("floors")
+      .insert({ venue_id: venue?.id, name: "F" })
+      .select("id")
+      .single();
+    const before = await service
+      .from("heats")
+      .select("division_id, wod_id, floor_id")
+      .eq("id", SEED_HEAT_ID)
+      .single();
+    for (const [column, id] of [
+      ["division_id", division?.id],
+      ["wod_id", wod?.id],
+      ["floor_id", floor?.id],
+    ] as const) {
+      await scorekeeper
+        .from("heats")
+        .update({ [column]: id })
+        .eq("id", SEED_HEAT_ID);
+      const after = await service
+        .from("heats")
+        .select("division_id, wod_id, floor_id")
+        .eq("id", SEED_HEAT_ID)
+        .single();
+      expect(
+        `scorekeeper cannot point a heat at another event's ${column.replace("_id", "")}`,
+        after.data?.[column] === before.data?.[column],
+        after.data,
+      );
+      await service
+        .from("heats")
+        .update({ [column]: before.data?.[column] })
+        .eq("id", SEED_HEAT_ID);
+    }
+    const mixed = await service
+      .from("heats")
+      .insert({
+        event_id: EVENT_ID,
+        floor_id: FLOOR_ID,
+        wod_id: SEED_WOD_ID,
+        division_id: division?.id,
+        heat_number: 96,
+      })
+      .select("id");
+    expect("nobody creates a heat with another event's division", !!mixed.error, mixed.data);
+    const rpc = await service.rpc("replace_standings", {
+      p_division_id: SEED_DIVISION_ID,
+      p_wod_id: wod?.id ?? "",
+      p_rows: [],
+    });
+    expect("replace_standings refuses a WOD from another event", !!rpc.error, rpc.error);
+  } finally {
+    await service.from("events").delete().eq("id", otherId);
+  }
+}
+
 // Standings are computed from results on the server and written there
 // (0038): nobody's token writes them, so a leaderboard can't be edited
 // around its results through the API.
@@ -523,6 +642,7 @@ async function main() {
 
   try {
     await finishedHeatsLockResults(admin.client, producer.client);
+    await heatsStayInTheirEvent();
     await standingsAreServerOnly([
       ["admin", admin.client],
       ["producer", producer.client],
