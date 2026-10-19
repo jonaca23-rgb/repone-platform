@@ -180,7 +180,9 @@ export async function setActiveSponsor(
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!sponsorship) return fail("That sponsor isn't part of this event.");
-      if (sponsorship.sponsors?.active === false) {
+      // Floor staff can't read a sponsor switched off org-wide (RLS shows
+      // the public only active ones), so a hidden sponsor counts as off.
+      if (!sponsorship.sponsors?.active) {
         return fail("That sponsor is switched off for your organization.");
       }
     }
