@@ -20,6 +20,8 @@ const EVENT = "00000000-0000-4000-8000-000000000010";
 const SPONSOR = "00000000-0000-4000-8000-000000000081";
 const PACKAGE = "00000000-0000-4000-8000-000000000091";
 const OWN_EVENT = { events: [{ data: { id: EVENT } }] };
+const NO_CATEGORY =
+  "Only a sponsor with a category can hold it exclusively. Give the sponsor a category first.";
 
 function form(values: Record<string, string>) {
   const fd = new FormData();
@@ -73,8 +75,28 @@ describe("addEventSponsorship", () => {
     ).toMatchObject({ ok: false, message: "That sponsor is already part of this event." });
   });
 
+  it("refuses exclusivity for a sponsor without a category", async () => {
+    const fake = fakeSupabase({ ...OWN_EVENT, sponsors: [{ data: { category: null } }] });
+    db.current = fake.client;
+    expect(
+      await addEventSponsorship(
+        EVENT,
+        form({ sponsor_id: SPONSOR, package_id: PACKAGE, category_exclusive: "on" }),
+      ),
+    ).toEqual({
+      ok: false,
+      message: NO_CATEGORY,
+      fieldErrors: { category_exclusive: [NO_CATEGORY] },
+    });
+    expect(fake.calls.some(([t, op]) => t === "event_sponsorships" && op === "insert")).toBe(false);
+  });
+
   it("adds a sponsor to the event", async () => {
-    const fake = fakeSupabase({ ...OWN_EVENT, event_sponsorships: [{ error: null }] });
+    const fake = fakeSupabase({
+      ...OWN_EVENT,
+      sponsors: [{ data: { category: "Shoes" } }],
+      event_sponsorships: [{ error: null }],
+    });
     db.current = fake.client;
     expect(
       await addEventSponsorship(
@@ -91,6 +113,24 @@ describe("addEventSponsorship", () => {
 });
 
 describe("updateEventSponsorship", () => {
+  it("refuses exclusivity for a sponsor without a category", async () => {
+    db.current = fakeSupabase({
+      ...OWN_EVENT,
+      event_sponsorships: [{ data: { sponsors: { category: " " } } }],
+    }).client;
+    expect(
+      await updateEventSponsorship(
+        EVENT,
+        "es-1",
+        form({ package_id: PACKAGE, category_exclusive: "on" }),
+      ),
+    ).toEqual({
+      ok: false,
+      message: NO_CATEGORY,
+      fieldErrors: { category_exclusive: [NO_CATEGORY] },
+    });
+  });
+
   it("stores blank overrides as null so the package defaults apply", async () => {
     const fake = fakeSupabase({ ...OWN_EVENT, event_sponsorships: [{ data: [{ id: "es-1" }] }] });
     db.current = fake.client;

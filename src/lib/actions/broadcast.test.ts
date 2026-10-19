@@ -69,6 +69,16 @@ describe("broadcast actions", () => {
     expect(fake.calls).toContainEqual(["event_sponsorships", "eq", ["active", true]]);
   });
 
+  it("refuses a sponsor switched off for the organization", async () => {
+    db.current = fakeSupabase({
+      event_sponsorships: [{ data: { id: "es-1", sponsors: { active: false } } }],
+    }).client;
+    expect(await setActiveSponsor(FLOOR, SPONSOR)).toEqual({
+      ok: false,
+      message: "That sponsor is switched off for your organization.",
+    });
+  });
+
   it("puts an event's sponsor on air", async () => {
     db.current = fakeSupabase({
       event_sponsorships: [{ data: { id: "es-1" } }],

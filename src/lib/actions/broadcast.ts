@@ -173,13 +173,16 @@ export async function setActiveSponsor(
       // Same list the board shows: the event's active sponsorships.
       const { data: sponsorship, error } = await supabase
         .from("event_sponsorships")
-        .select("id")
+        .select("id, sponsors(active)")
         .eq("event_id", eventId)
         .eq("sponsor_id", sponsorId)
         .eq("active", true)
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!sponsorship) return fail("That sponsor isn't part of this event.");
+      if (sponsorship.sponsors?.active === false) {
+        return fail("That sponsor is switched off for your organization.");
+      }
     }
 
     const changed = await updateBroadcastState(supabase, floorId, {

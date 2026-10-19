@@ -105,7 +105,32 @@ describe("toggleSponsorActive", () => {
     db.current = fakeSupabase({ sponsors: [{ data: [{ id: "s-1" }] }] }).client;
     expect(await toggleSponsorActive("s-1", false)).toEqual({ ok: true });
   });
+
+  it("explains why switching a sponsor back on is refused", async () => {
+    db.current = fakeSupabase({
+      sponsors: [
+        { error: { message: 'sponsor_category_exclusive: category "apparel" is exclusive' } },
+      ],
+    }).client;
+    expect(await toggleSponsorActive("s-1", true)).toEqual({
+      ok: false,
+      message:
+        "Another sponsor holds this sponsor's category exclusively at one of its events. Switch that one off there first.",
+    });
+  });
 });
+
+/** A fake client whose storage records uploads and removals. */
+function withStorage(responses: Parameters<typeof fakeSupabase>[0]) {
+  const fake = fakeSupabase(responses);
+  const remove = vi.fn(async () => ({ data: [], error: null }));
+  const bucket = {
+    upload: vi.fn(async () => ({ data: {}, error: null })),
+    getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn/${path}` } }),
+    remove,
+  };
+  return { client: { ...fake.client, storage: { from: () => bucket } }, remove };
+}
 
 describe("uploads", () => {
   it("refuses a creative over 4MB with the export guidance", async () => {
@@ -126,6 +151,29 @@ describe("uploads", () => {
       ok: false,
       message: "Please upload a JPEG, PNG or WebP image.",
     });
+  });
+
+  it("removes the uploaded logo when saving it on the sponsor fails", async () => {
+    const { client, remove } = withStorage({
+      sponsors: [{ data: { id: SPONSOR } }, { error: { message: "connection reset" } }],
+    });
+    db.current = client;
+    await expect(
+      uploadSponsorLogo(SPONSOR, form({ logo: image("image/png", 10) })),
+    ).rejects.toThrow();
+    expect(remove).toHaveBeenCalledWith([expect.stringMatching(`^${SPONSOR}/logo-`)]);
+  });
+
+  it("removes the uploaded creative when recording it fails", async () => {
+    const { client, remove } = withStorage({
+      sponsors: [{ data: { id: SPONSOR } }],
+      sponsor_creatives: [{ error: { message: "connection reset" } }],
+    });
+    db.current = client;
+    await expect(
+      uploadSponsorCreative(SPONSOR, form({ creative: image("image/png", 10) })),
+    ).rejects.toThrow();
+    expect(remove).toHaveBeenCalledWith([expect.stringMatching(`^${SPONSOR}/`)]);
   });
 
   it("refuses a logo for another organization's sponsor", async () => {
