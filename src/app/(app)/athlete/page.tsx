@@ -7,6 +7,7 @@ import { createClient } from "@/lib/db/server";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { getAthleteCurrentStanding, getRecentActivity } from "@/lib/db/social";
 import { getAthleteCompetitionHistory } from "@/lib/db/messages";
+import { teamRegistrationsFor } from "@/lib/db/teamRegistrations";
 import { deleteMyBenchmark } from "@/lib/actions/myLifts";
 import { LIFT_LABELS, LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
@@ -74,6 +75,7 @@ export default async function AthleteDashboardPage({
     { data: liftRows },
     { data: benchmarks },
     { data: registrations },
+    teamRegistrations,
   ] = await Promise.all([
     getAthleteCurrentStanding(ctx.athleteId),
     getRecentActivity(ctx.athleteId, ctx.userId, ctx.organizationId ?? ""),
@@ -91,22 +93,13 @@ export default async function AthleteDashboardPage({
       .from("registrations")
       .select("id, event_id, bib_number, events(name, status), divisions(name), payments(status)")
       .eq("athlete_id", ctx.athleteId),
+    // A team member's fee is paid on their team's registration (0036, 0037).
+    teamRegistrationsFor(
+      supabase,
+      ctx.athleteId,
+      "id, event_id, bib_number, events(name, status), divisions(name), payments(status), teams(name)",
+    ),
   ]);
-
-  // A team member's fee is paid on their team's registration (0036, 0037).
-  const { data: memberships } = await supabase
-    .from("team_members")
-    .select("team_id")
-    .eq("athlete_id", ctx.athleteId);
-  const teamIds = (memberships ?? []).map((m) => m.team_id);
-  const { data: teamRegistrations } = teamIds.length
-    ? await supabase
-        .from("registrations")
-        .select(
-          "id, event_id, bib_number, events(name, status), divisions(name), payments(status), teams(name)",
-        )
-        .in("team_id", teamIds)
-    : { data: [] };
 
   const liftByName = new Map(
     (liftRows ?? []).map((l) => [
@@ -120,7 +113,7 @@ export default async function AthleteDashboardPage({
   // single object instead of fighting the query builder's inferred array type.
   const myRegistrations = [
     ...(registrations ?? []),
-    ...(teamRegistrations ?? []),
+    ...teamRegistrations,
   ] as unknown as MyRegistrationRow[];
 
   // Same QR code the admin athlete detail page already generates — an
@@ -358,7 +351,7 @@ export default async function AthleteDashboardPage({
                 ) : (
                   <ul className="flex flex-col gap-3">
                     {history.map((h) => (
-                      <li key={h.eventId} className="rounded-lg border border-border p-4">
+                      <li key={h.key} className="rounded-lg border border-border p-4">
                         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                           <div>
                             <p className="font-semibold">{h.eventName}</p>

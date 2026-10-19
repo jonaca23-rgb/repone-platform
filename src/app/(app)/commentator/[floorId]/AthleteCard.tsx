@@ -87,7 +87,7 @@ export function AthleteCard({
                 </summary>
                 <div className="flex flex-col gap-1.5 pt-1">
                   {older.map((h) => (
-                    <HistoryLine key={h.eventId} h={h} />
+                    <HistoryLine key={h.key} h={h} />
                   ))}
                 </div>
               </details>

@@ -27,6 +27,11 @@ export interface LaneOption {
  * inline message. "Empty" posts NONE, which the action reads as blank and
  * clears the lane. (One Select per lane, so FormData + zod, not TanStack Form.)
  *
+ * A lane can hold someone the picker doesn't offer: an athlete in a team
+ * division (left from before 0036), or someone no longer registered in the
+ * division. They show by name with the reason, not as a blank lane, and
+ * saving another choice replaces them.
+ *
  * `conflictMessage`, when set, is a pre-existing duplicate the parent Server
  * Component already detected on page load (before any save attempt) — shown
  * the same way as a fresh save error so the two look identical to the user.
@@ -41,7 +46,11 @@ export function LaneAssignmentForm({
 }: {
   eventId: string;
   heatId: string;
-  lane: { id: string; lane_number: number; occupantId: string | null };
+  lane: {
+    id: string;
+    lane_number: number;
+    occupant: { id: string; label: string; kind: "athlete" | "team" } | null;
+  };
   kind: "athlete" | "team";
   options: LaneOption[];
   conflictMessage?: string;
@@ -52,6 +61,14 @@ export function LaneAssignmentForm({
   const pending = save.isPending;
   const message = save.error?.message || conflictMessage;
   const selectId = `lane-${lane.id}`;
+  const { occupant } = lane;
+  const stray =
+    occupant && !options.some((o) => o.id === occupant.id)
+      ? {
+          id: occupant.id,
+          label: `${occupant.label} (${occupant.kind === kind ? "not registered in this division" : "wrong kind for this division"})`,
+        }
+      : null;
 
   return (
     <div>
@@ -72,7 +89,7 @@ export function LaneAssignmentForm({
         </Label>
         <Select
           name={kind === "team" ? "team_id" : "athlete_id"}
-          defaultValue={lane.occupantId ?? NONE}
+          defaultValue={occupant?.id ?? NONE}
         >
           <SelectTrigger
             id={selectId}
@@ -83,6 +100,7 @@ export function LaneAssignmentForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NONE}>Empty</SelectItem>
+            {stray ? <SelectItem value={stray.id}>{stray.label}</SelectItem> : null}
             {options.map((o) => (
               <SelectItem key={o.id} value={o.id}>
                 {o.label}

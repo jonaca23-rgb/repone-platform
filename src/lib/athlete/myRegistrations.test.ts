@@ -35,5 +35,15 @@ describe("chooseCurrentRegistration", () => {
     ).toBe("new");
   });
 
+  it("shows the athlete's own standing over their team's in the same live event", () => {
+    const event = { status: "live", starts_on: "2026-03-01" };
+    expect(
+      chooseCurrentRegistration([
+        { id: "team", events: event, teams: { name: "Aprieta Duo" } },
+        { id: "own", events: event, teams: null },
+      ])?.id,
+    ).toBe("own");
+  });
+
   it("is null with no registrations", () => expect(chooseCurrentRegistration([])).toBeNull());
 });

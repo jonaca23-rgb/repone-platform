@@ -175,6 +175,23 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
   // render the red "already assigned elsewhere" warning below.
   const occupant = (l: { athlete_id: string | null; team_id: string | null }) =>
     l.athlete_id ?? l.team_id;
+  // Who a lane holds, by name, so the Lanes tab can show an occupant its
+  // picker doesn't offer (the wrong kind for the division).
+  const laneOccupant = (l: {
+    athlete_id: string | null;
+    team_id: string | null;
+    athletes: { first_name: string; last_name: string } | null;
+    teams: { name: string } | null;
+  }) =>
+    l.athlete_id
+      ? {
+          id: l.athlete_id,
+          label: l.athletes ? `${l.athletes.first_name} ${l.athletes.last_name}` : "An athlete",
+          kind: "athlete" as const,
+        }
+      : l.team_id
+        ? { id: l.team_id, label: l.teams?.name ?? "A team", kind: "team" as const }
+        : null;
   const conflictByCompetitorId = new Map<string, string>();
   (otherHeatLanes ?? []).forEach((h) =>
     (h.lanes ?? []).forEach((l) => {
@@ -298,7 +315,7 @@ export default async function HeatDetailPage({ params, searchParams }: Props) {
                   lane={{
                     id: lane.id,
                     lane_number: lane.lane_number,
-                    occupantId: occupant(lane),
+                    occupant: laneOccupant(lane),
                   }}
                   kind={holdsTeams ? "team" : "athlete"}
                   options={laneOptions}

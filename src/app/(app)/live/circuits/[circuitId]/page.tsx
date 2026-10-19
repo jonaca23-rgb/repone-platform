@@ -210,12 +210,19 @@ export default async function LiveCircuitPage({ params }: Props) {
       </Card>
 
       <section aria-labelledby="cumulative" className="flex flex-col gap-8">
-        <h2
-          id="cumulative"
-          className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
-        >
-          Cumulative Leaderboard
-        </h2>
+        <div className="flex flex-col gap-1">
+          <h2
+            id="cumulative"
+            className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
+          >
+            Cumulative Leaderboard
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Each stop&apos;s placings add up, and the lowest total leads. Teams sign up at each
+            stop, so a team counts as one across stops when it keeps the same name in a division of
+            the same name.
+          </p>
+        </div>
         {divisionLeaderboards.map((division) => (
           <div key={division.name} className="flex flex-col gap-2">
             <h3 className="font-semibold tracking-wide text-brand-text uppercase">

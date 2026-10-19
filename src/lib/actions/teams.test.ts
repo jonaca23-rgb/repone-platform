@@ -59,6 +59,15 @@ describe("createTeam", () => {
     expect(fake.calls.some(([t]) => t === "registrations")).toBe(false);
   });
 
+  it("stores the name with its inner spaces collapsed, as circuits match it", async () => {
+    const fake = fakeSupabase({ teams: [{ error: null }] });
+    db.current = fake.client;
+    const fd = form({ name: "  Aprieta    Duo ", division_id: DIVISION });
+    expect(await createTeam(EVENT, fd)).toEqual({ ok: true });
+    const insert = fake.calls.find(([t, op]) => t === "teams" && op === "insert");
+    expect((insert?.[2] as [{ name: string }])[0].name).toBe("Aprieta Duo");
+  });
+
   it("refuses an individual division on its field", async () => {
     db.current = fakeSupabase({
       teams: [dbError("team_division_individual: that division is for individuals")],
@@ -90,6 +99,13 @@ describe("updateTeam", () => {
     db.current = fake.client;
     expect(await updateTeam(EVENT, TEAM, form({ name: "Duo 2" }))).toEqual({ ok: true });
     expect(fake.calls).toContainEqual(["teams", "eq", ["event_id", EVENT]]);
+  });
+
+  it("collapses inner spaces in a new name", async () => {
+    const fake = fakeSupabase({ teams: [{ data: [{ id: TEAM }] }] });
+    db.current = fake.client;
+    await updateTeam(EVENT, TEAM, form({ name: "Duo \t  2" }));
+    expect(fake.calls).toContainEqual(["teams", "update", [{ name: "Duo 2", affiliate: null }]]);
   });
 });
 

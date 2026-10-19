@@ -23,8 +23,9 @@ export function TeamCard({ lane }: { lane: FloorLane }) {
           <p className={SECTION}>Team</p>
           {lane.members.length > 0 ? (
             <ul className="flex flex-col gap-0.5">
-              {lane.members.map((m) => (
-                <li key={m} className="font-semibold">
+              {lane.members.map((m, i) => (
+                // Two members can share a name; their place in the roster tells them apart.
+                <li key={`${i}-${m}`} className="font-semibold">
                   {m}
                 </li>
               ))}
