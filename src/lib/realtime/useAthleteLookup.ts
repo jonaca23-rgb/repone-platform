@@ -24,7 +24,11 @@ export function useAthleteLookup(athleteId: string | null, eventId: string): Ath
 
     async function load() {
       const [{ data: a }, { data: regRaw }] = await Promise.all([
-        supabase.from("athletes").select("first_name, last_name, affiliate").eq("id", athleteId!).maybeSingle(),
+        supabase
+          .from("athletes")
+          .select("first_name, last_name, affiliate")
+          .eq("id", athleteId!)
+          .maybeSingle(),
         supabase
           .from("registrations")
           .select("divisions(name)")

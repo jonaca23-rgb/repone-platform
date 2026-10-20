@@ -30,7 +30,7 @@ export function useUnreadMessages(userId: string, initialCount: number) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages", filter: `recipient_id=eq.${userId}` },
-        refetch
+        refetch,
       )
       .subscribe();
 

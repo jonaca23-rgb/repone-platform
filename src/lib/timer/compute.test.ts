@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeTimerDisplay, formatClock, type TimerState } from "./compute";
+import {
+  computeTimerDisplay,
+  formatClock,
+  type TimerState,
+  estimateClockOffsetMs,
+  initialTimerDisplay,
+} from "./compute";
 
 describe("computeTimerDisplay — count_down", () => {
   it("counts down from duration and reaches zero at the cap", () => {
@@ -84,5 +90,38 @@ describe("formatClock", () => {
     expect(formatClock(0)).toBe("00:00");
     expect(formatClock(65)).toBe("01:05");
     expect(formatClock(900)).toBe("15:00");
+  });
+});
+
+describe("estimateClockOffsetMs", () => {
+  it("is the server time minus the midpoint of the round trip", () => {
+    // Request left at 1000, server stamped 5100, response back at 1200:
+    // the server read its clock ~halfway, at local 1100, so it runs 4000ms ahead.
+    expect(estimateClockOffsetMs(1000, 5100, 1200)).toBe(4000);
+  });
+
+  it("is negative when this machine's clock runs ahead of the server", () => {
+    expect(estimateClockOffsetMs(10_000, 7_050, 10_100)).toBe(-3000);
+  });
+});
+
+describe("initialTimerDisplay", () => {
+  const running = {
+    status: "running" as const,
+    direction: "count_down" as const,
+    durationSeconds: 900,
+    elapsedAtAnchor: 30,
+    anchorTimeMs: 1_700_000_000_000,
+  };
+
+  it("depends only on the timer state, so server and browser render the same first frame", () => {
+    expect(initialTimerDisplay(running)).toEqual(initialTimerDisplay({ ...running }));
+    expect(initialTimerDisplay(running).displaySeconds).toBe(870);
+  });
+
+  it("shows the banked time for a paused timer", () => {
+    expect(
+      initialTimerDisplay({ ...running, status: "paused", anchorTimeMs: null }).displaySeconds,
+    ).toBe(870);
   });
 });

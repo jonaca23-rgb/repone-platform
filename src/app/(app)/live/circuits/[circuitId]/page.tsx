@@ -1,7 +1,39 @@
+import { circuitCompetitorKey } from "@/lib/scoring/circuitKey";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
+import { ArrowLeft, CalendarDays, ListOrdered } from "lucide-react";
+import { EmptyState } from "@/components/app/EmptyState";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { createClient } from "@/lib/db/server";
 import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
+
+// One lookup per request, shared by generateMetadata and the page.
+const getCircuit = cache(async (circuitId: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("circuits")
+    .select("id, name, description, starts_on, ends_on")
+    .eq("id", circuitId)
+    .single();
+  return data;
+});
+
+type Props = { params: Promise<{ circuitId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const circuit = await getCircuit((await params).circuitId);
+  return { title: circuit ? `${circuit.name} standings` : "Circuit not found" };
+}
 
 /**
  * Public counterpart to /admin/circuits/[circuitId] — same live aggregation
@@ -13,16 +45,11 @@ import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
  * than sharing code with the admin page, since the admin page also needs the
  * session-scoped "standalone events" picker this one has no use for.
  */
-export default async function LiveCircuitPage({ params }: { params: Promise<{ circuitId: string }> }) {
+export default async function LiveCircuitPage({ params }: Props) {
   const { circuitId } = await params;
-  const supabase = await createClient();
-
-  const { data: circuit } = await supabase
-    .from("circuits")
-    .select("id, name, description, starts_on, ends_on")
-    .eq("id", circuitId)
-    .single();
+  const circuit = await getCircuit(circuitId);
   if (!circuit) notFound();
+  const supabase = await createClient();
 
   const { data: circuitEvents } = await supabase
     .from("events")
@@ -42,7 +69,7 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
   const { data: standingsRows } = divisionIds.length
     ? await supabase
         .from("standings")
-        .select("division_id, athlete_id, team_id, placement, points")
+        .select("division_id, athlete_id, team_id, placement, points, teams(name)")
         .in("division_id", divisionIds)
         .is("wod_id", null)
     : {
@@ -55,16 +82,41 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
         }>,
       };
 
-  type Row = { eventId: string; competitorId: string; isTeam: boolean; placement: number | null; points: number | null };
+  type StandingRow = {
+    division_id: string;
+    athlete_id: string | null;
+    team_id: string | null;
+    placement: number | null;
+    points: number | null;
+    teams: { name: string } | null;
+  };
+  type Row = {
+    eventId: string;
+    competitorId: string;
+    isTeam: boolean;
+    placement: number | null;
+    points: number | null;
+  };
   const rowsByDivisionName = new Map<string, { displayName: string; rows: Row[] }>();
 
-  for (const r of standingsRows ?? []) {
+  // Teams are created per event, so a team is matched across stops by name.
+  const teamNameByKey = new Map<string, string>();
+  for (const r of (standingsRows ?? []) as unknown as StandingRow[]) {
     const division = divisionById.get(r.division_id);
-    const competitorId = r.athlete_id ?? r.team_id;
+    const competitorId = circuitCompetitorKey({
+      athleteId: r.athlete_id,
+      teamId: r.team_id,
+      teamName: r.teams?.name ?? null,
+    });
     if (!division || !competitorId) continue;
+    if (r.team_id && !teamNameByKey.has(competitorId)) {
+      teamNameByKey.set(competitorId, r.teams?.name.trim() ?? "Unknown team");
+    }
     const key = division.name.trim().toLowerCase();
-    const group: { displayName: string; rows: Row[] } =
-      rowsByDivisionName.get(key) ?? { displayName: division.name.trim(), rows: [] };
+    const group: { displayName: string; rows: Row[] } = rowsByDivisionName.get(key) ?? {
+      displayName: division.name.trim(),
+      rows: [],
+    };
     group.rows.push({
       eventId: division.event_id,
       competitorId,
@@ -76,32 +128,33 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
   }
 
   const athleteIds = new Set<string>();
-  const teamIds = new Set<string>();
   for (const group of rowsByDivisionName.values()) {
-    for (const row of group.rows) (row.isTeam ? teamIds : athleteIds).add(row.competitorId);
+    for (const row of group.rows) if (!row.isTeam) athleteIds.add(row.competitorId);
   }
-  const [{ data: athletes }, { data: teams }] = await Promise.all([
-    athleteIds.size
-      ? supabase.from("athletes").select("id, first_name, last_name").in("id", Array.from(athleteIds))
-      : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
-    teamIds.size
-      ? supabase.from("teams").select("id, name").in("id", Array.from(teamIds))
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
+  const { data: athletes } = athleteIds.size
+    ? await supabase
+        .from("athletes")
+        .select("id, first_name, last_name")
+        .in("id", Array.from(athleteIds))
+    : { data: [] as { id: string; first_name: string; last_name: string }[] };
   const nameById = new Map<string, string>();
   for (const a of athletes ?? []) nameById.set(a.id, `${a.first_name} ${a.last_name}`);
-  for (const t of teams ?? []) nameById.set(t.id, t.name);
+  for (const [key, name] of teamNameByKey) nameById.set(key, name);
 
   const divisionLeaderboards = Array.from(rowsByDivisionName.values()).map((group) => {
     const byEvent = new Map<string, RankedResult[]>();
     for (const row of group.rows) {
       const list = byEvent.get(row.eventId) ?? [];
-      list.push({ competitorId: row.competitorId, placement: row.placement, wodPoints: row.points });
+      list.push({
+        competitorId: row.competitorId,
+        placement: row.placement,
+        wodPoints: row.points,
+      });
       byEvent.set(row.eventId, list);
     }
 
     const overall = computeOverallStandings(
-      Array.from(byEvent.entries()).map(([eventId, results]) => ({ wodId: eventId, results }))
+      Array.from(byEvent.entries()).map(([eventId, results]) => ({ wodId: eventId, results })),
     );
 
     return {
@@ -114,74 +167,114 @@ export default async function LiveCircuitPage({ params }: { params: Promise<{ ci
   });
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6">
-      <div>
-        <Link href="/live" className="text-xs uppercase tracking-wide text-white/40 hover:text-white">
-          ← All live events
+    <div className="mx-auto flex max-w-3xl flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <Link
+          href="/live"
+          className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          All live events
         </Link>
-        <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">
+        <h1 className="font-display text-3xl font-bold tracking-wide text-balance uppercase">
           {circuit.name}
         </h1>
-        {circuit.description && <p className="text-sm text-white/50">{circuit.description}</p>}
+        {circuit.description && <p className="text-muted-foreground">{circuit.description}</p>}
       </div>
 
-      <div className="rounded-xl bg-repone-gray p-5">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">Stops in this circuit</p>
-        <div className="flex flex-col gap-2">
-          {(circuitEvents ?? []).map((e) => (
-            <Link key={e.id} href={`/live/${e.id}`} className="text-sm font-medium hover:text-repone-red">
-              {e.name} <span className="ml-2 text-xs uppercase text-white/40">{e.status}</span>
-            </Link>
-          ))}
-          {(circuitEvents ?? []).length === 0 && <p className="text-sm text-white/50">No events in this circuit yet.</p>}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm tracking-widest text-muted-foreground uppercase">
+            Stops in this circuit
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(circuitEvents ?? []).length > 0 ? (
+            <ul className="flex flex-col">
+              {(circuitEvents ?? []).map((e) => (
+                <li key={e.id}>
+                  <Link
+                    href={`/live/${e.id}`}
+                    className="flex min-h-11 items-center justify-between gap-3 rounded-sm font-medium hover:text-brand-text focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+                  >
+                    {e.name}
+                    <span className="text-xs text-muted-foreground uppercase">{e.status}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon={CalendarDays} title="No events in this circuit yet" />
+          )}
+        </CardContent>
+      </Card>
+
+      <section aria-labelledby="cumulative" className="flex flex-col gap-8">
+        <div className="flex flex-col gap-1">
+          <h2
+            id="cumulative"
+            className="text-sm font-semibold tracking-widest text-muted-foreground uppercase"
+          >
+            Cumulative Leaderboard
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Each stop&apos;s placings add up, and the lowest total leads. Teams sign up at each
+            stop, so a team counts as one across stops when it keeps the same name in a division of
+            the same name.
+          </p>
         </div>
-      </div>
-
-      <section className="flex flex-col gap-8">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">Cumulative Leaderboard</h2>
         {divisionLeaderboards.map((division) => (
-          <div key={division.name}>
-            <h3 className="mb-2 font-semibold uppercase tracking-wide text-repone-red">{division.name}</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-max border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/40">
-                    <th className="py-2 pr-4">Place</th>
-                    <th className="py-2 pr-4">Competitor</th>
+          <div key={division.name} className="flex flex-col gap-2">
+            <h3 className="font-semibold tracking-wide text-brand-text uppercase">
+              {division.name}
+            </h3>
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <Table className="[&_tr]:border-border">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-muted-foreground">Place</TableHead>
+                    <TableHead className="text-muted-foreground">Competitor</TableHead>
                     {(circuitEvents ?? []).map((e) => (
-                      <th key={e.id} className="py-2 pr-4">
+                      <TableHead key={e.id} className="text-muted-foreground">
                         {e.name}
-                      </th>
+                      </TableHead>
                     ))}
-                    <th className="py-2 pr-4">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    <TableHead className="text-muted-foreground">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {division.standings.map((entry) => {
-                    const placementByEvent = new Map(entry.placements.map((p) => [p.wodId, p.placement]));
+                    const placementByEvent = new Map(
+                      entry.placements.map((p) => [p.wodId, p.placement]),
+                    );
                     return (
-                      <tr key={entry.competitorId} className="border-b border-white/5">
-                        <td className="py-2 pr-4 font-bold text-repone-red">{entry.overallPlacement}</td>
-                        <td className="py-2 pr-4">{entry.displayName}</td>
+                      <TableRow key={entry.competitorId}>
+                        <TableCell className="font-bold text-brand-text tabular-nums">
+                          {entry.overallPlacement}
+                        </TableCell>
+                        <TableCell>{entry.displayName}</TableCell>
                         {(circuitEvents ?? []).map((e) => (
-                          <td key={e.id} className="py-2 pr-4 text-white/60">
+                          <TableCell key={e.id} className="text-muted-foreground tabular-nums">
                             {placementByEvent.get(e.id) ?? "—"}
-                          </td>
+                          </TableCell>
                         ))}
-                        <td className="py-2 pr-4 font-semibold">{entry.totalPoints}</td>
-                      </tr>
+                        <TableCell className="font-semibold tabular-nums">
+                          {entry.totalPoints}
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         ))}
         {divisionLeaderboards.length === 0 && (
-          <p className="text-white/50">
-            No scored results yet across this circuit&apos;s events — the leaderboard fills in as each event&apos;s
-            heats are finished.
-          </p>
+          <EmptyState
+            icon={ListOrdered}
+            title="No scored results yet"
+            description="The leaderboard fills in as each event's heats are finished."
+          />
         )}
       </section>
     </div>

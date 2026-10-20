@@ -45,7 +45,11 @@ const GENDER_PATTERNS: Array<{ pattern: RegExp; rank: number }> = [
 ];
 const UNKNOWN_GENDER_RANK = 2;
 
-function rankFor(name: string, patterns: Array<{ pattern: RegExp; rank: number }>, fallback: number): number {
+function rankFor(
+  name: string,
+  patterns: Array<{ pattern: RegExp; rank: number }>,
+  fallback: number,
+): number {
   for (const { pattern, rank } of patterns) {
     if (pattern.test(name)) return rank;
   }
@@ -57,10 +61,14 @@ function rankFor(name: string, patterns: Array<{ pattern: RegExp; rank: number }
  * Female, then anything else), then alphabetically as a final stable
  * tiebreak. */
 export function compareDivisionNames(aName: string, bName: string): number {
-  const skillDiff = rankFor(aName, SKILL_LEVEL_PATTERNS, UNKNOWN_SKILL_LEVEL_RANK) - rankFor(bName, SKILL_LEVEL_PATTERNS, UNKNOWN_SKILL_LEVEL_RANK);
+  const skillDiff =
+    rankFor(aName, SKILL_LEVEL_PATTERNS, UNKNOWN_SKILL_LEVEL_RANK) -
+    rankFor(bName, SKILL_LEVEL_PATTERNS, UNKNOWN_SKILL_LEVEL_RANK);
   if (skillDiff !== 0) return skillDiff;
 
-  const genderDiff = rankFor(aName, GENDER_PATTERNS, UNKNOWN_GENDER_RANK) - rankFor(bName, GENDER_PATTERNS, UNKNOWN_GENDER_RANK);
+  const genderDiff =
+    rankFor(aName, GENDER_PATTERNS, UNKNOWN_GENDER_RANK) -
+    rankFor(bName, GENDER_PATTERNS, UNKNOWN_GENDER_RANK);
   if (genderDiff !== 0) return genderDiff;
 
   return aName.localeCompare(bName);
@@ -73,7 +81,7 @@ export function compareDivisionNames(aName: string, bName: string): number {
  * division. */
 export function compareHeatsForRunningOrder(
   a: { wodCreatedAt: string; divisionName: string; heatNumber: number },
-  b: { wodCreatedAt: string; divisionName: string; heatNumber: number }
+  b: { wodCreatedAt: string; divisionName: string; heatNumber: number },
 ): number {
   const wodDiff = Date.parse(a.wodCreatedAt) - Date.parse(b.wodCreatedAt);
   if (wodDiff !== 0) return wodDiff;

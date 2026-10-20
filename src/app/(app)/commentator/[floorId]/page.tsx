@@ -1,14 +1,27 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { getCommentatorAthleteDetails } from "@/lib/db/commentator";
+import { OperatorShell } from "@/components/shells/OperatorShell";
 import { CommentatorClient } from "./CommentatorClient";
 
-export default async function CommentatorPage({ params }: { params: Promise<{ floorId: string }> }) {
+type Props = { params: Promise<{ floorId: string }> };
+
+// Read once per request: the page and its title share it.
+const floorContext = cache(getFloorContext);
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const context = await floorContext((await params).floorId);
+  return { title: context ? `Commentator · ${context.eventName}` : "Commentator" };
+}
+
+export default async function CommentatorPage({ params }: Props) {
   const { floorId } = await params;
-  const context = await getFloorContext(floorId);
+  const context = await floorContext(floorId);
   if (!context) notFound();
 
   // Defense in depth — see the matching comment in
@@ -24,22 +37,29 @@ export default async function CommentatorPage({ params }: { params: Promise<{ fl
   if (!allowed) redirect("/commentator");
 
   const supabase = await createClient();
-  const { data: broadcastState } = await supabase.from("broadcast_state").select("*").eq("floor_id", floorId).single();
+  const { data: broadcastState } = await supabase
+    .from("broadcast_state")
+    .select("*")
+    .eq("floor_id", floorId)
+    .single();
 
   // Every athlete in every lane of every heat on this floor, fetched once up
   // front (same "load it all, switch instantly on the client" approach
   // ScoreKeeperPage uses for results/standings) — so stepping between heats
   // or following the live one never triggers a fresh stats lookup mid-show.
-  const athleteIds = context.heats.flatMap((h) => h.lanes.flatMap((l) => (l.athleteId ? [l.athleteId] : [])));
+  const athleteIds = context.heats.flatMap((h) =>
+    h.lanes.flatMap((l) => (l.athleteId ? [l.athleteId] : [])),
+  );
   const detailsByAthleteId = await getCommentatorAthleteDetails(athleteIds);
 
   return (
-    <CommentatorClient
-      floorId={floorId}
-      eventName={context.eventName}
-      heats={context.heats}
-      initialBroadcastState={broadcastState ?? null}
-      detailsByAthleteId={detailsByAthleteId}
-    />
+    <OperatorShell module="commentator" moduleLabel="Commentator" eventName={context.eventName}>
+      <CommentatorClient
+        floorId={floorId}
+        heats={context.heats}
+        initialBroadcastState={broadcastState ?? null}
+        detailsByAthleteId={detailsByAthleteId}
+      />
+    </OperatorShell>
   );
 }

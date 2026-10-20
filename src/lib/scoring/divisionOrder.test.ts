@@ -47,7 +47,14 @@ describe("compareHeatsForRunningOrder", () => {
       { id: "scale-f-2", wodCreatedAt: FRAN, divisionName: "Scale Female", heatNumber: 2 },
     ];
     const sorted = [...heats].sort(compareHeatsForRunningOrder);
-    expect(sorted.map((h) => h.id)).toEqual(["scale-m-1", "scale-m-2", "scale-f-1", "scale-f-2", "rx-m-1", "rx-m-2"]);
+    expect(sorted.map((h) => h.id)).toEqual([
+      "scale-m-1",
+      "scale-m-2",
+      "scale-f-1",
+      "scale-f-2",
+      "rx-m-1",
+      "rx-m-2",
+    ]);
   });
 
   it("runs every heat of the first-entered WOD before any heat of a later one", () => {
@@ -60,6 +67,11 @@ describe("compareHeatsForRunningOrder", () => {
       { id: "fran-scale-m-1", wodCreatedAt: FRAN, divisionName: "Scale Male", heatNumber: 1 },
     ];
     const sorted = [...heats].sort(compareHeatsForRunningOrder);
-    expect(sorted.map((h) => h.id)).toEqual(["fran-scale-m-1", "fran-rx-f-1", "grace-scale-m-1", "grace-rx-m-1"]);
+    expect(sorted.map((h) => h.id)).toEqual([
+      "fran-scale-m-1",
+      "fran-rx-f-1",
+      "grace-scale-m-1",
+      "grace-rx-m-1",
+    ]);
   });
 });

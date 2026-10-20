@@ -1,5 +1,7 @@
+import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { getAthleteLiftsAndBenchmarks, type LiftEntry, type BenchmarkEntry } from "@/lib/db/social";
+import { recentEvents } from "@/lib/athlete/competitionHistory";
 import { getAthleteCompetitionHistory, type AthleteHistoryGroup } from "@/lib/db/messages";
 import { computeAgeCategory, AGE_CATEGORY_LABELS, type Gender } from "@/lib/scoring/ageCategory";
 
@@ -30,12 +32,17 @@ const MAX_HISTORY_EVENTS = 3;
  * needed, same "load everything for the floor up front" pattern
  * ScoreKeeperPage already uses for results/standings.
  */
-export async function getCommentatorAthleteDetails(athleteIds: string[]): Promise<Record<string, CommentatorAthleteDetails>> {
+export async function getCommentatorAthleteDetails(
+  athleteIds: string[],
+): Promise<Record<string, CommentatorAthleteDetails>> {
   const uniqueIds = [...new Set(athleteIds)];
   if (uniqueIds.length === 0) return {};
 
   const supabase = await createClient();
-  const { data: athleteRows } = await supabase.from("athletes").select("id, date_of_birth, gender").in("id", uniqueIds);
+  const [{ data: athleteRows }, privateDetails] = await Promise.all([
+    supabase.from("athletes").select("id, gender").in("id", uniqueIds),
+    getAthletePrivateDetails(supabase, uniqueIds),
+  ]);
   const bioById = new Map((athleteRows ?? []).map((a) => [a.id, a]));
 
   const entries = await Promise.all(
@@ -45,15 +52,21 @@ export async function getCommentatorAthleteDetails(athleteIds: string[]): Promis
         getAthleteCompetitionHistory(athleteId),
       ]);
       const bio = bioById.get(athleteId);
-      const ageCategory = bio ? computeAgeCategory(bio.date_of_birth, bio.gender as Gender | null, new Date()) : null;
+      const ageCategory = bio
+        ? computeAgeCategory(
+            privateDetails.get(athleteId)?.dateOfBirth,
+            bio.gender as Gender | null,
+            new Date(),
+          )
+        : null;
       const details: CommentatorAthleteDetails = {
         ageCategoryLabel: ageCategory ? AGE_CATEGORY_LABELS[ageCategory] : null,
         lifts,
         benchmarks,
-        history: history.slice(0, MAX_HISTORY_EVENTS),
+        history: recentEvents(history, MAX_HISTORY_EVENTS),
       };
       return [athleteId, details] as const;
-    })
+    }),
   );
 
   return Object.fromEntries(entries);

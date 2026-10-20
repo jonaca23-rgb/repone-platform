@@ -1,0 +1,114 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fakeSupabase } from "./testing/fakeSupabase";
+
+vi.mock("server-only", () => ({}));
+const db = vi.hoisted(() => ({ current: null as unknown }));
+vi.mock("@/lib/db/server", () => ({ createClient: async () => db.current }));
+vi.mock("@/lib/auth/guards", async (orig) => ({
+  ...(await orig<typeof import("@/lib/auth/guards")>()),
+  requireFloorAccess: async (floorId: string) => ({
+    ctx: { userId: "u-1" },
+    eventId: "ev-1",
+    organizationId: "org-1",
+    floorId,
+  }),
+}));
+
+import {
+  clearGraphics,
+  setActiveGraphic,
+  setActiveSponsor,
+  setCurrentHeat,
+  startTimer,
+} from "./broadcast";
+
+const FLOOR = "00000000-0000-4000-8000-000000000030";
+const HEAT = "00000000-0000-4000-8000-000000000070";
+const SPONSOR = "00000000-0000-4000-8000-000000000081";
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("broadcast actions", () => {
+  it("refuses a heat that isn't on the floor", async () => {
+    db.current = fakeSupabase({ heats: [{ data: null }] }).client;
+    expect(await setCurrentHeat(FLOOR, HEAT)).toEqual({
+      ok: false,
+      message: "That heat isn't on this floor.",
+    });
+  });
+
+  it("puts a heat on air", async () => {
+    db.current = fakeSupabase({
+      heats: [{ data: { id: HEAT } }],
+      broadcast_state: [{ data: [{ floor_id: FLOOR }] }],
+    }).client;
+    expect(await setCurrentHeat(FLOOR, HEAT)).toEqual({ ok: true });
+  });
+
+  it("shows a graphic", async () => {
+    db.current = fakeSupabase({ broadcast_state: [{ data: [{ floor_id: FLOOR }] }] }).client;
+    expect(await setActiveGraphic(FLOOR, "lanes")).toEqual({ ok: true });
+  });
+
+  it("says so when the floor's controls aren't this account's", async () => {
+    db.current = fakeSupabase({ broadcast_state: [{ data: [] }] }).client;
+    expect(await setActiveGraphic(FLOOR, "lanes")).toEqual({
+      ok: false,
+      message: "This floor's broadcast controls aren't available to your account.",
+    });
+  });
+
+  it("refuses a sponsor without an active sponsorship at this event", async () => {
+    const fake = fakeSupabase({ event_sponsorships: [{ data: null }] });
+    db.current = fake.client;
+    expect(await setActiveSponsor(FLOOR, SPONSOR)).toEqual({
+      ok: false,
+      message: "That sponsor isn't part of this event.",
+    });
+    expect(fake.calls).toContainEqual(["event_sponsorships", "eq", ["event_id", "ev-1"]]);
+    expect(fake.calls).toContainEqual(["event_sponsorships", "eq", ["active", true]]);
+  });
+
+  it.each([
+    ["an organizer, who reads it as off", { active: false }],
+    ["a producer, for whom RLS hides it", null],
+  ])("refuses a sponsor switched off for the organization, as seen by %s", async (_, sponsors) => {
+    db.current = fakeSupabase({
+      event_sponsorships: [{ data: { id: "es-1", sponsors } }],
+    }).client;
+    expect(await setActiveSponsor(FLOOR, SPONSOR)).toEqual({
+      ok: false,
+      message: "That sponsor is switched off for your organization.",
+    });
+  });
+
+  it("puts an event's sponsor on air", async () => {
+    db.current = fakeSupabase({
+      event_sponsorships: [{ data: { id: "es-1", sponsors: { active: true } } }],
+      broadcast_state: [{ data: [{ floor_id: FLOOR }] }],
+    }).client;
+    expect(await setActiveSponsor(FLOOR, SPONSOR)).toEqual({ ok: true });
+  });
+
+  it("clears the graphics", async () => {
+    db.current = fakeSupabase({ broadcast_state: [{ data: [{ floor_id: FLOOR }] }] }).client;
+    expect(await clearGraphics(FLOOR)).toEqual({ ok: true });
+  });
+
+  it("names a bad timer duration", async () => {
+    db.current = fakeSupabase({}).client;
+    const result = await startTimer(FLOOR, "count_down", 1.5);
+    expect(result).toEqual({ ok: false, message: "Timer duration must be whole seconds." });
+  });
+
+  it("says so when the timer's floor has no broadcast state for this account", async () => {
+    db.current = {
+      ...fakeSupabase({}).client,
+      rpc: async () => ({ error: { message: `Floor ${FLOOR} has no broadcast state` } }),
+    };
+    expect(await startTimer(FLOOR, "count_down", 600)).toEqual({
+      ok: false,
+      message: "This floor's broadcast controls aren't available to your account.",
+    });
+  });
+});

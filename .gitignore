@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -43,3 +44,21 @@ next-env.d.ts
 # local-only artifacts
 /repone-platform.bundle
 /Claude outputs/
+
+# Supabase CLI local state
+/supabase/.branches/
+/supabase/.temp/
+/supabase/snippets/
+
+# Git worktrees agents create to work on a branch in isolation
+/.claude/worktrees/
+
+# Browser-verification evidence (screenshots show athlete names) and run
+# bookkeeping, written by .claude/skills/verify-repone.
+/.verify/
+
+# local Supabase JWT signing key
+/supabase/signing_keys.json
+
+# brainstorming mockups (superpowers visual companion)
+/.superpowers/

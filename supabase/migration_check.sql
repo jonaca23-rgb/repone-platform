@@ -29,7 +29,7 @@ select '0006_result_manual_adjustment', exists (
 )
 union all
 select '0007_payments_and_teams', exists (
-  select 1 from information_schema.columns where table_name='teams' and column_name='entry_format'
+  select 1 from information_schema.tables where table_name='team_members'
 ) and exists (
   select 1 from information_schema.tables where table_name='payment_accounts'
 )

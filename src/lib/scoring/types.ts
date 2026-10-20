@@ -1,8 +1,16 @@
 // Domain types for the scoring engine.
-// IMPORTANT: this module has zero UI or DB imports. It is pure computation so it can be
+// IMPORTANT: this module has zero runtime UI or DB imports. It is pure computation so it can be
 // unit-tested in isolation and reused from server actions, edge functions, or scripts.
 
-export type ScoringType = "for_time" | "amrap" | "max_load" | "points" | "other";
+import type { ScoringTypeDb } from "@/lib/db/database.types";
+
+/** The database's scoring_type enum: one list, so a new type can't be missed. */
+export type ScoringType = ScoringTypeDb;
+
+/** Scored by one count of reps, highest wins: an AMRAP, or a Tabata's total across its rounds. */
+export function countsReps(scoringType: ScoringType): boolean {
+  return scoringType === "amrap" || scoringType === "tabata";
+}
 export type TiebreakType = "none" | "time" | "reps" | "load" | "points";
 
 export interface WodScoringConfig {
@@ -10,7 +18,7 @@ export interface WodScoringConfig {
   scoringType: ScoringType;
   timeCapSeconds: number | null;
   tiebreakType: TiebreakType;
-  /** true for for_time (fastest wins); false for amrap/max_load/points (highest wins) */
+  /** true for for_time (fastest wins); false for amrap/tabata/max_load/points (highest wins) */
   lowerIsBetter: boolean;
 }
 
@@ -22,7 +30,7 @@ export interface WodScoringConfig {
 export interface RawResult {
   competitorId: string; // athlete_id or team_id
   timeSeconds?: number | null; // for_time
-  reps?: number | null; // amrap, or reps-completed-if-capped for for_time
+  reps?: number | null; // amrap and tabata (total), or reps-completed-if-capped for for_time
   load?: number | null; // max_load
   points?: number | null; // points
   capped?: boolean; // true if a for_time result hit the time cap

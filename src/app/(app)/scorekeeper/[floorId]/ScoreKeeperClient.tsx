@@ -1,12 +1,32 @@
 "use client";
 
+import type { FloorLane } from "@/lib/db/floorLanes";
 import { useMemo, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { Check, ChevronLeft, ChevronRight, ListOrdered, Lock, Radio, Users } from "lucide-react";
 import { useBroadcastState } from "@/lib/realtime/useBroadcastState";
-import { enterResult } from "@/lib/actions/results";
+import { floorWatches } from "@/lib/realtime/floorWatches";
+import { useRefreshOnChanges } from "@/lib/realtime/useRefreshOnChanges";
 import { finishHeat } from "@/lib/actions/heats";
-import { formatClock } from "@/lib/timer/compute";
 import type { Database } from "@/lib/db/database.types";
+import type { LaneResult, ScoringLane, ScoringType } from "@/lib/scoring/format";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { EmptyState } from "@/components/app/EmptyState";
+import { LaneList, resultsByCompetitor } from "@/components/scoring/LaneList";
+import { laneCompetitor } from "@/lib/db/floorLanes";
+import { type LeaderboardRow, LeaderboardSheet } from "@/components/scoring/LeaderboardSheet";
+import { ScoreDrawer } from "@/components/scoring/ScoreDrawer";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { activeHeatId } from "./activeHeat";
 
 export interface ScoreKeeperHeat {
   id: string;
@@ -15,377 +35,275 @@ export interface ScoreKeeperHeat {
   endedAt: string | null;
   wod: { id: string; name: string; scoring_type: string; time_cap_seconds: number | null };
   division: { id: string; name: string };
-  lanes: Array<{ laneNumber: number; athleteId: string | null; name: string | null; affiliate: string | null }>;
+  lanes: FloorLane[];
 }
 
-export interface ScoreKeeperResult {
-  athlete_id: string | null;
-  time_seconds: number | null;
-  reps: number | null;
-  load: number | null;
-  points: number | null;
-  capped: boolean;
-  status: "completed" | "dns" | "dnf" | "dq";
-  tiebreak_value: number | null;
-  manually_adjusted: boolean;
-}
-
-export interface ScoreKeeperStanding {
-  placement: number | null;
-  points: number | null;
-  athlete_id: string | null;
-  name: string;
+export interface ScoreKeeperStanding extends LeaderboardRow {
+  /** The athlete's or the team's id. */
+  competitor_id: string | null;
 }
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
 
-// Separate component so `useFormStatus` can read the enclosing <form>'s
-// pending state — disables the button to guard against double-submission
-// while a save is in flight (reliability requirement from the platform spec).
-function SaveButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button className="control-btn control-btn-red px-6 py-3 text-base" disabled={pending}>
-      {pending ? "Saving…" : "Save Score"}
-    </button>
-  );
-}
-
-// Same guard-against-double-submission pattern as SaveButton, for the
-// "Save all & Finish Heat" button below.
-function FinishHeatButton({ alreadyFinished }: { alreadyFinished: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <button className="control-btn control-btn-red px-6 py-3 text-base" disabled={pending || alreadyFinished}>
-      {alreadyFinished ? "Heat Finished ✓" : pending ? "Finishing…" : "Save all & Finish Heat"}
-    </button>
-  );
-}
+const heatLabel = (h: ScoreKeeperHeat) => `${h.wod.name} · Heat ${h.heatNumber}`;
 
 export function ScoreKeeperClient({
   floorId,
-  eventId,
-  eventName,
   heats,
   initialBroadcastState,
   resultsByHeatId,
   standingsByHeatId,
+  canAdjustFinished = false,
 }: {
   floorId: string;
-  eventId: string;
-  eventName: string;
   heats: ScoreKeeperHeat[];
   initialBroadcastState: BroadcastStateRow | null;
-  resultsByHeatId: Record<string, ScoreKeeperResult[]>;
+  resultsByHeatId: Record<string, LaneResult[]>;
   standingsByHeatId: Record<string, ScoreKeeperStanding[]>;
+  /** An admin or event director: may still correct a finished heat. */
+  canAdjustFinished?: boolean;
 }) {
   const { state, connected } = useBroadcastState(floorId, initialBroadcastState);
   const liveHeatId = state?.current_heat_id ?? null;
+  // A second scorekeeper's saves and lane changes from Admin show up here
+  // without a reload; an open drawer keeps what's typed across the refresh.
+  useRefreshOnChanges(
+    floorWatches(
+      floorId,
+      heats.map((h) => h.id),
+      { results: true },
+    ),
+  );
 
-  // By default the scorekeeper's screen follows whatever heat Production has
-  // live on the Dashboard (heat/lane automation from the spec) — but they can
-  // switch to any heat manually (e.g. to fix an earlier score) without losing
-  // that live link; "Follow Live Heat" brings them back to it.
+  // By default the screen follows the heat Production has live; picking a
+  // heat by hand steps off that, and "Follow live" steps back on.
   const [following, setFollowing] = useState(true);
   const [manualHeatId, setManualHeatId] = useState<string | null>(null);
+  // The lane whose drawer is open, and the heat it belongs to (held while open).
+  const [open, setOpen] = useState<{ heatId: string; lane: ScoringLane } | null>(null);
 
-  const activeHeatId = following ? liveHeatId ?? heats[0]?.id ?? null : manualHeatId ?? heats[0]?.id ?? null;
-  const heat = heats.find((h) => h.id === activeHeatId) ?? heats[0] ?? null;
-
-  // Manual "Previous Heat" / "Next Heat" step through this floor's heats in
-  // the same order as the picker above — steps off "Follow Live Heat" the
-  // same way picking a heat from the dropdown does.
-  const heatIndex = heat ? heats.findIndex((h) => h.id === heat.id) : -1;
-  const goToHeat = (id: string) => {
-    setFollowing(false);
-    setManualHeatId(id);
-  };
-
-  const resultByAthlete = useMemo(() => {
-    const map = new Map<string, ScoreKeeperResult>();
-    (heat ? resultsByHeatId[heat.id] ?? [] : []).forEach((r) => {
-      if (r.athlete_id) map.set(r.athlete_id, r);
-    });
-    return map;
-  }, [heat, resultsByHeatId]);
-
-  const standings = heat ? standingsByHeatId[heat.id] ?? [] : [];
+  const currentId = activeHeatId({
+    following,
+    manualHeatId,
+    liveHeatId,
+    heldHeatId: open?.heatId ?? null,
+    firstHeatId: heats[0]?.id ?? null,
+  });
+  const heat = heats.find((h) => h.id === currentId) ?? heats[0] ?? null;
+  const liveHeat = heats.find((h) => h.id === liveHeatId) ?? null;
+  const results = useMemo(
+    () => resultsByCompetitor(heat ? (resultsByHeatId[heat.id] ?? []) : []),
+    [heat, resultsByHeatId],
+  );
 
   if (!heat) {
     return (
-      <div className="flex min-h-[80vh] items-center justify-center px-6 text-center text-white/60">
-        No heats scheduled on this floor yet — set them up in Admin → Heats & Lanes.
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <EmptyState
+          icon={ListOrdered}
+          title="No heats scheduled on this floor yet"
+          description="Set them up in Admin → Heats & Lanes."
+        />
       </div>
     );
   }
 
-  const scoringType = heat.wod.scoring_type as "for_time" | "amrap" | "max_load" | "points" | "other";
+  const scoringType = heat.wod.scoring_type as ScoringType;
+  // Every occupied lane, athlete or team (lib/db/floorLanes.ts).
+  const lanes: ScoringLane[] = heat.lanes.flatMap((l) => {
+    const competitor = laneCompetitor(l);
+    return competitor
+      ? [
+          {
+            laneNumber: l.laneNumber,
+            competitorType: competitor.type,
+            competitorId: competitor.id,
+            name: l.name ?? "—",
+            affiliate: l.affiliate,
+          },
+        ]
+      : [];
+  });
+  const recorded = lanes.filter((l) => results.has(l.competitorId)).length;
+  const missing = lanes.length - recorded;
+  const index = heats.findIndex((h) => h.id === heat.id);
+  const pick = (id: string) => {
+    setFollowing(false);
+    setManualHeatId(id);
+  };
+  const subtitle = `${heat.wod.name} · ${heat.division.name}`;
+  // Finished heats are read-only here for everyone but the organizers.
+  const locked = !!heat.endedAt && !canAdjustFinished;
+  const heldBack =
+    open && following && liveHeat && liveHeat.id !== open.heatId
+      ? `Production moved to ${heatLabel(liveHeat)}. You'll go there when you close this lane.`
+      : undefined;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-repone-gray px-5 py-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-white/50">{eventName}</p>
-          <p className="flex items-center gap-2 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-wide">
-            {heat.wod.name} · Heat {heat.heatNumber}
-            {heat.heatCount ? ` / ${heat.heatCount}` : ""}
-            {heat.endedAt && (
-              <span className="rounded-full bg-green-600/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-400">
-                ✓ Finished
-              </span>
-            )}
-          </p>
-          <p className="text-sm font-semibold uppercase tracking-wide text-repone-red">{heat.division.name}</p>
+    <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] max-w-3xl flex-col">
+      {/* Heat header: sticky unless the screen is short (a phone in landscape),
+          where it would cover most of the lanes. */}
+      <header className="top-[calc(3.5rem+env(safe-area-inset-top))] z-10 [@media(min-height:600px)]:sticky flex flex-col gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-wide uppercase">
+              {heatLabel(heat)}
+              {heat.heatCount ? ` / ${heat.heatCount}` : ""}
+              {heat.endedAt && (
+                <Badge
+                  variant="outline"
+                  className="border-success/40 bg-success/10 text-success-text"
+                >
+                  <Check aria-hidden />
+                  Finished
+                </Badge>
+              )}
+            </h1>
+            <p className="truncate text-sm font-semibold tracking-wide text-brand-text uppercase">
+              {heat.division.name}
+            </p>
+          </div>
+          <span aria-live="polite" className="flex shrink-0 items-center gap-2 text-sm font-medium">
+            <span
+              aria-hidden
+              className={cn(
+                "size-3 rounded-full",
+                connected ? "bg-success" : "animate-pulse bg-primary",
+              )}
+            />
+            {connected ? "Live" : "Reconnecting…"}
+          </span>
         </div>
-        <span
-          className={`h-3 w-3 rounded-full ${connected ? "bg-green-500" : "bg-repone-red animate-pulse"}`}
-          title={connected ? "Live" : "Reconnecting…"}
-        />
-      </div>
-
-      {/* Heat picker */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-repone-gray px-5 py-4">
-        <label className="flex flex-1 flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-          Heat
-          <select
-            value={heat.id}
-            onChange={(e) => {
-              setFollowing(false);
-              setManualHeatId(e.target.value);
-            }}
-            className="rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-          >
-            {heats.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.wod.name} — Heat {h.heatNumber} ({h.division.name})
-              </option>
-            ))}
-          </select>
-        </label>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="control-btn w-fit px-4 py-3 text-xs disabled:opacity-30"
-            disabled={heatIndex <= 0}
-            onClick={() => heatIndex > 0 && goToHeat(heats[heatIndex - 1].id)}
+            variant="outline"
+            size="icon-lg"
+            aria-label="Previous heat"
+            disabled={index <= 0}
+            onClick={() => index > 0 && pick(heats[index - 1].id)}
           >
-            ← Previous Heat
-          </button>
-          <button
+            <ChevronLeft aria-hidden />
+          </Button>
+          <Label htmlFor="scorekeeper-heat" className="sr-only">
+            Heat
+          </Label>
+          <Select value={heat.id} onValueChange={pick}>
+            <SelectTrigger
+              id="scorekeeper-heat"
+              className="min-w-0 flex-1 data-[size=default]:h-11"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {heats.map((h) => (
+                <SelectItem key={h.id} value={h.id}>
+                  {heatLabel(h)} ({h.division.name})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
             type="button"
-            className="control-btn w-fit px-4 py-3 text-xs disabled:opacity-30"
-            disabled={heatIndex === -1 || heatIndex >= heats.length - 1}
-            onClick={() => heatIndex >= 0 && heatIndex < heats.length - 1 && goToHeat(heats[heatIndex + 1].id)}
+            variant="outline"
+            size="icon-lg"
+            aria-label="Next heat"
+            disabled={index === -1 || index >= heats.length - 1}
+            onClick={() => index < heats.length - 1 && pick(heats[index + 1].id)}
           >
-            Next Heat →
-          </button>
+            <ChevronRight aria-hidden />
+          </Button>
         </div>
         {following ? (
-          <span className="text-xs font-semibold uppercase tracking-wide text-repone-red">Following live heat</span>
+          <span className="flex items-center gap-2 text-xs font-semibold tracking-wide text-brand-text uppercase">
+            <Radio className="size-4" aria-hidden />
+            Following live heat
+          </span>
         ) : (
-          <button
-            className="control-btn w-fit px-4 py-3 text-xs"
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-11 w-fit gap-2"
             onClick={() => {
               setFollowing(true);
               setManualHeatId(null);
             }}
           >
-            Follow Live Heat
-          </button>
+            <Radio aria-hidden />
+            Follow live heat
+          </Button>
         )}
-      </div>
+      </header>
 
-      {/* Score entry — one card per lane, matching the judge's scorecard fields for this WOD's scoring type */}
-      <div className="flex flex-col gap-3">
-        {heat.lanes
-          .filter((l) => l.athleteId)
-          .map((lane) => {
-            const existing = resultByAthlete.get(lane.athleteId!);
-            return (
-              <form
-                key={lane.laneNumber}
-                action={enterResult.bind(null, eventId, heat.id, heat.wod.id, heat.division.id, scoringType, floorId)}
-                className="rounded-xl bg-repone-gray p-4"
-              >
-                <input type="hidden" name="competitor_type" value="athlete" />
-                <input type="hidden" name="competitor_id" value={lane.athleteId ?? ""} />
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="font-semibold uppercase tracking-wide">
-                    <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded bg-repone-red text-sm font-bold">
-                      {lane.laneNumber}
-                    </span>
-                    {lane.name}
-                  </p>
-                  <span className="flex items-center gap-2">
-                    {existing && <span className="text-xs font-semibold uppercase tracking-wide text-green-400">✓ Recorded</span>}
-                    {existing?.manually_adjusted && (
-                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">✎ Adjusted</span>
-                    )}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-end gap-3">
-                  {scoringType === "for_time" && (
-                    <>
-                      <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                        Time (mm:ss)
-                        <input
-                          name="time_seconds"
-                          type="text"
-                          inputMode="decimal"
-                          pattern="[0-9]+:[0-5]?[0-9](\.[0-9]+)?|[0-9]+(\.[0-9]+)?"
-                          placeholder="3:45"
-                          defaultValue={existing?.time_seconds != null ? formatClock(existing.time_seconds) : ""}
-                          className="w-32 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                        />
-                      </label>
-                      <label className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/50">
-                        <input name="capped" type="checkbox" defaultChecked={existing?.capped ?? false} className="h-5 w-5" />
-                        Time-capped
-                      </label>
-                      <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                        Reps (if capped)
-                        <input
-                          name="reps"
-                          type="number"
-                          inputMode="numeric"
-                          defaultValue={existing?.reps ?? ""}
-                          className="w-28 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                        />
-                      </label>
-                    </>
-                  )}
-                  {scoringType === "amrap" && (
-                    <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                      Total reps
-                      <input
-                        name="reps"
-                        type="number"
-                        inputMode="numeric"
-                        defaultValue={existing?.reps ?? ""}
-                        className="w-28 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                      />
-                    </label>
-                  )}
-                  {scoringType === "max_load" && (
-                    <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                      Load
-                      <input
-                        name="load"
-                        type="number"
-                        step="0.5"
-                        inputMode="decimal"
-                        defaultValue={existing?.load ?? ""}
-                        className="w-28 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                      />
-                    </label>
-                  )}
-                  {(scoringType === "points" || scoringType === "other") && (
-                    <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                      Points
-                      <input
-                        name="points"
-                        type="number"
-                        step="0.01"
-                        inputMode="decimal"
-                        defaultValue={existing?.points ?? ""}
-                        className="w-28 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                      />
-                    </label>
-                  )}
-                  <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                    Tie-break
-                    <input
-                      name="tiebreak_value"
-                      type="number"
-                      step="0.01"
-                      inputMode="decimal"
-                      defaultValue={existing?.tiebreak_value ?? ""}
-                      className="w-28 rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-white/50">
-                    Status
-                    <select
-                      name="status"
-                      defaultValue={existing?.status ?? "completed"}
-                      className="rounded-md border border-white/20 bg-black/40 px-3 py-3 text-white"
-                    >
-                      <option value="completed">Completed</option>
-                      <option value="dnf">DNF</option>
-                      <option value="dns">DNS</option>
-                      <option value="dq">DQ</option>
-                    </select>
-                  </label>
-                  <label
-                    className="flex items-center gap-2 text-xs uppercase tracking-wide text-amber-400"
-                    title="Check this when correcting a result after the fact (e.g. a claim/protest resolved after the heat) — the record will be marked as manually adjusted."
-                  >
-                    <input
-                      name="manual_adjustment"
-                      type="checkbox"
-                      defaultChecked={existing?.manually_adjusted ?? false}
-                      className="h-5 w-5"
-                    />
-                    Manual Adjustment
-                  </label>
-                  <SaveButton />
-                </div>
-              </form>
-            );
-          })}
-        {heat.lanes.filter((l) => l.athleteId).length === 0 && (
-          <p className="text-sm text-white/50">No athletes assigned to lanes for this heat yet — set that up in Admin → Heats & Lanes.</p>
-        )}
-      </div>
-
-      {/* Finish this heat — scores above are already saved lane by lane as
-          they're entered; this just flips the heat's status once every lane
-          is done, which is what marks it "✓ Completed" back on the Heats &
-          Lanes list. Heats & Lanes' own "Save All" button no longer does
-          this — only this button does. */}
-      {heat.lanes.filter((l) => l.athleteId).length > 0 && (
-        <form
-          action={finishHeat.bind(null, eventId, heat.id, floorId)}
-          onSubmit={(e) => {
-            if (
-              !window.confirm(
-                `Finish Heat ${heat.heatNumber} — ${heat.wod.name} (${heat.division.name})? It will be marked Completed on Heats & Lanes.`
-              )
-            ) {
-              e.preventDefault();
-            }
-          }}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-repone-gray px-5 py-4"
-        >
-          <p className="text-xs uppercase tracking-wide text-white/50">
-            {heat.endedAt
-              ? "This heat is marked completed."
-              : "Once every lane's result is entered above, finish this heat."}
-          </p>
-          <FinishHeatButton alreadyFinished={Boolean(heat.endedAt)} />
-        </form>
-      )}
-
-      {/* Live leaderboard for this heat's WOD/division — updates the moment a score is saved */}
-      {standings.length > 0 && (
-        <div className="rounded-xl bg-repone-gray p-5">
-          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/50">
-            Live Leaderboard — {heat.wod.name} ({heat.division.name})
-          </p>
-          <div className="flex flex-col gap-1">
-            {standings.map((s, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-black/30 px-4 py-2 text-sm">
-                <span>
-                  <span className="mr-3 font-bold text-repone-red">{s.placement ?? "—"}</span>
-                  {s.name}
-                </span>
-                <span className="font-semibold">{s.points ?? "—"} pts</span>
-              </div>
-            ))}
+      {/* Lane list */}
+      <section aria-label="Lanes" className="flex-1 px-4 py-4">
+        {lanes.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {locked ? (
+              <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+                This heat is finished. An admin or event director can correct its results.
+              </p>
+            ) : null}
+            <LaneList
+              lanes={lanes}
+              resultsByCompetitor={results}
+              scoringType={scoringType}
+              onOpen={locked ? undefined : (lane) => setOpen({ heatId: heat.id, lane })}
+            />
           </div>
+        ) : (
+          <EmptyState
+            icon={Users}
+            title="No one in lanes for this heat yet."
+            description="Set that up in Admin → Heats & Lanes."
+          />
+        )}
+      </section>
+
+      {/* Sticky finish bar */}
+      <footer className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <p className="text-sm font-medium tabular-nums">
+          {recorded} / {lanes.length} recorded
+        </p>
+        <div className="flex items-center gap-2">
+          <LeaderboardSheet
+            title={`Leaderboard — ${heat.wod.name} (${heat.division.name})`}
+            rows={standingsByHeatId[heat.id] ?? []}
+          />
+          {lanes.length > 0 && heat.endedAt ? (
+            <Button type="button" size="touch" disabled>
+              Heat finished
+            </Button>
+          ) : lanes.length > 0 ? (
+            <ConfirmAction
+              trigger="Finish heat"
+              triggerVariant="default"
+              triggerSize="touch"
+              variant="default"
+              title={`Finish Heat ${heat.heatNumber}?`}
+              description={`${heat.wod.name} (${heat.division.name}) is marked completed.${
+                missing > 0
+                  ? ` ${missing} lane${missing === 1 ? " has" : "s have"} no result and will count as last once the WOD is finished.`
+                  : ""
+              }`}
+              confirmLabel="Finish heat"
+              onConfirm={() => finishHeat(heat.id)}
+            />
+          ) : null}
         </div>
-      )}
+      </footer>
+
+      <ScoreDrawer
+        key={open ? `${open.heatId}:${open.lane.competitorId}` : "closed"}
+        heatId={open?.heatId ?? heat.id}
+        lane={open?.lane ?? null}
+        existing={open ? results.get(open.lane.competitorId) : undefined}
+        scoringType={scoringType}
+        subtitle={subtitle}
+        notice={heldBack}
+        onClose={() => setOpen(null)}
+      />
     </div>
   );
 }

@@ -19,7 +19,7 @@ export const AGE_CATEGORY_LABELS: Record<AgeCategory, string> = {
 export function computeAgeCategory(
   dateOfBirth: string | null | undefined,
   gender: Gender | null | undefined,
-  asOfDate: string | Date
+  asOfDate: string | Date,
 ): AgeCategory | null {
   if (!dateOfBirth || !gender) return null;
 

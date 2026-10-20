@@ -1,17 +1,46 @@
+import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { getAthleteSessionContext } from "@/lib/auth/session";
 import { getThread, markThreadRead, resolveCounterparts } from "@/lib/db/messages";
-import { sendMessage } from "@/lib/actions/messages";
+import { MessageComposer } from "@/components/messages/MessageComposer";
+import { MessageThread } from "@/components/messages/MessageThread";
+import { ThreadLiveRefresh } from "@/components/messages/ThreadLiveRefresh";
+import { Button } from "@/components/ui/button";
 
-export default async function AthleteThreadPage({ params }: { params: Promise<{ counterpartId: string }> }) {
+// Read once per request: the page and its title share them.
+const sessionContext = cache(getAthleteSessionContext);
+// Keyed by the id string: cache() compares arguments by identity, so an array would never hit.
+const counterpartOf = cache(
+  async (counterpartId: string, organizationId: string) =>
+    (await resolveCounterparts([counterpartId], organizationId)).get(counterpartId) ?? null,
+);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ counterpartId: string }>;
+}): Promise<Metadata> {
   const { counterpartId } = await params;
-  const ctx = await getAthleteSessionContext();
-  if (!ctx) redirect("/athlete/login");
-  if (!ctx.athleteId) redirect("/athlete/onboarding");
+  const ctx = await sessionContext();
+  if (!ctx?.athleteId) return { title: "Messages" };
+  const counterpart = await counterpartOf(counterpartId, ctx.organizationId ?? "");
+  return { title: counterpart ? `Messages · ${counterpart.name}` : "Messages" };
+}
 
-  const labels = await resolveCounterparts([counterpartId], ctx.organizationId ?? "");
-  const counterpart = labels.get(counterpartId);
+export default async function AthleteThreadPage({
+  params,
+}: {
+  params: Promise<{ counterpartId: string }>;
+}) {
+  const { counterpartId } = await params;
+  const ctx = await sessionContext();
+  if (!ctx) redirect("/login");
+  if (!ctx.athleteId) redirect("/");
+
+  const counterpart = await counterpartOf(counterpartId, ctx.organizationId ?? "");
   if (!counterpart) notFound();
 
   // Viewing the thread is what marks it read — there's no separate "mark as
@@ -20,38 +49,29 @@ export default async function AthleteThreadPage({ params }: { params: Promise<{ 
   const thread = await getThread(ctx.userId, counterpartId);
 
   return (
-    <div>
-      <p className="mb-4 text-sm">
-        <Link href="/athlete/messages" className="text-repone-red underline">
-          ← Messages
-        </Link>
-      </p>
-      <h1 className="mb-1 text-xl font-bold text-white">{counterpart.name}</h1>
-      {counterpart.sublabel ? <p className="mb-6 text-sm text-white/50">{counterpart.sublabel}</p> : null}
-
-      <div className="mb-6 flex flex-col gap-3">
-        {thread.map((m) => (
-          <div
-            key={m.id}
-            className={`max-w-md rounded-lg px-4 py-2 ${m.fromMe ? "ml-auto bg-repone-red text-white" : "bg-repone-gray text-white"}`}
-          >
-            <p className="whitespace-pre-wrap text-sm">{m.body}</p>
-            <p className="mt-1 text-xs opacity-60">{new Date(m.createdAt).toLocaleString()}</p>
-          </div>
-        ))}
-        {thread.length === 0 && <p className="text-white/50">No messages yet — say hello.</p>}
+    <div className="flex flex-col gap-4">
+      <div>
+        <Button asChild variant="ghost" className="-ml-3 min-h-11 gap-2 text-muted-foreground">
+          <Link href="/athlete/messages">
+            <ChevronLeft aria-hidden />
+            Messages
+          </Link>
+        </Button>
+        <h1 className="font-display text-3xl font-bold tracking-wide uppercase">
+          {counterpart.name}
+        </h1>
+        {counterpart.sublabel ? (
+          <p className="text-sm text-muted-foreground">{counterpart.sublabel}</p>
+        ) : null}
       </div>
 
-      <form action={sendMessage.bind(null, counterpartId)} className="flex items-end gap-3">
-        <textarea
-          name="body"
-          required
-          rows={2}
-          placeholder="Write a message…"
-          className="flex-1 rounded-md border border-white/20 bg-black/40 px-3 py-2 text-white outline-none focus:border-repone-red"
-        />
-        <button className="control-btn control-btn-red px-6 py-3 text-sm">Send</button>
-      </form>
+      <MessageThread messages={thread} counterpartName={counterpart.name} />
+
+      {/* Sticks above the bottom tab bar on phones, to the bottom of the screen from md up. */}
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] -mx-4 border-t border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6 md:bottom-0">
+        <MessageComposer recipientId={counterpartId} recipientName={counterpart.name} />
+      </div>
+      <ThreadLiveRefresh myUserId={ctx.userId} />
     </div>
   );
 }

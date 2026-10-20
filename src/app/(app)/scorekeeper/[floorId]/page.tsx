@@ -1,13 +1,28 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
-import { ScoreKeeperClient, type ScoreKeeperResult, type ScoreKeeperStanding } from "./ScoreKeeperClient";
+import { orgManagerOf } from "@/lib/auth/authorize";
+import { OperatorShell } from "@/components/shells/OperatorShell";
+import { type LaneResult, standingName } from "@/lib/scoring/format";
+import { ScoreKeeperClient, type ScoreKeeperStanding } from "./ScoreKeeperClient";
 
-export default async function ScoreKeeperPage({ params }: { params: Promise<{ floorId: string }> }) {
+type Props = { params: Promise<{ floorId: string }> };
+
+// Read once per request: the page and its title share it.
+const floorContext = cache(getFloorContext);
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const context = await floorContext((await params).floorId);
+  return { title: context ? `Scorekeeper · ${context.eventName}` : "Scorekeeper" };
+}
+
+export default async function ScoreKeeperPage({ params }: Props) {
   const { floorId } = await params;
-  const context = await getFloorContext(floorId);
+  const context = await floorContext(floorId);
   if (!context) notFound();
 
   // Defense in depth: /scorekeeper/events/[eventId] already only links here
@@ -26,13 +41,25 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
     (await isAssignedToEvent(ctx, context.eventId, "producer"));
   if (!allowed) redirect("/scorekeeper");
 
+  const supabaseForEvent = await createClient();
+  const { data: event } = await supabaseForEvent
+    .from("events")
+    .select("organization_id")
+    .eq("id", context.eventId)
+    .maybeSingle();
+  // Only the event's organizers correct a heat once it is finished (0034).
+  const canAdjustFinished = !!event && orgManagerOf(ctx) === event.organization_id;
+
   const heatIds = context.heats.map((h) => h.id);
   // One WOD/division can span several heats — dedupe so we only query
   // standings once per WOD+division, not once per heat.
   const wodDivisionPairs = Array.from(
     new Map(
-      context.heats.map((h) => [`${h.wod.id}:${h.division.id}`, { wodId: h.wod.id, divisionId: h.division.id }])
-    ).values()
+      context.heats.map((h) => [
+        `${h.wod.id}:${h.division.id}`,
+        { wodId: h.wod.id, divisionId: h.division.id },
+      ]),
+    ).values(),
   );
 
   const supabase = await createClient();
@@ -45,18 +72,20 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
       wodDivisionPairs.map((pair) =>
         supabase
           .from("standings")
-          .select("placement, points, athlete_id, athletes(first_name, last_name)")
+          .select(
+            "placement, points, athlete_id, team_id, athletes(first_name, last_name), teams(name)",
+          )
           .eq("division_id", pair.divisionId)
           .eq("wod_id", pair.wodId)
-          .order("placement", { ascending: true, nullsFirst: false })
-      )
+          .order("placement", { ascending: true, nullsFirst: false }),
+      ),
     ),
   ]);
 
-  const resultsByHeatId: Record<string, ScoreKeeperResult[]> = {};
+  const resultsByHeatId: Record<string, LaneResult[]> = {};
   (resultsRaw ?? []).forEach((r) => {
     const heatId = r.heat_id as string;
-    (resultsByHeatId[heatId] ??= []).push(r as unknown as ScoreKeeperResult);
+    (resultsByHeatId[heatId] ??= []).push(r as unknown as LaneResult);
   });
 
   // See lib/db/queries.ts header comment: cast the many-to-one embed back to a single object.
@@ -66,16 +95,18 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
       placement: number | null;
       points: number | null;
       athlete_id: string | null;
+      team_id: string | null;
       athletes: { first_name: string; last_name: string } | null;
+      teams: { name: string } | null;
     }>;
     standingsByWodDivision.set(
       `${pair.wodId}:${pair.divisionId}`,
       rows.map((r) => ({
         placement: r.placement,
         points: r.points,
-        athlete_id: r.athlete_id,
-        name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : "—",
-      }))
+        competitor_id: r.athlete_id ?? r.team_id,
+        name: standingName(r),
+      })),
     );
   });
 
@@ -85,14 +116,15 @@ export default async function ScoreKeeperPage({ params }: { params: Promise<{ fl
   });
 
   return (
-    <ScoreKeeperClient
-      floorId={floorId}
-      eventId={context.eventId}
-      eventName={context.eventName}
-      heats={context.heats}
-      initialBroadcastState={broadcastState ?? null}
-      resultsByHeatId={resultsByHeatId}
-      standingsByHeatId={standingsByHeatId}
-    />
+    <OperatorShell module="scorekeeper" moduleLabel="Scorekeeper" eventName={context.eventName}>
+      <ScoreKeeperClient
+        floorId={floorId}
+        heats={context.heats}
+        initialBroadcastState={broadcastState ?? null}
+        resultsByHeatId={resultsByHeatId}
+        standingsByHeatId={standingsByHeatId}
+        canAdjustFinished={canAdjustFinished}
+      />
+    </OperatorShell>
   );
 }

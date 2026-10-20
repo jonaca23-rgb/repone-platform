@@ -1,43 +1,72 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient } from "@/lib/db/server";
+import { Megaphone } from "lucide-react";
+import { getEventSponsors } from "@/lib/db/sponsors";
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { producerEventTitle } from "../producerEvent";
 
-// Read-only sponsor list for this event — per spec, a producer "triggers"
-// sponsor graphics rather than managing the sponsors table itself (that
-// stays admin-only, 0002_rls_and_realtime.sql). Triggering which sponsor
-// shows on the broadcast happens from the Production tab's existing graphic
-// controls (broadcast_state.active_graphic); this page is the reference
-// list plus a link there.
-export default async function ProducerEventSponsorsPage({ params }: { params: Promise<{ eventId: string }> }) {
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  return { title: await producerEventTitle((await params).eventId, "Sponsors") };
+}
+
+// Read-only list of this event's sponsors and what each bought. A producer
+// triggers sponsor graphics from the Production tab; sponsors and their
+// packages are managed by the org's admins (/admin/events/[id]/sponsors).
+export default async function ProducerEventSponsorsPage({ params }: Props) {
   const { eventId } = await params;
-  const supabase = await createClient();
-
-  const { data: sponsors } = await supabase
-    .from("sponsors")
-    .select("id, business_name, tier, active")
-    .eq("active", true)
-    .or(`event_id.eq.${eventId},event_id.is.null`)
-    .order("business_name");
+  const rows = await getEventSponsors(eventId);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <p className="mb-4 text-sm text-white/50">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+      <PageHeader title="Sponsors" />
+      <p className="text-sm text-muted-foreground">
         To trigger a sponsor graphic on the broadcast, use the graphic controls on the{" "}
-        <Link href={`/producer/events/${eventId}/production`} className="text-repone-red underline">
+        <Link
+          href={`/producer/events/${eventId}/production`}
+          className="rounded-sm text-brand-text underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        >
           Production
         </Link>{" "}
         tab.
       </p>
-      <div className="flex flex-col gap-1.5">
-        {(sponsors ?? []).map((s) => (
-          <div key={s.id} className="flex items-center justify-between rounded-lg bg-repone-gray px-4 py-2.5">
-            <span className="font-semibold text-white">{s.business_name}</span>
-            <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-repone-red">
-              {s.tier.replace(/_/g, " ")}
-            </span>
-          </div>
-        ))}
-        {(sponsors ?? []).length === 0 && <p className="text-white/50">No active sponsors for this event.</p>}
-      </div>
+      {rows.length > 0 ? (
+        <div className="rounded-xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sponsor</TableHead>
+                <TableHead>Package</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((s) => (
+                <TableRow key={s.sponsorshipId}>
+                  <TableCell className="font-semibold whitespace-normal">
+                    {s.businessName}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{s.packageName}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <EmptyState icon={Megaphone} title="No active sponsors for this event" />
+      )}
     </div>
   );
 }

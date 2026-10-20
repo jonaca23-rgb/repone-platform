@@ -1,0 +1,75 @@
+# CI for pull requests.
+#   check: lint, typecheck, unit tests, formatting.
+#   db:    boots a clean local Supabase, applies every migration + seed, loads
+#          the QA circuit and dev accounts, proves the access rules
+#          (scripts/rls-check.ts), and fails if the committed
+#          src/lib/db/supabase.types.ts no longer matches the schema.
+# Merging to main runs nothing here: Vercel builds main itself and applies
+# the migrations first (scripts/vercel-build.sh), as in the sibling repo
+# tastebook. The checks already ran on the pull request; when Actions minutes
+# are short, run `pnpm check` and the db:*-check scripts locally instead.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.95.4
+      - run: pnpm install --frozen-lockfile
+      - name: Generate the JWT signing key (config.toml reads it)
+        run: pnpm keys:ensure
+      - name: Start Supabase (applies migrations + seed.sql)
+        run: supabase start
+      - run: ./scripts/seed-qa.sh
+      - run: pnpm env:local
+      - run: pnpm dev:accounts
+      - name: Database access rules (RLS, grants, storage)
+        run: pnpm db:rls-check
+      - name: Standings rewrites are atomic
+        run: pnpm db:standings-check
+      - name: Timer commands are atomic and state-checked
+        run: pnpm db:timer-check
+      - name: App authorization decisions per account
+        run: pnpm db:authz-check
+      - name: BetterAuth sign-up, sign-in and sign-out
+        run: pnpm db:auth-check
+      - name: Minted Supabase tokens are accepted and rejected correctly
+        run: pnpm db:token-check
+      - name: Generated types match the schema
+        run: |
+          pnpm -s db:types
+          git diff --exit-code src/lib/db/supabase.types.ts || {
+            echo "::error::src/lib/db/supabase.types.ts is stale — run 'pnpm db:types' and commit it."
+            exit 1
+          }

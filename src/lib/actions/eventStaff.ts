@@ -1,18 +1,27 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { expectChanged, NotAuthorizedError, requireEventAccess } from "@/lib/auth/guards";
+import { inviteToEvent, pendingEmail } from "@/lib/auth/invite";
+import { orgCan } from "@/lib/auth/session";
+import { inviteMessage, resendMessage } from "@/lib/actions/inviteResult";
+import { type ActionResult, fail, ok } from "@/lib/action-result";
+import { safeAction } from "./safeAction";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import { hasAnyRole } from "@/lib/auth/session";
+import { field, parseArg, parseForm } from "@/lib/validation/form";
 
-// Admin-only: assign/remove event-scoped Scorekeeper/Producer/Commentator
-// staff (0024_event_role_assignments.sql). RLS backs this up independently
-// (only an admin can write these tables at all), but checking here too
-// gives a clear error instead of a silent RLS-denied failure.
-async function requireAdmin() {
-  const ctx = await getSessionContext();
-  if (!ctx || !hasAnyRole(ctx, ["admin"])) throw new Error("Only an admin can manage event staff assignments.");
-  return ctx;
+// Invite/remove event-scoped Scorekeeper/Producer/Commentator staff
+// (0024_event_role_assignments.sql). RLS lets an owner, admin or event
+// director of the event's organization write these tables (0029), which is
+// the staff:invite permission, so the guard requires both: access to the
+// event, and staff:invite. Checking here gives a clear error instead of a
+// silent RLS-denied failure. Invitations themselves: lib/auth/invite.ts.
+async function requireEventAdmin(eventId: string) {
+  const access = await requireEventAccess(eventId);
+  if (!orgCan(access.ctx, { staff: ["invite"] }))
+    throw new NotAuthorizedError("Only an admin or event director can manage event staff.");
+  return access;
 }
 
 const TABLE = {
@@ -28,70 +37,110 @@ const USER_COLUMN = {
 } as const;
 
 type EventStaffRole = keyof typeof TABLE;
+const STAFF_ROLES = Object.keys(TABLE) as [EventStaffRole, ...EventStaffRole[]];
 
-async function assign(role: EventStaffRole, eventId: string, userId: string, roleLabel?: string) {
-  const ctx = await requireAdmin();
-  const supabase = await createClient();
+const StaffForm = z.object({ email: field.email() });
 
-  const row: Record<string, unknown> = {
-    event_id: eventId,
-    [USER_COLUMN[role]]: userId,
-    assigned_by_admin_id: ctx.userId,
-    status: "active",
-    assigned_at: new Date().toISOString(),
-    removed_at: null,
-  };
-  if (role === "commentator") row.role_label = roleLabel || null;
+const CommentatorForm = StaffForm.extend({
+  roleLabel: field.optionalChoice({ max: 50, label: "Role label" }),
+});
 
-  // Re-assigning someone previously removed just flips status back to
-  // active on their existing row (unique(event_id, <role>_user_id)) rather
-  // than erroring on a duplicate or leaving two rows behind.
-  const { error } = await supabase.from(TABLE[role]).upsert(row, { onConflict: `event_id,${USER_COLUMN[role]}` });
-  if (error) throw new Error(error.message);
+/** Invites `email` as this event's `role`: a new account, or access for an existing one. */
+export async function inviteEventStaff(
+  role: string,
+  eventId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const kind = parseArg(field.oneOf(STAFF_ROLES, "staff role"), role);
+    const id = parseArg(field.id("Event"), eventId);
+    const { email, roleLabel } =
+      kind === "commentator"
+        ? parseForm(CommentatorForm, formData)
+        : { ...parseForm(StaffForm, formData), roleLabel: null };
+    const { ctx } = await requireEventAdmin(id);
 
-  revalidatePath(`/admin/events/${eventId}/staff`);
+    const supabase = await createClient();
+    const { data: event } = await supabase.from("events").select("name").eq("id", id).single();
+    const outcome = await inviteToEvent({
+      email,
+      kind,
+      eventId: id,
+      eventName: event?.name ?? "an event",
+      invitedBy: ctx.userId,
+      roleLabel,
+      db: supabase,
+    });
+    revalidatePath(`/admin/events/${id}/staff`);
+    return inviteMessage(outcome);
+  });
 }
 
-async function remove(role: EventStaffRole, eventId: string, assignmentId: string) {
-  await requireAdmin();
-  const supabase = await createClient();
+/** A fresh invitation link for someone on this event's staff who has never signed in. */
+export async function resendEventInvite(eventId: string, userId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const id = parseArg(field.id("Event"), eventId);
+    const person = parseArg(field.id("Person"), userId);
+    await requireEventAdmin(id);
 
-  const { error } = await supabase
-    .from(TABLE[role])
-    .update({ status: "removed", removed_at: new Date().toISOString() })
-    .eq("id", assignmentId);
-  if (error) throw new Error(error.message);
-
-  revalidatePath(`/admin/events/${eventId}/staff`);
+    // Only someone actually on this event's staff.
+    const supabase = await createClient();
+    const found = await Promise.all(
+      STAFF_ROLES.map((r) =>
+        supabase
+          .from(TABLE[r])
+          .select("id")
+          .eq("event_id", id)
+          .eq(USER_COLUMN[r] as never, person)
+          .eq("status", "active")
+          .limit(1),
+      ),
+    );
+    if (!found.some((res) => res.data?.length))
+      return fail("That person isn't on this event's staff.");
+    const email = await pendingEmail(person);
+    if (!email) return fail("They have already signed in; there's nothing to resend.");
+    return await resendMessage(person, email);
+  });
 }
 
-export async function assignEventScorekeeper(eventId: string, formData: FormData) {
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("Select a staff account first.");
-  await assign("scorekeeper", eventId, userId);
+function remove(role: EventStaffRole, eventId: string, assignmentId: string) {
+  return safeAction(async () => {
+    await requireEventAdmin(eventId);
+    const supabase = await createClient();
+
+    expectChanged(
+      await supabase
+        .from(TABLE[role])
+        .update({ status: "removed", removed_at: new Date().toISOString() })
+        .eq("id", assignmentId)
+        .eq("event_id", eventId)
+        .select("id"),
+      `remove the ${role}`,
+    );
+
+    revalidatePath(`/admin/events/${eventId}/staff`);
+    return ok();
+  });
 }
 
-export async function removeEventScorekeeper(eventId: string, assignmentId: string) {
-  await remove("scorekeeper", eventId, assignmentId);
+export async function removeEventScorekeeper(
+  eventId: string,
+  assignmentId: string,
+): Promise<ActionResult> {
+  return remove("scorekeeper", eventId, assignmentId);
 }
 
-export async function assignEventProducer(eventId: string, formData: FormData) {
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("Select a staff account first.");
-  await assign("producer", eventId, userId);
+export async function removeEventProducer(
+  eventId: string,
+  assignmentId: string,
+): Promise<ActionResult> {
+  return remove("producer", eventId, assignmentId);
 }
 
-export async function removeEventProducer(eventId: string, assignmentId: string) {
-  await remove("producer", eventId, assignmentId);
-}
-
-export async function assignEventCommentator(eventId: string, formData: FormData) {
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("Select a staff account first.");
-  const roleLabel = String(formData.get("roleLabel") ?? "");
-  await assign("commentator", eventId, userId, roleLabel);
-}
-
-export async function removeEventCommentator(eventId: string, assignmentId: string) {
-  await remove("commentator", eventId, assignmentId);
+export async function removeEventCommentator(
+  eventId: string,
+  assignmentId: string,
+): Promise<ActionResult> {
+  return remove("commentator", eventId, assignmentId);
 }

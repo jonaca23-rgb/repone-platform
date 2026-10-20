@@ -1,13 +1,26 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getFloorContext } from "@/lib/db/queries";
+import { getEventSponsors, toBroadcastSponsor } from "@/lib/db/sponsors";
 import { getSessionContext } from "@/lib/auth/session";
 import { isAssignedToEvent } from "@/lib/auth/eventRoles";
 import { DashboardClient } from "./DashboardClient";
 
-export default async function DashboardPage({ params }: { params: Promise<{ floorId: string }> }) {
+type Props = { params: Promise<{ floorId: string }> };
+
+// Read once per request: the page and its title share it.
+const floorContext = cache(getFloorContext);
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const context = await floorContext((await params).floorId);
+  return { title: context ? `Production · ${context.eventName}` : "Production" };
+}
+
+export default async function DashboardPage({ params }: Props) {
   const { floorId } = await params;
-  const context = await getFloorContext(floorId);
+  const context = await floorContext(floorId);
   if (!context) notFound();
 
   // Defense in depth — see the matching comment in
@@ -19,13 +32,9 @@ export default async function DashboardPage({ params }: { params: Promise<{ floo
   if (!(await isAssignedToEvent(ctx, context.eventId, "producer"))) redirect("/producer");
 
   const supabase = await createClient();
-  const [{ data: broadcastState }, { data: sponsors }] = await Promise.all([
+  const [{ data: broadcastState }, sponsors] = await Promise.all([
     supabase.from("broadcast_state").select("*").eq("floor_id", floorId).single(),
-    supabase
-      .from("sponsors")
-      .select("id, business_name, tier")
-      .eq("active", true)
-      .or(`event_id.eq.${context.eventId},event_id.is.null`),
+    getEventSponsors(context.eventId),
   ]);
 
   return (
@@ -35,7 +44,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ floo
       eventName={context.eventName}
       heats={context.heats}
       initialBroadcastState={broadcastState ?? null}
-      sponsors={sponsors ?? []}
+      sponsors={sponsors.map(toBroadcastSponsor)}
     />
   );
 }

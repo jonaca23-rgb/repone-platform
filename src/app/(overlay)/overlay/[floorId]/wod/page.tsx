@@ -9,7 +9,17 @@ export default async function WodOverlayPage({ params }: { params: Promise<{ flo
   if (!context) notFound();
 
   const supabase = await createClient();
-  const { data: broadcastState } = await supabase.from("broadcast_state").select("*").eq("floor_id", floorId).single();
+  const { data: broadcastState } = await supabase
+    .from("broadcast_state")
+    .select("*")
+    .eq("floor_id", floorId)
+    .single();
 
-  return <WodOverlayClient floorId={floorId} heats={context.heats} initialBroadcastState={broadcastState ?? null} />;
+  return (
+    <WodOverlayClient
+      floorId={floorId}
+      heats={context.heats}
+      initialBroadcastState={broadcastState ?? null}
+    />
+  );
 }

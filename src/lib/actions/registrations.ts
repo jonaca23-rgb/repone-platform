@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { z } from "zod";
+import { type ActionFailure, type ActionResult, fail, ok } from "@/lib/action-result";
+import { expectChanged, requireEventAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
+import { field, parseForm } from "@/lib/validation/form";
+import { safeAction } from "./safeAction";
 
 // Registering a whole category (e.g. 15 athletes into "Rx Male") one at a
 // time means re-picking the same division every single submit. Remembering
@@ -15,91 +20,125 @@ function lastDivisionCookieName(eventId: string) {
   return `repone_last_division_${eventId}`;
 }
 
+const AthleteRegistrationForm = z.object({
+  division_id: field.id("Division"),
+  athlete_id: field.id("Athlete"),
+  bib_number: field.optionalText({ max: 20, label: "Bib number" }),
+});
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+const TEAM_DIVISION = "That division is for teams. Add the athlete to a team instead.";
+
 /**
- * Returns `{ error }` instead of throwing so it plugs into `useActionState`
- * (see RegisterForms.tsx) — a thrown error here used to surface as Next's
- * full-page/dev error overlay instead of a normal, dismissable alert.
+ * The division must belong to this event and be for individuals (a team
+ * division is entered by creating a team, see ./teams); returns the failure,
+ * or null.
  */
-export async function registerAthlete(
+async function divisionFailure(
+  supabase: Supabase,
   eventId: string,
-  _prevState: { error: string },
-  formData: FormData
-): Promise<{ error: string }> {
-  const division_id = String(formData.get("division_id") ?? "");
-  const athlete_id = String(formData.get("athlete_id") ?? "");
-  const bib_number = String(formData.get("bib_number") ?? "") || null;
-  if (!division_id || !athlete_id) return { error: "Division and athlete are required." };
-
-  const supabase = await createClient();
-
-  // Registering the same athlete into the same division twice used to go
-  // through silently — generateHeats() then had two registration rows to
-  // place, which could land the same athlete in two lanes of one heat (a
-  // duplicate-key crash on Score Keeper, and a real double-booking).
-  const { data: existing } = await supabase
-    .from("registrations")
-    .select("id")
+  divisionId: string,
+): Promise<ActionFailure | null> {
+  const { data, error } = await supabase
+    .from("divisions")
+    .select("id, entry_format")
+    .eq("id", divisionId)
     .eq("event_id", eventId)
-    .eq("division_id", division_id)
-    .eq("athlete_id", athlete_id)
     .maybeSingle();
-  if (existing) return { error: "This athlete is already registered in this division/category." };
-
-  const { error } = await supabase
-    .from("registrations")
-    .insert({ event_id: eventId, division_id, athlete_id, bib_number });
-  if (error) {
-    // 23505 = unique_violation — DB-level backstop from
-    // 0012_prevent_duplicate_lane_and_registration_assignments.sql.
-    if (error.code === "23505") return { error: "This athlete is already registered in this division/category." };
-    return { error: error.message };
+  if (error) return fail(error.message);
+  if (!data) {
+    return fail("That division isn't part of this event.", {
+      division_id: ["Choose one of this event's divisions."],
+    });
   }
-
-  const cookieStore = await cookies();
-  cookieStore.set(lastDivisionCookieName(eventId), division_id, { maxAge: 60 * 60 * 24 * 180, sameSite: "lax" });
-
-  revalidatePath(`/admin/events/${eventId}/athletes`);
-  return { error: "" };
+  return data.entry_format === "individual"
+    ? null
+    : fail(TEAM_DIVISION, { division_id: [TEAM_DIVISION] });
 }
 
-export async function registerTeam(
-  eventId: string,
-  _prevState: { error: string },
-  formData: FormData
-): Promise<{ error: string }> {
-  const division_id = String(formData.get("division_id") ?? "");
-  const team_id = String(formData.get("team_id") ?? "");
-  const bib_number = String(formData.get("bib_number") ?? "") || null;
-  if (!division_id || !team_id) return { error: "Division and team are required." };
-
-  const supabase = await createClient();
-
-  const { data: existing } = await supabase
-    .from("registrations")
-    .select("id")
-    .eq("event_id", eventId)
-    .eq("division_id", division_id)
-    .eq("team_id", team_id)
-    .maybeSingle();
-  if (existing) return { error: "This team is already registered in this division/category." };
-
-  const { error } = await supabase
-    .from("registrations")
-    .insert({ event_id: eventId, division_id, team_id, bib_number });
-  if (error) {
-    if (error.code === "23505") return { error: "This team is already registered in this division/category." };
-    return { error: error.message };
-  }
-
+async function rememberDivision(eventId: string, divisionId: string) {
   const cookieStore = await cookies();
-  cookieStore.set(lastDivisionCookieName(eventId), division_id, { maxAge: 60 * 60 * 24 * 180, sameSite: "lax" });
-
-  revalidatePath(`/admin/events/${eventId}/athletes`);
-  return { error: "" };
+  cookieStore.set(lastDivisionCookieName(eventId), divisionId, {
+    maxAge: 60 * 60 * 24 * 180,
+    sameSite: "lax",
+  });
 }
 
-export async function removeRegistration(eventId: string, registrationId: string) {
-  const supabase = await createClient();
-  await supabase.from("registrations").delete().eq("id", registrationId);
-  revalidatePath(`/admin/events/${eventId}/athletes`);
+export async function registerAthlete(eventId: string, formData: FormData): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { organizationId } = await requireEventAccess(eventId);
+    const { division_id, athlete_id, bib_number } = parseForm(AthleteRegistrationForm, formData);
+    const supabase = await createClient();
+
+    const divisionProblem = await divisionFailure(supabase, eventId, division_id);
+    if (divisionProblem) return divisionProblem;
+
+    const { data: athlete, error: athleteError } = await supabase
+      .from("athletes")
+      .select("id")
+      .eq("id", athlete_id)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (athleteError) return fail(athleteError.message);
+    if (!athlete) return fail("That athlete isn't in this event's organization.");
+
+    const { data: existing, error: existingError } = await supabase
+      .from("registrations")
+      .select("id")
+      .eq("event_id", eventId)
+      .eq("division_id", division_id)
+      .eq("athlete_id", athlete_id)
+      .maybeSingle();
+    if (existingError) return fail(existingError.message);
+    if (existing) return fail("This athlete is already registered in this division/category.");
+
+    const { error } = await supabase
+      .from("registrations")
+      .insert({ event_id: eventId, division_id, athlete_id, bib_number });
+    if (error) {
+      if (error.code === "23505")
+        return fail("This athlete is already registered in this division/category.");
+      return fail(error.message);
+    }
+
+    await rememberDivision(eventId, division_id);
+    revalidatePath(`/admin/events/${eventId}/athletes`);
+    return ok();
+  });
+}
+
+export async function removeRegistration(
+  eventId: string,
+  registrationId: string,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    await requireEventAccess(eventId);
+    const supabase = await createClient();
+
+    // A team's registration goes with the team: removing it alone would leave
+    // a team that never reaches heats or payments.
+    const { data: registration, error } = await supabase
+      .from("registrations")
+      .select("team_id")
+      .eq("id", registrationId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (registration?.team_id) {
+      return fail("A team's registration goes with the team. Delete the team on the Teams page.");
+    }
+
+    expectChanged(
+      await supabase
+        .from("registrations")
+        .delete()
+        .eq("id", registrationId)
+        .eq("event_id", eventId)
+        .select("id"),
+      "remove the registration",
+    );
+    revalidatePath(`/admin/events/${eventId}/athletes`);
+    return ok();
+  });
 }

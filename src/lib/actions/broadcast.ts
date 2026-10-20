@@ -1,183 +1,287 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { type ActionResult, fail, ok } from "@/lib/action-result";
+import { requireFloorAccess } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
-import { computeElapsedSeconds } from "@/lib/timer/compute";
-import type { ActiveGraphic, TimerDirection } from "@/lib/db/database.types";
+import { Constants } from "@/lib/db/supabase.types";
+import type { ActiveGraphic, Database, Json, TimerDirection } from "@/lib/db/database.types";
+import { parseArg } from "@/lib/validation/form";
+import { safeAction } from "./safeAction";
 
+type BroadcastStatePatch = Database["public"]["Tables"]["broadcast_state"]["Update"];
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+// Every action here is driven from the producer's board: an org manager or
+// a producer assigned to the floor's event may run it (requireFloorAccess).
+// The event is resolved from the floor on the server; it's what goes into
+// the operator log.
+
+const Id = (label: string) => z.guid({ error: `${label} is missing or invalid.` });
+const Graphic = z.enum(Constants.public.Enums.active_graphic, { error: "Choose a valid graphic." });
+const Direction = z.enum(Constants.public.Enums.timer_direction, {
+  error: "Choose a valid timer direction.",
+});
+// A day is far beyond any WOD; the bound just keeps garbage out of the RPC.
+const Duration = z
+  .number({ error: "Timer duration must be a number." })
+  .int("Timer duration must be whole seconds.")
+  .min(0, "Timer duration can't be negative.")
+  .max(86_400, "Timer duration is too long.");
+const Delta = z
+  .number({ error: "Timer adjustment must be a number." })
+  .int("Timer adjustment must be whole seconds.")
+  .min(-86_400, "Timer adjustment is too large.")
+  .max(86_400, "Timer adjustment is too large.");
+
+/**
+ * The operator log is an audit trail, not part of the action: a failed insert
+ * is reported on the server but never fails the broadcast change itself.
+ */
 async function logAction(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  eventId: string | null,
+  supabase: SupabaseServerClient,
+  userId: string,
+  eventId: string,
   floorId: string,
   action: string,
-  details?: Record<string, unknown>
+  details?: { [key: string]: Json | undefined },
 ) {
-  const ctx = await getSessionContext();
-  await supabase.from("operator_actions").insert({
+  const { error } = await supabase.from("operator_actions").insert({
     event_id: eventId,
     floor_id: floorId,
-    user_id: ctx?.userId ?? null,
+    user_id: userId,
     action,
     details: details ?? null,
   });
+  if (error) console.error(`operator_actions insert failed (${action}): ${error.message}`);
+}
+
+const NOT_AVAILABLE = "This floor's broadcast controls aren't available to your account.";
+
+/**
+ * Every write to a floor's broadcast_state goes through here. False when the
+ * update matched no row (floor without broadcast state, or RLS denying this
+ * user), which used to "succeed" silently.
+ */
+async function updateBroadcastState(
+  supabase: SupabaseServerClient,
+  floorId: string,
+  patch: BroadcastStatePatch,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("broadcast_state")
+    .update(patch)
+    .eq("floor_id", floorId)
+    .select("floor_id");
+  if (error) throw new Error(error.message);
+  return Boolean(data?.length);
 }
 
 /** Operator selects WOD -> Heat: this one write prepares every downstream graphic. */
-export async function setCurrentHeat(floorId: string, heatId: string, eventId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ current_heat_id: heatId })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "heat_change", { heatId });
-  revalidatePath("/dashboard");
+export async function setCurrentHeat(floorId: string, heatId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx, eventId } = await requireFloorAccess(floorId, ["producer"]);
+    parseArg(Id("Heat"), heatId);
+
+    const supabase = await createClient();
+    const { data: heat, error } = await supabase
+      .from("heats")
+      .select("id")
+      .eq("id", heatId)
+      .eq("floor_id", floorId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!heat) return fail("That heat isn't on this floor.");
+
+    if (!(await updateBroadcastState(supabase, floorId, { current_heat_id: heatId }))) {
+      return fail(NOT_AVAILABLE);
+    }
+    await logAction(supabase, ctx.userId, eventId, floorId, "heat_change", { heatId });
+    return ok();
+  });
 }
 
-export async function setActiveGraphic(floorId: string, graphic: ActiveGraphic, eventId: string | null) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("broadcast_state").update({ active_graphic: graphic }).eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "graphic_show", { graphic });
+export async function setActiveGraphic(
+  floorId: string,
+  graphic: ActiveGraphic,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx, eventId } = await requireFloorAccess(floorId, ["producer"]);
+    const active_graphic = parseArg(Graphic, graphic);
+
+    const supabase = await createClient();
+    if (!(await updateBroadcastState(supabase, floorId, { active_graphic }))) {
+      return fail(NOT_AVAILABLE);
+    }
+    await logAction(supabase, ctx.userId, eventId, floorId, "graphic_show", {
+      graphic: active_graphic,
+    });
+    return ok();
+  });
 }
 
-export async function setLowerThird(floorId: string, athleteId: string | null, eventId: string | null) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ lower_third_athlete_id: athleteId, active_graphic: athleteId ? "lower_third" : "none" })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, athleteId ? "lower_third_show" : "lower_third_hide", { athleteId });
+export async function setLowerThird(
+  floorId: string,
+  athleteId: string | null,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx, eventId } = await requireFloorAccess(floorId, ["producer"]);
+    const supabase = await createClient();
+
+    if (athleteId !== null) {
+      parseArg(Id("Athlete"), athleteId);
+      // Only someone laned in a heat on this floor can be put on screen here.
+      const { data: lane, error } = await supabase
+        .from("lanes")
+        .select("id, heats!inner(floor_id)")
+        .eq("athlete_id", athleteId)
+        .eq("heats.floor_id", floorId)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!lane) return fail("That athlete isn't in a heat on this floor.");
+    }
+
+    const changed = await updateBroadcastState(supabase, floorId, {
+      lower_third_athlete_id: athleteId,
+      active_graphic: athleteId ? "lower_third" : "none",
+    });
+    if (!changed) return fail(NOT_AVAILABLE);
+    await logAction(
+      supabase,
+      ctx.userId,
+      eventId,
+      floorId,
+      athleteId ? "lower_third_show" : "lower_third_hide",
+      { athleteId },
+    );
+    return ok();
+  });
 }
 
-export async function setActiveSponsor(floorId: string, sponsorId: string | null, eventId: string | null) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ active_sponsor_id: sponsorId, active_graphic: sponsorId ? "sponsor" : "none" })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "sponsor_show", { sponsorId });
+export async function setActiveSponsor(
+  floorId: string,
+  sponsorId: string | null,
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx, eventId } = await requireFloorAccess(floorId, ["producer"]);
+    const supabase = await createClient();
+
+    if (sponsorId !== null) {
+      parseArg(Id("Sponsor"), sponsorId);
+      // Same list the board shows: the event's active sponsorships.
+      const { data: sponsorship, error } = await supabase
+        .from("event_sponsorships")
+        .select("id, sponsors(active)")
+        .eq("event_id", eventId)
+        .eq("sponsor_id", sponsorId)
+        .eq("active", true)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!sponsorship) return fail("That sponsor isn't part of this event.");
+      // Floor staff can't read a sponsor switched off org-wide (RLS shows
+      // the public only active ones), so a hidden sponsor counts as off.
+      if (!sponsorship.sponsors?.active) {
+        return fail("That sponsor is switched off for your organization.");
+      }
+    }
+
+    const changed = await updateBroadcastState(supabase, floorId, {
+      active_sponsor_id: sponsorId,
+      active_graphic: sponsorId ? "sponsor" : "none",
+    });
+    if (!changed) return fail(NOT_AVAILABLE);
+    await logAction(supabase, ctx.userId, eventId, floorId, "sponsor_show", { sponsorId });
+    return ok();
+  });
 }
 
-export async function clearGraphics(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  await supabase
-    .from("broadcast_state")
-    .update({ active_graphic: "none", lower_third_athlete_id: null, active_sponsor_id: null })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "clear_graphics");
+export async function clearGraphics(floorId: string): Promise<ActionResult> {
+  return safeAction(async () => {
+    const { ctx, eventId } = await requireFloorAccess(floorId, ["producer"]);
+    const supabase = await createClient();
+    const changed = await updateBroadcastState(supabase, floorId, {
+      active_graphic: "none",
+      lower_third_athlete_id: null,
+      active_sponsor_id: null,
+    });
+    if (!changed) return fail(NOT_AVAILABLE);
+    await logAction(supabase, ctx.userId, eventId, floorId, "clear_graphics");
+    return ok();
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Timer — server-authoritative. See src/lib/timer/compute.ts for the math
-// every client (dashboard + overlay) uses to derive the current display value
-// from this same anchor, so nothing runs its own independent countdown.
+// Timer — server-authoritative. Every transition runs in timer_command()
+// (0027_timer_command.sql): one locked row, the database clock, and commands
+// that don't apply to the current state (resume while running, pause while
+// idle) are no-ops. Clients derive the display from the anchor with
+// src/lib/timer/compute.ts; nothing runs its own countdown.
 // ---------------------------------------------------------------------------
+
+type FloorAccess = Awaited<ReturnType<typeof requireFloorAccess>>;
+
+async function timerCommand(
+  { ctx, eventId, floorId }: FloorAccess,
+  command: "start" | "pause" | "resume" | "reset" | "adjust",
+  args: {
+    p_direction?: TimerDirection;
+    p_duration_seconds?: number;
+    p_delta_seconds?: number;
+  } = {},
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("timer_command", {
+    p_floor_id: floorId,
+    p_command: command,
+    ...args,
+  });
+  // timer_command() runs as the caller, so a floor whose broadcast state is
+  // missing or hidden by RLS raises this — the same case as an update that
+  // matches no row.
+  if (error?.message.includes("has no broadcast state")) return fail(NOT_AVAILABLE);
+  if (error) throw new Error(error.message);
+  await logAction(supabase, ctx.userId, eventId, floorId, `timer_${command}`, args);
+  return ok();
+}
 
 export async function startTimer(
   floorId: string,
   direction: TimerDirection,
   durationSeconds: number,
-  eventId: string | null
-) {
-  const supabase = await createClient();
-  const nowIso = new Date().toISOString();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({
-      timer_status: "running",
-      timer_direction: direction,
-      timer_duration_seconds: durationSeconds,
-      timer_elapsed_at_anchor: 0,
-      timer_anchor_time: nowIso,
-      active_graphic: "timer",
-    })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "timer_start", { direction, durationSeconds });
+): Promise<ActionResult> {
+  return safeAction(async () => {
+    const access = await requireFloorAccess(floorId, ["producer"]);
+    return timerCommand(access, "start", {
+      p_direction: parseArg(Direction, direction),
+      p_duration_seconds: parseArg(Duration, durationSeconds),
+    });
+  });
 }
 
-export async function pauseTimer(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  const { data: state } = await supabase
-    .from("broadcast_state")
-    .select("timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time")
-    .eq("floor_id", floorId)
-    .single();
-  if (!state || state.timer_status !== "running") return;
-
-  const elapsed = computeElapsedSeconds(
-    {
-      status: "running",
-      direction: state.timer_direction,
-      durationSeconds: state.timer_duration_seconds,
-      elapsedAtAnchor: state.timer_elapsed_at_anchor,
-      anchorTimeMs: state.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
-    },
-    Date.now()
+export async function pauseTimer(floorId: string): Promise<ActionResult> {
+  return safeAction(async () =>
+    timerCommand(await requireFloorAccess(floorId, ["producer"]), "pause"),
   );
-
-  await supabase
-    .from("broadcast_state")
-    .update({ timer_status: "paused", timer_elapsed_at_anchor: elapsed, timer_anchor_time: null })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "timer_pause", { elapsed });
 }
 
-export async function resumeTimer(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("broadcast_state")
-    .update({ timer_status: "running", timer_anchor_time: new Date().toISOString() })
-    .eq("floor_id", floorId);
-  if (error) throw new Error(error.message);
-  await logAction(supabase, eventId, floorId, "timer_resume");
+export async function resumeTimer(floorId: string): Promise<ActionResult> {
+  return safeAction(async () =>
+    timerCommand(await requireFloorAccess(floorId, ["producer"]), "resume"),
+  );
 }
 
-export async function resetTimer(floorId: string, eventId: string | null) {
-  const supabase = await createClient();
-  await supabase
-    .from("broadcast_state")
-    .update({ timer_status: "idle", timer_elapsed_at_anchor: 0, timer_anchor_time: null })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "timer_reset");
+export async function resetTimer(floorId: string): Promise<ActionResult> {
+  return safeAction(async () =>
+    timerCommand(await requireFloorAccess(floorId, ["producer"]), "reset"),
+  );
 }
 
 /** +/- adjustment (in seconds) applied to the timer while preserving running/paused state. */
-export async function adjustTimer(floorId: string, deltaSeconds: number, eventId: string | null) {
-  const supabase = await createClient();
-  const { data: state } = await supabase
-    .from("broadcast_state")
-    .select("timer_status, timer_direction, timer_duration_seconds, timer_elapsed_at_anchor, timer_anchor_time")
-    .eq("floor_id", floorId)
-    .single();
-  if (!state) return;
-
-  const nowMs = Date.now();
-  const currentElapsed = computeElapsedSeconds(
-    {
-      status: state.timer_status,
-      direction: state.timer_direction,
-      durationSeconds: state.timer_duration_seconds,
-      elapsedAtAnchor: state.timer_elapsed_at_anchor,
-      anchorTimeMs: state.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
-    },
-    nowMs
-  );
-
-  // For count_down, "+" adds time on the clock (less elapsed); for count_up, "+" adds elapsed.
-  const sign = state.timer_direction === "count_down" ? -1 : 1;
-  const newElapsed = Math.max(0, currentElapsed + sign * deltaSeconds);
-
-  await supabase
-    .from("broadcast_state")
-    .update({
-      timer_elapsed_at_anchor: newElapsed,
-      timer_anchor_time: state.timer_status === "running" ? new Date(nowMs).toISOString() : null,
-    })
-    .eq("floor_id", floorId);
-  await logAction(supabase, eventId, floorId, "timer_adjust", { deltaSeconds });
+export async function adjustTimer(floorId: string, deltaSeconds: number): Promise<ActionResult> {
+  return safeAction(async () => {
+    const access = await requireFloorAccess(floorId, ["producer"]);
+    return timerCommand(access, "adjust", { p_delta_seconds: parseArg(Delta, deltaSeconds) });
+  });
 }

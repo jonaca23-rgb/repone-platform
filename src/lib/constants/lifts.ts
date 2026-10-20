@@ -43,4 +43,14 @@ export const LIFT_LABELS: Record<LiftName, string> = {
 
 // Suggestions only, shown in the benchmark name's datalist — athletes can log
 // any named (or custom) benchmark, this just pre-fills the common ones.
-export const COMMON_BENCHMARKS = ["Fran", "Karen", "Isabel", "Grace", "Diane", "Helen", "Cindy", "Annie", "Murph"];
+export const COMMON_BENCHMARKS = [
+  "Fran",
+  "Karen",
+  "Isabel",
+  "Grace",
+  "Diane",
+  "Helen",
+  "Cindy",
+  "Annie",
+  "Murph",
+];

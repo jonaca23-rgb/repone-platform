@@ -1,20 +1,37 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { assignLane } from "@/lib/actions/lanes";
+import { useServerAction } from "@/lib/use-server-action";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NONE } from "@/lib/validation/none";
 
-interface Registration {
-  athlete_id: string | null;
-  athletes: { id: string; first_name: string; last_name: string } | null;
+/** Someone who can take a lane in this heat: one of its division's athletes or teams. */
+export interface LaneOption {
+  id: string;
+  label: string;
 }
 
 /**
- * One lane's "who's in this lane" picker. A Client Component (not the plain
- * server-action `<form>` this used to be) so a duplicate-athlete attempt can
- * come back as a normal, dismissable alert instead of crashing into Next's
- * full-page error overlay with no way back to the heat — `assignLane` now
- * returns `{ error }` instead of throwing, and `useActionState` surfaces it
- * both inline (for anyone who missed the popup) and via `window.alert`.
+ * One lane's "who's in this lane" picker (an athlete, or a team in a team
+ * division), saved on its own. A duplicate
+ * comes back from `assignLane` as a result and shows as a toast plus an
+ * inline message. "Empty" posts NONE, which the action reads as blank and
+ * clears the lane. (One Select per lane, so FormData + zod, not TanStack Form.)
+ *
+ * A lane can hold someone the picker doesn't offer: an athlete in a team
+ * division (left from before 0036), or someone no longer registered in the
+ * division. They show by name with the reason, not as a blank lane, and
+ * saving another choice replaces them.
  *
  * `conflictMessage`, when set, is a pre-existing duplicate the parent Server
  * Component already detected on page load (before any save attempt) — shown
@@ -24,57 +41,111 @@ export function LaneAssignmentForm({
   eventId,
   heatId,
   lane,
-  registrations,
+  kind,
+  options,
   conflictMessage,
 }: {
   eventId: string;
   heatId: string;
-  lane: { id: string; lane_number: number; athlete_id: string | null };
-  registrations: Registration[];
+  lane: {
+    id: string;
+    lane_number: number;
+    occupant: { id: string; label: string; kind: "athlete" | "team" } | null;
+  };
+  kind: "athlete" | "team";
+  options: LaneOption[];
   conflictMessage?: string;
 }) {
-  const [state, formAction, pending] = useActionState(assignLane.bind(null, eventId, heatId, lane.id), {
-    error: "",
+  const save = useServerAction((fd: FormData) => assignLane(eventId, heatId, lane.id, fd), {
+    success: `Lane ${lane.lane_number} saved`,
   });
-  const lastAlerted = useRef<string>("");
-
-  useEffect(() => {
-    if (state.error && state.error !== lastAlerted.current) {
-      lastAlerted.current = state.error;
-      window.alert(state.error);
-    }
-  }, [state.error]);
-
-  const message = state.error || conflictMessage;
+  const pending = save.isPending;
+  const selectId = `lane-${lane.id}`;
+  const { occupant } = lane;
+  const wrongKind = occupant !== null && occupant.kind !== kind;
+  const stray =
+    occupant && !options.some((o) => o.id === occupant.id)
+      ? {
+          id: occupant.id,
+          label: `${occupant.label} (${wrongKind ? "wrong kind for this division" : "not registered in this division"})`,
+        }
+      : null;
+  // A wrong-kind occupant can only be replaced: saving it as it is would
+  // post an athlete as a team (or the reverse), which the action can only
+  // refuse in its own terms.
+  const [mustReplace, setMustReplace] = useState(false);
+  const message =
+    (mustReplace && occupant
+      ? `Choose ${kind === "team" ? "a team" : "an athlete"}, or Empty, to replace ${occupant.label} in lane ${lane.lane_number}.`
+      : null) ||
+    save.error?.message ||
+    conflictMessage;
 
   return (
     <div>
       <form
-        action={formAction}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          const chosen = fd.get(kind === "team" ? "team_id" : "athlete_id");
+          if (wrongKind && chosen === occupant?.id) {
+            setMustReplace(true);
+            return;
+          }
+          setMustReplace(false);
+          save.mutate(fd);
+        }}
         className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
-          message ? "border-red-500 bg-red-50" : "border-black/10"
+          message ? "border-destructive bg-destructive/10" : "border-border bg-card"
         }`}
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-repone-black text-sm font-bold text-white">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-primary font-display text-base font-bold text-primary-foreground">
           {lane.lane_number}
         </span>
-        <select
-          name="athlete_id"
-          defaultValue={lane.athlete_id ?? ""}
-          className={`flex-1 rounded-md border px-2 py-1.5 text-sm ${message ? "border-red-500" : "border-black/20"}`}
+        <Label htmlFor={selectId} className="sr-only">
+          Lane {lane.lane_number} {kind}
+        </Label>
+        <Select
+          name={kind === "team" ? "team_id" : "athlete_id"}
+          defaultValue={occupant?.id ?? NONE}
+          onValueChange={() => setMustReplace(false)}
         >
-          <option value="">— empty —</option>
-          {registrations.map((r) => (
-            <option key={r.athlete_id} value={r.athlete_id ?? ""}>
-              {r.athletes?.first_name} {r.athletes?.last_name}
-            </option>
-          ))}
-        </select>
-        <button disabled={pending} className="text-xs font-semibold uppercase text-repone-red disabled:opacity-50">
+          <SelectTrigger
+            id={selectId}
+            aria-invalid={message ? true : undefined}
+            className="min-w-0 flex-1"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>Empty</SelectItem>
+            {stray ? <SelectItem value={stray.id}>{stray.label}</SelectItem> : null}
+            {options.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          className="max-sm:min-h-11"
+        >
           {pending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </form>
-      {message && <p className="mt-1 pl-11 text-xs font-semibold text-red-600">⚠ {message}</p>}
+      {message && (
+        <p
+          role="alert"
+          className="mt-1 flex items-start gap-1 pl-11 text-sm font-semibold text-destructive"
+        >
+          <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+          {message}
+        </p>
+      )}
     </div>
   );
 }

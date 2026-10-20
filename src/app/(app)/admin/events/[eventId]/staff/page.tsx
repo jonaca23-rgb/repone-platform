@@ -1,15 +1,20 @@
-import { notFound } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { getSessionContext, orgCan } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/server";
-import { getEventStaffCandidates, getDisplayNamesByUserId, type StaffCandidate } from "@/lib/auth/eventStaffCandidates";
-import {
-  assignEventScorekeeper,
-  removeEventScorekeeper,
-  assignEventProducer,
-  removeEventProducer,
-  assignEventCommentator,
-  removeEventCommentator,
-} from "@/lib/actions/eventStaff";
+import { getDisplayNamesByUserId } from "@/lib/db/people";
+import { emailsByUserId, isPending } from "@/lib/auth/invite";
+import { PageHeader } from "@/components/app/PageHeader";
+import { AdminBreadcrumb, eventCrumbs } from "@/components/shells/AdminBreadcrumb";
+import { getAdminEvent } from "../adminEvent";
+import { type StaffRow, StaffTable } from "./StaffTable";
+
+type Props = { params: Promise<{ eventId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getAdminEvent((await params).eventId);
+  return { title: event ? `Staff · ${event.name}` : "Staff" };
+}
 
 interface AssignmentRow {
   id: string;
@@ -18,28 +23,31 @@ interface AssignmentRow {
 }
 
 /**
- * Assign Scorekeeper/Producer/Commentator staff to this event
+ * Invite Scorekeeper/Producer/Commentator staff to this event by email
  * (event_scorekeeper_assignments / event_producer_assignments /
  * event_commentator_assignments, 0024_event_role_assignments.sql).
  *
- * Per Jonathan: the candidate pool isn't limited to existing staff profiles
- * (today that's only ever the admin — there's still no separate staff
- * invite flow, see architecture/rbac-audit-and-plan.md, §1/§8) — it also
- * includes any athlete who already has a real Supabase Auth account
- * (signed up through the Athlete Portal). Nothing about these assignment
- * tables cares whether the assigned account is "staff" or "athlete";
- * see lib/auth/eventStaffCandidates.ts for why that widening is safe.
+ * An email with no account becomes a verified account with an invitation to
+ * set a password; an existing account (staff or athlete) is just given access
+ * and told so. See lib/auth/invite.ts. Rows whose person has never signed in
+ * show as pending, with Resend.
  */
-export default async function EventStaffPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function EventStaffPage({ params }: Props) {
   const { eventId } = await params;
   const ctx = await getSessionContext();
+  // The page reads staff emails over the owner connection (invite.ts), so it
+  // is for people who may invite staff to this organization's events.
+  if (!orgCan(ctx, { staff: ["invite"] })) redirect("/admin");
   const supabase = await createClient();
 
-  const { data: event } = await supabase.from("events").select("id, name").eq("id", eventId).single();
-  if (!event) notFound();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, name, organization_id")
+    .eq("id", eventId)
+    .single();
+  if (!event || event.organization_id !== ctx!.organizationId) notFound();
 
-  const [candidates, { data: scorekeepers }, { data: producers }, { data: commentators }] = await Promise.all([
-    getEventStaffCandidates(ctx?.organizationId ?? null),
+  const [{ data: scorekeepers }, { data: producers }, { data: commentators }] = await Promise.all([
     supabase
       .from("event_scorekeeper_assignments")
       .select("id, scorekeeper_user_id")
@@ -57,145 +65,55 @@ export default async function EventStaffPage({ params }: { params: Promise<{ eve
       .eq("status", "active"),
   ]);
 
-  const scorekeeperRows: AssignmentRow[] = (scorekeepers ?? []).map((s) => ({ id: s.id, user_id: s.scorekeeper_user_id }));
-  const producerRows: AssignmentRow[] = (producers ?? []).map((p) => ({ id: p.id, user_id: p.producer_user_id }));
+  const scorekeeperRows: AssignmentRow[] = (scorekeepers ?? []).map((s) => ({
+    id: s.id,
+    user_id: s.scorekeeper_user_id,
+  }));
+  const producerRows: AssignmentRow[] = (producers ?? []).map((p) => ({
+    id: p.id,
+    user_id: p.producer_user_id,
+  }));
   const commentatorRows: AssignmentRow[] = (commentators ?? []).map((c) => ({
     id: c.id,
     user_id: c.commentator_user_id,
     role_label: c.role_label,
   }));
 
-  // Candidates already carry a good label ("Name (Staff)"/"Name (Athlete)")
-  // for the dropdown, but assignment rows only store a user_id — resolve
-  // those the same way so an already-assigned athlete shows their real name
-  // instead of "Unknown".
-  const assignedUserIds = [...scorekeeperRows, ...producerRows, ...commentatorRows].map((r) => r.user_id);
-  const resolvedNames = await getDisplayNamesByUserId(assignedUserIds);
-  const candidateLabelById = new Map(candidates.map((c) => [c.userId, c.label]));
+  // Someone invited by email has no name yet; their email stands in.
+  const assignedUserIds = [
+    ...new Set([...scorekeeperRows, ...producerRows, ...commentatorRows].map((r) => r.user_id)),
+  ];
+  const [names, emails, pending] = await Promise.all([
+    getDisplayNamesByUserId(assignedUserIds),
+    emailsByUserId(assignedUserIds),
+    isPending(assignedUserIds),
+  ]);
   const nameById = new Map(
-    assignedUserIds.map((id) => [id, candidateLabelById.get(id) ?? resolvedNames.get(id) ?? "Unknown account"])
+    assignedUserIds.map((id) => [id, names.get(id) ?? emails.get(id) ?? "Unknown account"]),
   );
 
+  const rows: StaffRow[] = [
+    ...scorekeeperRows.map((r) => ({ ...r, role: "scorekeeper" as const })),
+    ...producerRows.map((r) => ({ ...r, role: "producer" as const })),
+    ...commentatorRows.map((r) => ({ ...r, role: "commentator" as const })),
+  ].map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    role: r.role,
+    name: nameById.get(r.user_id) ?? "Unknown account",
+    email: emails.get(r.user_id) ?? null,
+    roleLabel: r.role_label ?? null,
+    pending: pending.has(r.user_id),
+  }));
+
   return (
-    <div className="flex flex-col gap-8">
-      <p className="text-sm text-black/50">
-        Assign existing staff or athlete accounts to <strong>{event.name}</strong>. Each role only gets access to
-        this event — not every event in the org.
-      </p>
-
-      <StaffRoleSection
-        title="Scorekeepers"
-        description="Can enter/save scores, view heats, lanes, and standings for this event."
-        rows={scorekeeperRows}
-        nameById={nameById}
-        candidates={candidates}
-        assignAction={assignEventScorekeeper.bind(null, eventId)}
-        removeAction={removeEventScorekeeper.bind(null, eventId)}
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Staff"
+        description={`Who works ${event.name}, and in which role. Each role only gets access to this event.`}
+        breadcrumb={<AdminBreadcrumb items={eventCrumbs(event, { label: "Staff" })} />}
       />
-
-      <StaffRoleSection
-        title="Producers"
-        description="Full production access for this event only — heats, lanes, scores, broadcast control, sponsor triggers."
-        rows={producerRows}
-        nameById={nameById}
-        candidates={candidates}
-        assignAction={assignEventProducer.bind(null, eventId)}
-        removeAction={removeEventProducer.bind(null, eventId)}
-      />
-
-      <StaffRoleSection
-        title="Commentators"
-        description="Read-only access to the Commentator Dashboard for this event."
-        rows={commentatorRows}
-        nameById={nameById}
-        candidates={candidates}
-        assignAction={assignEventCommentator.bind(null, eventId)}
-        removeAction={removeEventCommentator.bind(null, eventId)}
-        showRoleLabel
-      />
+      <StaffTable eventId={eventId} eventName={event.name} rows={rows} />
     </div>
-  );
-}
-
-function StaffRoleSection({
-  title,
-  description,
-  rows,
-  nameById,
-  candidates,
-  assignAction,
-  removeAction,
-  showRoleLabel = false,
-}: {
-  title: string;
-  description: string;
-  rows: AssignmentRow[];
-  nameById: Map<string, string>;
-  candidates: StaffCandidate[];
-  assignAction: (formData: FormData) => Promise<void>;
-  removeAction: (assignmentId: string) => Promise<void>;
-  showRoleLabel?: boolean;
-}) {
-  const assignedIds = new Set(rows.map((r) => r.user_id));
-  const available = candidates.filter((c) => !assignedIds.has(c.userId));
-
-  return (
-    <section className="rounded-xl border border-black/10 p-5">
-      <h2 className="text-lg font-bold">{title}</h2>
-      <p className="mb-4 text-sm text-black/50">{description}</p>
-
-      <div className="mb-4 flex flex-col gap-2">
-        {rows.map((r) => (
-          <div key={r.id} className="flex items-center justify-between rounded-lg bg-black/5 px-4 py-2">
-            <span className="font-semibold">
-              {nameById.get(r.user_id) ?? "Unknown"}
-              {showRoleLabel && r.role_label ? (
-                <span className="ml-2 text-xs font-normal uppercase tracking-wide text-black/40">
-                  {r.role_label.replace(/_/g, " ")}
-                </span>
-              ) : null}
-            </span>
-            <form action={removeAction.bind(null, r.id)}>
-              <button type="submit" className="text-sm text-repone-red hover:underline">
-                Remove
-              </button>
-            </form>
-          </div>
-        ))}
-        {rows.length === 0 && <p className="text-sm text-black/40">Nobody assigned yet.</p>}
-      </div>
-
-      {available.length === 0 ? (
-        <p className="text-sm text-black/40">No other staff or athlete accounts available to assign.</p>
-      ) : (
-        <form action={assignAction} className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            Account
-            <select name="userId" required className="rounded-md border border-black/20 px-3 py-2">
-              {available.map((c) => (
-                <option key={c.userId} value={c.userId}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {showRoleLabel && (
-            <label className="flex flex-col gap-1 text-sm">
-              Role label (optional)
-              <select name="roleLabel" className="rounded-md border border-black/20 px-3 py-2">
-                <option value="">—</option>
-                <option value="main_commentator">Main Commentator</option>
-                <option value="co_commentator">Co-Commentator</option>
-                <option value="sideline_reporter">Sideline Reporter</option>
-                <option value="interviewer">Interviewer</option>
-              </select>
-            </label>
-          )}
-          <button type="submit" className="rounded-md bg-repone-red px-4 py-2 font-semibold text-white">
-            Assign
-          </button>
-        </form>
-      )}
-    </section>
   );
 }

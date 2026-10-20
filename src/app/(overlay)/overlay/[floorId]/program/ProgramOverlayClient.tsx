@@ -4,19 +4,25 @@ import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { useLiveTimer } from "@/lib/realtime/useLiveTimer";
 import { useStandings } from "@/lib/realtime/useStandings";
 import { useAthleteLookup } from "@/lib/realtime/useAthleteLookup";
+import { useHeatResults } from "@/lib/realtime/useHeatResults";
+import { HeatResults } from "@/components/graphics/HeatResults";
+import { formatResult } from "@/lib/scoring/formatResult";
+import type { ScoringType } from "@/lib/scoring/types";
 import { HeatIdentification } from "@/components/graphics/HeatIdentification";
 import { LanesBoard } from "@/components/graphics/LanesBoard";
 import { WodCard } from "@/components/graphics/WodCard";
-import { TimerDisplay } from "@/components/graphics/TimerDisplay";
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
+import { ClockBug } from "@/components/graphics/ClockBug";
 import { Leaderboard } from "@/components/graphics/Leaderboard";
 import { LowerThird } from "@/components/graphics/LowerThird";
 import { SponsorCard } from "@/components/graphics/SponsorCard";
-import { SPONSOR_TIER_LABELS } from "@/lib/constants/sponsors";
 import type { FloorHeat } from "@/lib/db/queries";
 import type { Database } from "@/lib/db/database.types";
+import type { BroadcastSponsor } from "@/lib/db/sponsors";
 
 type BroadcastStateRow = Database["public"]["Tables"]["broadcast_state"]["Row"];
-type Sponsor = { id: string; business_name: string; logo_url: string | null; tier: string };
+type Sponsor = BroadcastSponsor;
 
 export function ProgramOverlayClient({
   floorId,
@@ -39,63 +45,139 @@ export function ProgramOverlayClient({
     elapsedAtAnchor: state?.timer_elapsed_at_anchor ?? 0,
     anchorTimeMs: state?.timer_anchor_time ? new Date(state.timer_anchor_time).getTime() : null,
   });
-  const standings = useStandings(state?.active_graphic === "leaderboard" ? currentHeat?.division.id ?? null : null);
+  const standings = useStandings(
+    state?.active_graphic === "leaderboard" ? (currentHeat?.division.id ?? null) : null,
+  );
+  const heatResults = useHeatResults(
+    state?.active_graphic === "score" && currentHeat
+      ? { id: currentHeat.id, wodId: currentHeat.wod.id, divisionId: currentHeat.division.id }
+      : null,
+  );
   const lowerThirdAthlete = useAthleteLookup(state?.lower_third_athlete_id ?? null, eventId);
   const activeSponsor = sponsors.find((s) => s.id === state?.active_sponsor_id) ?? null;
 
   const graphic = state?.active_graphic ?? "none";
+  const heat = currentHeat;
 
   return (
-    <>
-      {graphic === "heat_intro" && currentHeat && (
-        <HeatIdentification
-          wodName={currentHeat.wod.name}
-          heatNumber={currentHeat.heatNumber}
-          heatCount={currentHeat.heatCount}
-          divisionName={currentHeat.division.name}
-          fullScreen
-        />
-      )}
-      {graphic === "lanes" && currentHeat && (
-        <LanesBoard
-          fullScreen
-          lanes={currentHeat.lanes.map((l) => ({ laneNumber: l.laneNumber, name: l.name, affiliate: l.affiliate }))}
-        />
-      )}
-      {graphic === "wod" && currentHeat && (
-        <WodCard
-          fullScreen
-          name={currentHeat.wod.name}
-          description={currentHeat.wod.description}
-          timeCapSeconds={currentHeat.wod.time_cap_seconds}
-        />
-      )}
-      {graphic === "timer" && <TimerDisplay fullScreen seconds={timer.displaySeconds} atLimit={timer.atLimit} />}
-      {graphic === "leaderboard" && currentHeat && (
-        <div className="flex h-screen w-screen items-center justify-center bg-repone-black">
-          <Leaderboard
-            title={`${currentHeat.division.name} — Overall`}
-            rows={standings.map((s) => ({ placement: s.placement, name: s.name, value: `${s.points ?? "—"} pts` }))}
+    <BroadcastStage>
+      {/* Cards fill the stage, one at a time: the old one leaves while the next comes in. */}
+      <Appear show={graphic === "heat_intro" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <HeatIdentification
+            wodName={heat.wod.name}
+            heatNumber={heat.heatNumber}
+            heatCount={heat.heatCount}
+            divisionName={heat.division.name}
+            fullScreen
           />
-        </div>
-      )}
-      {graphic === "sponsor" && activeSponsor && (
-        <SponsorCard
-          fullScreen
-          businessName={activeSponsor.business_name}
-          logoUrl={activeSponsor.logo_url}
-          tierLabel={SPONSOR_TIER_LABELS[activeSponsor.tier as keyof typeof SPONSOR_TIER_LABELS]}
-        />
-      )}
+        )}
+      </Appear>
+      <Appear show={graphic === "lanes" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <LanesBoard
+            fullScreen
+            lanes={heat.lanes.map((l) => ({
+              laneNumber: l.laneNumber,
+              name: l.name,
+              affiliate: l.affiliate,
+            }))}
+          />
+        )}
+      </Appear>
+      <Appear show={graphic === "wod" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <WodCard
+            fullScreen
+            name={heat.wod.name}
+            description={heat.wod.description}
+            timeCapSeconds={heat.wod.time_cap_seconds}
+          />
+        )}
+      </Appear>
+      <Appear show={graphic === "score" && !!heat} variant="rise" className="absolute inset-0">
+        {heat && (
+          <HeatResults
+            title={`${heat.wod.name} · Heat ${heat.heatNumber} — Results`}
+            rows={heat.lanes.map((l) => {
+              const id = l.athleteId ?? l.teamId;
+              const r = id ? heatResults.get(id) : undefined;
+              return {
+                laneNumber: l.laneNumber,
+                name: l.name ?? "—",
+                value: formatResult(r?.result ?? null, heat.wod.scoring_type as ScoringType),
+                placement: r?.placement ?? null,
+              };
+            })}
+          />
+        )}
+      </Appear>
+      <Appear
+        show={graphic === "leaderboard" && !!heat}
+        variant="rise"
+        className="absolute inset-0"
+      >
+        {heat && (
+          <Leaderboard
+            fullScreen
+            title={`${heat.division.name} — Overall`}
+            rows={standings.map((s) => ({
+              placement: s.placement,
+              name: s.name,
+              value: `${s.points ?? "—"} pts`,
+            }))}
+          />
+        )}
+      </Appear>
+      <Appear
+        show={graphic === "sponsor" && !!activeSponsor}
+        variant="rise"
+        className="absolute inset-0"
+      >
+        {activeSponsor && (
+          <SponsorCard
+            fullScreen
+            businessName={activeSponsor.business_name}
+            logoUrl={activeSponsor.logo_url}
+            packageName={activeSponsor.packageName}
+          />
+        )}
+      </Appear>
 
-      {/* Lower third renders as an overlay on top of whatever else is showing (or nothing). */}
-      {state?.lower_third_athlete_id && lowerThirdAthlete && (
-        <LowerThird
-          name={lowerThirdAthlete.name}
-          division={lowerThirdAthlete.division}
-          affiliate={lowerThirdAthlete.affiliate}
-        />
-      )}
-    </>
+      <SafeArea>
+        {/* The timer is corner bugs over live video, not a card. */}
+        <Appear
+          show={graphic === "timer" && !!heat}
+          variant="fade"
+          className="absolute top-0 left-0"
+        >
+          {heat && (
+            <HeatIdentification
+              wodName={heat.wod.name}
+              heatNumber={heat.heatNumber}
+              heatCount={heat.heatCount}
+              divisionName={heat.division.name}
+            />
+          )}
+        </Appear>
+        <Appear show={graphic === "timer"} variant="fade" className="absolute top-0 right-0">
+          <ClockBug seconds={timer.displaySeconds} atLimit={timer.atLimit} />
+        </Appear>
+        {/* The lower third goes over whatever else is on air, or over plain video. */}
+        <Appear
+          show={!!state?.lower_third_athlete_id && !!lowerThirdAthlete}
+          variant="slide-left"
+          className="absolute bottom-0 left-0"
+        >
+          {lowerThirdAthlete && (
+            <LowerThird
+              name={lowerThirdAthlete.name}
+              division={lowerThirdAthlete.division}
+              affiliate={lowerThirdAthlete.affiliate}
+            />
+          )}
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }

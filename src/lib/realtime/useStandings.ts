@@ -23,6 +23,7 @@ export function useStandings(divisionId: string | null) {
       setRows([]);
       return;
     }
+    const division = divisionId; // narrowed to string for the async loader below
     const supabase = createClient();
     let cancelled = false;
 
@@ -30,7 +31,7 @@ export function useStandings(divisionId: string | null) {
       const { data } = await supabase
         .from("standings")
         .select("placement, points, athletes(first_name, last_name), teams(name)")
-        .eq("division_id", divisionId)
+        .eq("division_id", division)
         .is("wod_id", null)
         .order("placement", { ascending: true, nullsFirst: false });
 
@@ -47,8 +48,10 @@ export function useStandings(divisionId: string | null) {
           (rows ?? []).map((r) => ({
             placement: r.placement,
             points: r.points,
-            name: r.athletes ? `${r.athletes.first_name} ${r.athletes.last_name}` : r.teams?.name ?? "—",
-          }))
+            name: r.athletes
+              ? `${r.athletes.first_name} ${r.athletes.last_name}`
+              : (r.teams?.name ?? "—"),
+          })),
         );
       }
     }
@@ -59,8 +62,13 @@ export function useStandings(divisionId: string | null) {
       .channel(`standings:${divisionId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "standings", filter: `division_id=eq.${divisionId}` },
-        () => load()
+        {
+          event: "*",
+          schema: "public",
+          table: "standings",
+          filter: `division_id=eq.${divisionId}`,
+        },
+        () => load(),
       )
       .subscribe();
 

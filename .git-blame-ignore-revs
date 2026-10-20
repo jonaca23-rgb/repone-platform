@@ -1,0 +1,5 @@
+# Mechanical reformat commits, skipped by `git blame`.
+# Enable once per clone: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Biome formatting pass
+9f1ca44c559b64bfc365add9ea2756bc79e49b16

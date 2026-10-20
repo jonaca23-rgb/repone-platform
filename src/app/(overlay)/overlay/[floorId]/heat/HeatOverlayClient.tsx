@@ -1,5 +1,7 @@
 "use client";
 
+import { Appear } from "@/components/graphics/Appear";
+import { BroadcastStage, SafeArea } from "@/components/graphics/BroadcastStage";
 import { useFloorOverlay } from "@/lib/realtime/useFloorOverlay";
 import { HeatIdentification } from "@/components/graphics/HeatIdentification";
 import type { FloorHeat } from "@/lib/db/queries";
@@ -19,16 +21,20 @@ export function HeatOverlayClient({
   initialBroadcastState: BroadcastStateRow | null;
 }) {
   const { currentHeat } = useFloorOverlay(floorId, initialBroadcastState, heats);
-  if (!currentHeat) return null;
-
   return (
-    <div className="flex h-screen w-screen items-start justify-start p-8">
-      <HeatIdentification
-        wodName={currentHeat.wod.name}
-        heatNumber={currentHeat.heatNumber}
-        heatCount={currentHeat.heatCount}
-        divisionName={currentHeat.division.name}
-      />
-    </div>
+    <BroadcastStage>
+      <SafeArea>
+        <Appear show={!!currentHeat} variant="fade" className="absolute top-0 left-0">
+          {currentHeat && (
+            <HeatIdentification
+              wodName={currentHeat.wod.name}
+              heatNumber={currentHeat.heatNumber}
+              heatCount={currentHeat.heatCount}
+              divisionName={currentHeat.division.name}
+            />
+          )}
+        </Appear>
+      </SafeArea>
+    </BroadcastStage>
   );
 }

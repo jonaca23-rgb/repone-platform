@@ -5,6 +5,47 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    rules: {
+      // Server actions keep parameters the pages still bind but no longer
+      // trust (e.g. an eventId the guard re-derives); prefix them with _.
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
+  {
+    // @/db connects as the database owner, which RLS policies do not apply to.
+    // App reads and writes go through supabase-js with the signed-in person's
+    // token so the database decides them. Only BetterAuth's config
+    // (src/lib/auth/auth.ts), src/db itself, and src/lib/auth/invite.ts may
+    // reach it. invite.ts reads "user" and member (find an account by email,
+    // a member's current roles, who has never signed in), which the API cannot
+    // read; its callers authorize the inviter first. src/lib/scoring/
+    // writeStandings.ts writes standings, which no token may write (0038);
+    // only recompute.ts calls it, from actions that authorized the person.
+    // scripts/ are not linted
+    // by this rule. The regex catches relative spellings (../../db).
+    files: ["src/**"],
+    ignores: [
+      "src/lib/auth/auth.ts",
+      "src/lib/auth/invite.ts",
+      "src/lib/scoring/writeStandings.ts",
+      "src/db/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(@/db|(\\./|(\\.\\./)+)db)(/index|/schema(/.*)?)?$",
+              message:
+                "@/db is the owner connection and bypasses RLS. Use the Supabase client (@/lib/db/server) so policies decide; only src/lib/auth/auth.ts, src/lib/auth/invite.ts and src/lib/scoring/writeStandings.ts may import @/db.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -12,6 +53,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "src/lib/db/supabase.types.ts",
+    ".claude/worktrees/**",
   ]),
 ]);
 
