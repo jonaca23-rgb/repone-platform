@@ -4,7 +4,8 @@ import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
+import { getAthleteCompetitionHistory } from "@/lib/db/messages";
 import { AGE_CATEGORY_LABELS, computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { LIFT_NAMES, isTimeLift, type LiftName } from "@/lib/constants/lifts";
 import { formatClock } from "@/lib/timer/compute";
@@ -31,27 +32,27 @@ const TABS = [
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { athleteId } = await params;
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
   const { data } = await supabase
     .from("athletes")
     .select("first_name, last_name")
     .eq("id", athleteId)
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .maybeSingle();
   return { title: data ? `${data.first_name} ${data.last_name}` : "Athlete" };
 }
 
 export default async function AthleteDetailPage({ params, searchParams }: Props) {
   const { athleteId } = await params;
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
 
   const { data: athleteRow } = await supabase
     .from("athletes")
     .select("id, first_name, last_name, affiliate, gender, photo_url, auth_user_id")
     .eq("id", athleteId)
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (!athleteRow) notFound();
@@ -63,7 +64,7 @@ export default async function AthleteDetailPage({ params, searchParams }: Props)
     date_of_birth: contact?.dateOfBirth ?? null,
   };
 
-  const [{ data: lifts }, { data: benchmarks }, { data: standingsRows }] = await Promise.all([
+  const [{ data: lifts }, { data: benchmarks }, history] = await Promise.all([
     supabase
       .from("athlete_lifts")
       .select("lift, weight_lbs, time_seconds")
@@ -73,10 +74,8 @@ export default async function AthleteDetailPage({ params, searchParams }: Props)
       .select("id, name, result_display")
       .eq("athlete_id", athleteId)
       .order("name"),
-    supabase
-      .from("standings")
-      .select("event_id, division_id, wod_id, placement, points")
-      .eq("athlete_id", athleteId),
+    // The athlete's results by event, their own and their teams'.
+    getAthleteCompetitionHistory(athleteId),
   ]);
 
   const liftByName = new Map(
@@ -90,69 +89,6 @@ export default async function AthleteDetailPage({ params, searchParams }: Props)
     athlete.gender as Gender | null,
     new Date(),
   );
-
-  // Competition history: standings rows for this athlete, grouped by event.
-  // standings.wod_id is null for the event/division "overall" row and set
-  // for each individual WOD's placement (see 0008_circuits.sql / the scoring
-  // engine) — standings.event_id lives directly on the row, so no join
-  // through divisions is needed to know which event a row belongs to.
-  const eventIds = [...new Set((standingsRows ?? []).map((r) => r.event_id))];
-  const divisionIds = [...new Set((standingsRows ?? []).map((r) => r.division_id))];
-  const wodIds = [...new Set((standingsRows ?? []).flatMap((r) => (r.wod_id ? [r.wod_id] : [])))];
-
-  const [{ data: historyEvents }, { data: historyDivisions }, { data: historyWods }] =
-    await Promise.all([
-      eventIds.length
-        ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
-        : Promise.resolve({ data: [] as { id: string; name: string; starts_on: string | null }[] }),
-      divisionIds.length
-        ? supabase.from("divisions").select("id, name").in("id", divisionIds)
-        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-      wodIds.length
-        ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
-        : Promise.resolve({ data: [] as { id: string; name: string; sort_order: number }[] }),
-    ]);
-
-  const eventById = new Map((historyEvents ?? []).map((e) => [e.id, e]));
-  const divisionById = new Map((historyDivisions ?? []).map((d) => [d.id, d]));
-  const wodById = new Map((historyWods ?? []).map((w) => [w.id, w]));
-
-  type HistoryGroup = {
-    eventId: string;
-    eventName: string;
-    startsOn: string | null;
-    divisionName: string;
-    overall: { placement: number | null; points: number | null } | null;
-    wods: { wodId: string; name: string; sortOrder: number; placement: number | null }[];
-  };
-  const historyByEvent = new Map<string, HistoryGroup>();
-  for (const row of standingsRows ?? []) {
-    const event = eventById.get(row.event_id);
-    if (!event) continue;
-    const group: HistoryGroup = historyByEvent.get(row.event_id) ?? {
-      eventId: row.event_id,
-      eventName: event.name,
-      startsOn: event.starts_on,
-      divisionName: divisionById.get(row.division_id)?.name ?? "—",
-      overall: null,
-      wods: [],
-    };
-    if (row.wod_id === null) {
-      group.overall = { placement: row.placement, points: row.points };
-    } else {
-      const wod = wodById.get(row.wod_id);
-      group.wods.push({
-        wodId: row.wod_id,
-        name: wod?.name ?? "WOD",
-        sortOrder: wod?.sort_order ?? 0,
-        placement: row.placement,
-      });
-    }
-    historyByEvent.set(row.event_id, group);
-  }
-  const history = [...historyByEvent.values()]
-    .map((g) => ({ ...g, wods: g.wods.sort((a, b) => a.sortOrder - b.sortOrder) }))
-    .sort((a, b) => (b.startsOn ?? "").localeCompare(a.startsOn ?? ""));
 
   // Check-in QR code: an absolute URL to this athlete's Check-In screen
   // (green/red payment status), built from the request's own host header so
@@ -286,6 +222,7 @@ export default async function AthleteDetailPage({ params, searchParams }: Props)
         ) : (
           <CompetitionsTable
             rows={history.map((h) => ({
+              key: h.key,
               eventId: h.eventId,
               eventName: h.eventName,
               divisionName: h.divisionName,

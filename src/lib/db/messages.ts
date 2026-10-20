@@ -98,40 +98,33 @@ export async function getAthleteCompetitionHistory(
   athleteId: string,
 ): Promise<AthleteHistoryGroup[]> {
   const supabase = await createClient();
-  const columns = "id, event_id, division_id, wod_id, team_id, placement, points, teams(name)";
-  const [own, memberships] = await Promise.all([
+  // The event, division and WOD come embedded, and a team's standings are
+  // found through its members (joined again as member_of), so the whole
+  // history is two queries side by side.
+  const columns =
+    "id, event_id, division_id, wod_id, team_id, placement, points, teams(name), events(id, name, starts_on), divisions(id, name), wods(id, name, sort_order)";
+  const [own, ofTeams] = await Promise.all([
     supabase.from("standings").select(columns).eq("athlete_id", athleteId),
-    supabase.from("team_members").select("team_id").eq("athlete_id", athleteId),
+    supabase
+      .from("standings")
+      .select(`${columns}, member_of:teams!inner(team_members!inner(athlete_id))`)
+      .eq("member_of.team_members.athlete_id", athleteId),
   ]);
   if (own.error) throw new Error(own.error.message);
-  if (memberships.error) throw new Error(memberships.error.message);
-  const teamIds = (memberships.data ?? []).map((m) => m.team_id);
-  const ofTeams = teamIds.length
-    ? await supabase.from("standings").select(columns).in("team_id", teamIds)
-    : { data: [], error: null };
   if (ofTeams.error) throw new Error(ofTeams.error.message);
 
-  const rows = [...(own.data ?? []), ...(ofTeams.data ?? [])] as unknown as HistoryStandingRow[];
-  const eventIds = [...new Set(rows.map((r) => r.event_id))];
-  const divisionIds = [...new Set(rows.map((r) => r.division_id))];
-  const wodIds = [...new Set(rows.flatMap((r) => (r.wod_id ? [r.wod_id] : [])))];
-
-  const [events, divisions, wods] = await Promise.all([
-    eventIds.length
-      ? supabase.from("events").select("id, name, starts_on").in("id", eventIds)
-      : Promise.resolve({ data: [], error: null }),
-    divisionIds.length
-      ? supabase.from("divisions").select("id, name").in("id", divisionIds)
-      : Promise.resolve({ data: [], error: null }),
-    wodIds.length
-      ? supabase.from("wods").select("id, name, sort_order").in("id", wodIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-
+  const rows = [...(own.data ?? []), ...(ofTeams.data ?? [])] as unknown as Array<
+    HistoryStandingRow & {
+      events: { id: string; name: string; starts_on: string | null } | null;
+      divisions: { id: string; name: string } | null;
+      wods: { id: string; name: string; sort_order: number } | null;
+    }
+  >;
+  const present = <T>(items: (T | null)[]) => items.filter((x): x is T => x !== null);
   return groupCompetitionHistory(rows, {
-    events: events.data ?? [],
-    divisions: divisions.data ?? [],
-    wods: wods.data ?? [],
+    events: present(rows.map((r) => r.events)),
+    divisions: present(rows.map((r) => r.divisions)),
+    wods: present(rows.map((r) => r.wods)),
   });
 }
 

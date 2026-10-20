@@ -83,7 +83,7 @@ export function AthleteCard({
             {older.length > 0 ? (
               <details className="group">
                 <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-brand-text">
-                  +{older.length} more events
+                  +{older.length} more {older.length === 1 ? "result" : "results"}
                 </summary>
                 <div className="flex flex-col gap-1.5 pt-1">
                   {older.map((h) => (

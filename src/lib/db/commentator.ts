@@ -1,6 +1,7 @@
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { getAthleteLiftsAndBenchmarks, type LiftEntry, type BenchmarkEntry } from "@/lib/db/social";
+import { recentEvents } from "@/lib/athlete/competitionHistory";
 import { getAthleteCompetitionHistory, type AthleteHistoryGroup } from "@/lib/db/messages";
 import { computeAgeCategory, AGE_CATEGORY_LABELS, type Gender } from "@/lib/scoring/ageCategory";
 
@@ -62,7 +63,7 @@ export async function getCommentatorAthleteDetails(
         ageCategoryLabel: ageCategory ? AGE_CATEGORY_LABELS[ageCategory] : null,
         lifts,
         benchmarks,
-        history: history.slice(0, MAX_HISTORY_EVENTS),
+        history: recentEvents(history, MAX_HISTORY_EVENTS),
       };
       return [athleteId, details] as const;
     }),
