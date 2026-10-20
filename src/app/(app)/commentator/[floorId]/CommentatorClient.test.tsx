@@ -98,7 +98,7 @@ describe("CommentatorClient", () => {
     expect(screen.getAllByText(/\+\d+ more$/).length).toBe(1);
     // history beyond the first is folded
     expect(screen.getByText("Aprieta 2025")).toBeTruthy();
-    expect(screen.getByText("+2 more events")).toBeTruthy();
+    expect(screen.getByText("+2 more results")).toBeTruthy();
     // c has no details at all
     expect(screen.getByText("No lifts, benchmarks or history on file yet.")).toBeTruthy();
   });

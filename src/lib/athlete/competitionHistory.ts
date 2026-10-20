@@ -91,3 +91,18 @@ export function groupCompetitionHistory(
         Number(a.isTeam) - Number(b.isTeam),
     );
 }
+
+/**
+ * The groups of an athlete's `n` most recent events, every result of each:
+ * an event where they competed on their own and on a team counts once.
+ * `history` is most recent first, as groupCompetitionHistory returns it.
+ */
+export function recentEvents<G extends { eventId: string }>(history: G[], n: number): G[] {
+  const kept = new Set<string>();
+  return history.filter((g) => {
+    if (kept.has(g.eventId)) return true;
+    if (kept.size >= n) return false;
+    kept.add(g.eventId);
+    return true;
+  });
+}

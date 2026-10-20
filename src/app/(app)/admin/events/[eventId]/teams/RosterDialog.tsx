@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label";
 export type RosterMember = { memberId: string; athleteId: string; name: string };
 export type RosterOption = { id: string; label: string };
 
+/** How many matches the list shows; typing narrows a large organization down. */
+const SHOWN = 50;
+
 /** "Sofía" → "sofia": a search that ignores case and accents. */
 function fold(text: string): string {
   return text
@@ -63,6 +66,12 @@ export function RosterDialog({
   );
   const needle = fold(query.trim());
   const matches = available.filter((a) => fold(a.label).includes(needle));
+  const shown = matches.slice(0, SHOWN);
+  const pick = (athleteId: string) => {
+    const fd = new FormData();
+    fd.set("athlete_id", athleteId);
+    add.mutate(fd);
+  };
   const full = team.size !== null && team.roster.length >= team.size;
   const busy = remove.isPending || captain.isPending;
 
@@ -121,19 +130,37 @@ export function RosterDialog({
             id={searchId}
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // A failed add's message belongs to that attempt, not the next search.
+              if (add.error) add.reset();
+            }}
+            onKeyDown={(e) => {
+              // Not mid-composition (an accent being typed), and only for a search.
+              if (
+                e.key === "Enter" &&
+                !e.nativeEvent.isComposing &&
+                needle !== "" &&
+                matches.length === 1 &&
+                !add.isPending
+              ) {
+                e.preventDefault();
+                pick(matches[0].id);
+              }
+            }}
             placeholder="Name or affiliate"
             autoComplete="off"
             aria-describedby={hintId}
           />
           <p id={hintId} className="text-sm text-muted-foreground">
-            Athletes who aren&apos;t on a team in this event yet. Tap one to add them.
+            Athletes who aren&apos;t on a team in this event yet. Tap one to add them, or press
+            Enter when only one matches.
           </p>
           {matches.length === 0 ? (
             <p className="text-sm text-muted-foreground">No athlete matches “{query.trim()}”.</p>
           ) : (
             <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-lg border border-border">
-              {matches.map((a) => (
+              {shown.map((a) => (
                 <li key={a.id}>
                   <Button
                     type="button"
@@ -141,11 +168,7 @@ export function RosterDialog({
                     className="min-h-11 w-full justify-start rounded-none"
                     disabled={add.isPending}
                     aria-label={`Add ${a.label}`}
-                    onClick={() => {
-                      const fd = new FormData();
-                      fd.set("athlete_id", a.id);
-                      add.mutate(fd);
-                    }}
+                    onClick={() => pick(a.id)}
                   >
                     <Plus aria-hidden />
                     <span className="truncate">{a.label}</span>
@@ -154,6 +177,11 @@ export function RosterDialog({
               ))}
             </ul>
           )}
+          {matches.length > SHOWN ? (
+            <p className="text-sm text-muted-foreground">
+              Showing {SHOWN} of {matches.length}. Keep typing to narrow it down.
+            </p>
+          ) : null}
           {add.error ? (
             <p role="alert" className="text-sm text-destructive">
               {add.error.message}

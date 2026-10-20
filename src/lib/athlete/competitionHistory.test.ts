@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupCompetitionHistory } from "./competitionHistory";
+import { groupCompetitionHistory, recentEvents } from "./competitionHistory";
 
 const lookups = {
   events: [
@@ -58,5 +58,17 @@ describe("groupCompetitionHistory", () => {
 
   it("drops a row whose event it can't see", () => {
     expect(groupCompetitionHistory([row("s1", "gone", "d-ind", null, 1)], lookups)).toEqual([]);
+  });
+});
+
+describe("recentEvents", () => {
+  it("keeps every result of the most recent events, counting events, not results", () => {
+    const g = (key: string, eventId: string) => ({ key, eventId }) as never;
+    const history = [g("e3:own", "e3"), g("e3:t1", "e3"), g("e2:own", "e2"), g("e1:own", "e1")];
+    expect(recentEvents(history, 2).map((h: { key: string }) => h.key)).toEqual([
+      "e3:own",
+      "e3:t1",
+      "e2:own",
+    ]);
   });
 });

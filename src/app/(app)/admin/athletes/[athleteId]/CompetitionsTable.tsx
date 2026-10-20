@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { Badge } from "@/components/ui/badge";
 
 export type CompetitionRow = {
+  /** One per event and competitor: the athlete's own results, or a team's. */
+  key: string;
   eventId: string;
   eventName: string;
   divisionName: string;
@@ -74,7 +76,7 @@ export function CompetitionsTable({ rows }: { rows: CompetitionRow[] }) {
     <DataTable
       columns={columns}
       data={rows}
-      getRowId={(r) => r.eventId}
+      getRowId={(r) => r.key}
       empty={<EmptyState icon={Medal} title="No competition results yet" />}
     />
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { assignLane } from "@/lib/actions/lanes";
 import { useServerAction } from "@/lib/use-server-action";
@@ -59,23 +60,40 @@ export function LaneAssignmentForm({
     success: `Lane ${lane.lane_number} saved`,
   });
   const pending = save.isPending;
-  const message = save.error?.message || conflictMessage;
   const selectId = `lane-${lane.id}`;
   const { occupant } = lane;
+  const wrongKind = occupant !== null && occupant.kind !== kind;
   const stray =
     occupant && !options.some((o) => o.id === occupant.id)
       ? {
           id: occupant.id,
-          label: `${occupant.label} (${occupant.kind === kind ? "not registered in this division" : "wrong kind for this division"})`,
+          label: `${occupant.label} (${wrongKind ? "wrong kind for this division" : "not registered in this division"})`,
         }
       : null;
+  // A wrong-kind occupant can only be replaced: saving it as it is would
+  // post an athlete as a team (or the reverse), which the action can only
+  // refuse in its own terms.
+  const [mustReplace, setMustReplace] = useState(false);
+  const message =
+    (mustReplace && occupant
+      ? `Choose ${kind === "team" ? "a team" : "an athlete"}, or Empty, to replace ${occupant.label} in lane ${lane.lane_number}.`
+      : null) ||
+    save.error?.message ||
+    conflictMessage;
 
   return (
     <div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          save.mutate(new FormData(e.currentTarget));
+          const fd = new FormData(e.currentTarget);
+          const chosen = fd.get(kind === "team" ? "team_id" : "athlete_id");
+          if (wrongKind && chosen === occupant?.id) {
+            setMustReplace(true);
+            return;
+          }
+          setMustReplace(false);
+          save.mutate(fd);
         }}
         className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
           message ? "border-destructive bg-destructive/10" : "border-border bg-card"
@@ -90,6 +108,7 @@ export function LaneAssignmentForm({
         <Select
           name={kind === "team" ? "team_id" : "athlete_id"}
           defaultValue={occupant?.id ?? NONE}
+          onValueChange={() => setMustReplace(false)}
         >
           <SelectTrigger
             id={selectId}
