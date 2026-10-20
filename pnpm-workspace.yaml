@@ -1,5 +1,7 @@
 onlyBuiltDependencies:
   - esbuild
+  # Its postinstall downloads the CLI binary this project pins.
+  - supabase
 
 ignoredBuiltDependencies:
   - sharp

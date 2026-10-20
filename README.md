@@ -135,49 +135,63 @@ values, which you add by hand) holds:
 
 ### Production
 
-Deploying to Vercel against a hosted Supabase project needs these, per
-environment (Production, Preview):
+Production is https://reponelive.com: Vercel project `repone-platform` and
+Supabase project `repone-platform` (ref `opzmjuwknsvvrtdlpemh`), both under
+CFT Services (Vercel team `cftservicespr`). The release flow is the sibling
+repo tastebook's, and spends no GitHub Actions minutes:
+
+- **Merging to `main` is a release.** Vercel's Git integration builds `main`
+  only (`vercel.json`). Its build, `scripts/vercel-build.sh`, applies
+  `supabase/migrations` to production (`supabase db push`, never the seed)
+  and then runs `next build`; a failed migration fails the build, so nothing
+  ships without its schema. Development lands on `staging` first.
+- **Production's values** live in `.env.prod` (gitignored, never pasted
+  anywhere). `scripts/push-prod-env.sh` adds the filled ones to Vercel's
+  Production environment; a line after a comment containing `[secret]` is
+  added as Sensitive. Vercel holds: `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL`, `BETTER_AUTH_URL`,
+  `BETTER_AUTH_SECRET`, `SUPABASE_JWT_SIGNING_KEY`, `SMTP_URL`, `EMAIL_FROM`
+  (and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` if Google sign-in is on).
+  `SUPABASE_SECRET_KEY` and `SUPABASE_DB_PASSWORD` stay in `.env.prod`, for
+  scripts only.
+
+What each value has to be:
 
 1. **JWT signing key.** The app signs each session's Supabase token with the
    ES256 private key in `SUPABASE_JWT_SIGNING_KEY` (a JWK with a `kid`). In the
-   hosted project, open *Project Settings → JWT Keys → JWT Signing Keys*,
-   import that private key, and make it the **current** key. Otherwise
+   hosted project, open *Project Settings → JWT Keys*, import that private key
+   as a standby key and rotate it in as the **current** key. Otherwise
    PostgREST, Realtime and Storage reject every minted token and every
-   signed-in request fails with 401. Generate a key for production with
-   `pnpm keys:ensure --print` on a machine with no `supabase/signing_keys.json`
-   (or any ES256 JWK generator); never reuse the local one.
-2. **`DATABASE_URL`** must be the project's **Supavisor pooler** connection
-   string (*Connect → Transaction pooler*, port 6543), not the direct
-   `db.<ref>.supabase.co` host: that host is IPv6-only and Vercel functions
-   can't reach it. `src/db/index.ts` opens at most 4 connections per
-   function instance.
-3. **`BETTER_AUTH_URL`** is the deployment's own origin, e.g.
-   `https://app.example.com`. Preview deployments get a different URL each
-   time: set it per environment and add the preview origins to BetterAuth's
-   `trustedOrigins` in `src/lib/auth/auth.ts`, or sign-in from a preview is
-   refused as cross-origin.
-4. **`BETTER_AUTH_SECRET`**: `openssl rand -base64 32`, different per
-   environment. Changing it signs everyone out.
-5. **`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`** from
-   the hosted project's API settings. `SUPABASE_SECRET_KEY` is for scripts
-   only and is not needed by the deployed app.
-6. **Google (optional).** In Google Cloud, create an OAuth client (Web) with
-   the authorized redirect URI `https://<host>/api/auth/callback/google` for
-   each host, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. BetterAuth
-   handles the callback; Supabase's own Google provider is not used and stays
-   off.
+   signed-in request fails with 401 (the public `/live` pages still work).
+   Never reuse the local key.
+2. **`DATABASE_URL`** is the **Supavisor transaction pooler** (port 6543), not
+   the direct `db.<ref>.supabase.co` host, which is IPv6-only and unreachable
+   from Vercel. `src/db/index.ts` opens at most 4 connections per function
+   instance; the build derives the session pooler (5432) from it for
+   migrations.
+3. **`BETTER_AUTH_URL`** is `https://reponelive.com`. It is baked into email
+   links and the Google redirect URI. Only `main` deploys, so there are no
+   preview origins to trust.
+4. **`BETTER_AUTH_SECRET`**: `openssl rand -base64 32`. Changing it signs
+   everyone out.
+5. **Email.** `SMTP_URL` is Resend's SMTP
+   (`smtps://resend:<api key>@smtp.resend.com:465`) and `EMAIL_FROM` is
+   `RepOne <no-reply@reponelive.com>`, on the domain verified in Resend. Sign-up
+   verification, invitations and password resets all need it.
+6. **Client IP for the rate limit.** BetterAuth reads `x-real-ip`, then
+   `x-forwarded-for` (`advanced.ipAddress` in `src/lib/auth/auth.ts`), which
+   Vercel sets to the client. Without a resolvable IP every visitor would
+   share one bucket, and 3 sign-ins anywhere would lock out everyone for 10 s.
+7. **Google (optional).** An OAuth client (Web) with the redirect URI
+   `https://reponelive.com/api/auth/callback/google`, then `GOOGLE_CLIENT_ID` /
+   `GOOGLE_CLIENT_SECRET`. Supabase's own Google provider stays off.
 
-Apply the migrations to the hosted database (`supabase db push`) before the
-first deploy. BetterAuth's sign-in/sign-up rate limit is on in every
-environment (3 requests per 10 s per IP, stored in `public.rate_limit`).
-
-7. **Client IP for the rate limit.** Set BetterAuth's `advanced.ipAddress` in
-   `src/lib/auth/auth.ts` for the deploy target: `ipAddressHeaders` naming the
-   header your platform sets with the real client address (on Vercel,
-   `x-real-ip` / `x-forwarded-for`), or `trustedProxies` for your proxy
-   chain. If BetterAuth can't resolve a client IP it falls back to one shared
-   bucket per path, so 3 failed sign-ins anywhere lock out everyone for 10 s
-   (its log says "falling back to a single shared per-path bucket").
+**The first organization.** Right after the first deploy, sign up at
+`/signup`, verify the email, and open `/admin`: it offers to create the
+organization, and its creator becomes the owner. Only the first one can, so do
+it before sharing the URL. Never run `seed.sql`, the QA seeds or
+`pnpm dev:accounts` against production. The free Supabase plan pauses a
+project after about a week idle: open it before an event.
 
 ### Schema changes
 
