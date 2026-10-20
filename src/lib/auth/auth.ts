@@ -75,7 +75,13 @@ export const auth = betterAuth({
     },
   }),
   // auth.uid() casts the minted token's sub to uuid, and every FK is a uuid.
-  advanced: { database: { generateId: "uuid" } },
+  advanced: {
+    database: { generateId: "uuid" },
+    // The rate limit keys on the client's IP. Vercel sets x-real-ip to it
+    // (and overwrites x-forwarded-for); without a resolvable IP every visitor
+    // would share one bucket, so three sign-ins locked everyone out for 10 s.
+    ipAddress: { ipAddressHeaders: ["x-real-ip", "x-forwarded-for"] },
+  },
   // BetterAuth limits only requests through its HTTP routes (/api/auth/*), so
   // the sign-in and sign-up forms call those through authClient; a server-side
   // auth.api call is never limited. Its default is "production only"; it is on
