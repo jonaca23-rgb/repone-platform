@@ -136,7 +136,14 @@ export function RosterDialog({
               if (add.error) add.reset();
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && matches.length === 1 && !add.isPending) {
+              // Not mid-composition (an accent being typed), and only for a search.
+              if (
+                e.key === "Enter" &&
+                !e.nativeEvent.isComposing &&
+                needle !== "" &&
+                matches.length === 1 &&
+                !add.isPending
+              ) {
                 e.preventDefault();
                 pick(matches[0].id);
               }

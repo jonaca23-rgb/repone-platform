@@ -65,6 +65,18 @@ describe("RosterDialog", () => {
     expect((addTeamMember.mock.calls[0][2] as FormData).get("athlete_id")).toBe("a3");
   });
 
+  it("doesn't add anyone on Enter in an empty search", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RosterDialog eventId="e1" team={team} available={[available[0]]} />
+      </QueryClientProvider>,
+    );
+    await userEvent
+      .setup()
+      .type(screen.getByRole("searchbox", { name: "Find an athlete" }), "{Enter}");
+    expect(addTeamMember).not.toHaveBeenCalled();
+  });
+
   it("clears a failed add's message once the search changes", async () => {
     addTeamMember.mockResolvedValue({
       ok: false,

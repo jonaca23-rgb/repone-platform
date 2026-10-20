@@ -108,6 +108,7 @@ export function LaneAssignmentForm({
         <Select
           name={kind === "team" ? "team_id" : "athlete_id"}
           defaultValue={occupant?.id ?? NONE}
+          onValueChange={() => setMustReplace(false)}
         >
           <SelectTrigger
             id={selectId}

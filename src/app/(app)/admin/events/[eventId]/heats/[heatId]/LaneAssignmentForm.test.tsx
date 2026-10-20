@@ -49,3 +49,23 @@ describe("LaneAssignmentForm", () => {
     expect(screen.getByRole("combobox").textContent).toBe("Aprieta Duo");
   });
 });
+
+describe("LaneAssignmentForm's replacement hint", () => {
+  it("goes away once another choice is picked", async () => {
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
+    Element.prototype.scrollIntoView = () => {};
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    renderLane({ id: "a1", label: "Maria Rivera", kind: "athlete" });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("alert")).toBeTruthy();
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Aprieta Duo" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
