@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
 import { computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
@@ -9,12 +9,12 @@ import { type AthleteRow, AthletesTable } from "./AthletesTable";
 export const metadata: Metadata = { title: "Athletes" };
 
 export default async function AthletesPage() {
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
   const { data: athletes } = await supabase
     .from("athletes")
     .select("id, first_name, last_name, affiliate, gender, photo_url")
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .order("last_name");
   const privateDetails = await getAthletePrivateDetails(
     supabase,

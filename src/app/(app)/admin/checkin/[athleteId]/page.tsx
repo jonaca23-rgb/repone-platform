@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CircleCheck, CircleX } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import type { PaymentStatus } from "@/lib/db/database.types";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -36,27 +36,27 @@ type Props = { params: Promise<{ athleteId: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { athleteId } = await params;
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
   const { data } = await supabase
     .from("athletes")
     .select("first_name, last_name")
     .eq("id", athleteId)
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .maybeSingle();
   return { title: data ? `Check-In · ${data.first_name} ${data.last_name}` : "Check-In" };
 }
 
 export default async function AthleteCheckInPage({ params }: Props) {
   const { athleteId } = await params;
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
 
   const { data: athlete } = await supabase
     .from("athletes")
     .select("id, first_name, last_name, affiliate, photo_url")
     .eq("id", athleteId)
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .maybeSingle();
   if (!athlete) notFound();
 

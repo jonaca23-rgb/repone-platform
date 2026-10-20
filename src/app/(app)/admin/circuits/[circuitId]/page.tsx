@@ -2,7 +2,7 @@ import { circuitCompetitorKey } from "@/lib/scoring/circuitKey";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { computeOverallStandings, type RankedResult } from "@/lib/scoring";
 import { DetailHeader } from "@/components/app/DetailHeader";
@@ -56,7 +56,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  */
 export default async function CircuitDetailPage({ params, searchParams }: Props) {
   const { circuitId } = await params;
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
 
   const { data: circuit } = await supabase
@@ -75,7 +75,7 @@ export default async function CircuitDetailPage({ params, searchParams }: Props)
     supabase
       .from("events")
       .select("id, name")
-      .eq("organization_id", ctx?.organizationId ?? "")
+      .eq("organization_id", organizationId)
       .is("circuit_id", null)
       .order("name"),
   ]);

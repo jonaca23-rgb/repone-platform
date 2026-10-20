@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -21,13 +21,13 @@ export default async function CheckInPickerPage({
 }) {
   const { q } = await searchParams;
   const query = (q ?? "").trim();
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
 
   let athletesQuery = supabase
     .from("athletes")
     .select("id, first_name, last_name, affiliate, photo_url")
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .order("last_name")
     .limit(50);
 

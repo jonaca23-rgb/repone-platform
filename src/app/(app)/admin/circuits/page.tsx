@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { createClient } from "@/lib/db/server";
 import { PageHeader } from "@/components/app/PageHeader";
 import { type CircuitRow, CircuitsTable } from "./CircuitsTable";
@@ -7,19 +7,19 @@ import { type CircuitRow, CircuitsTable } from "./CircuitsTable";
 export const metadata: Metadata = { title: "Circuits" };
 
 export default async function CircuitsPage() {
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
 
   const { data: circuits } = await supabase
     .from("circuits")
     .select("id, name, description, starts_on, ends_on")
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .order("starts_on", { ascending: false, nullsFirst: false });
 
   const { data: eventCounts } = await supabase
     .from("events")
     .select("circuit_id")
-    .eq("organization_id", ctx?.organizationId ?? "")
+    .eq("organization_id", organizationId)
     .not("circuit_id", "is", null);
 
   const countByCircuit = new Map<string, number>();
