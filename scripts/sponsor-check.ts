@@ -238,6 +238,99 @@ async function main() {
     expect("anon can't create packages", !!anonPkg.error, anonPkg.error);
     const usedPkg = await service.from("sponsor_packages").delete().eq("id", pkg.id);
     expect("a package in use can't be deleted", !!usedPkg.error, usedPkg.error);
+
+    // A sponsor on air comes off when its sponsorship or the sponsor itself
+    // is switched off, and a sponsor without a category holds nothing (0044).
+    const FLOOR_ID = "00000000-0000-0000-0000-000000000030";
+    const { data: s4 } = await admin
+      .from("sponsors")
+      .insert({ organization_id: ORG_ID, business_name: "Check PT 4", category: "AirCat" })
+      .select("id")
+      .single();
+    extra.push(s4?.id ?? "");
+    const { data: onAirSponsorship } = await admin
+      .from("event_sponsorships")
+      .insert({
+        event_id: EVENT_ID,
+        sponsor_id: s4?.id ?? "",
+        package_id: pkg.id,
+        category_exclusive: true,
+      })
+      .select("id")
+      .single();
+    const { data: air } = await service
+      .from("broadcast_state")
+      .select("active_sponsor_id, active_graphic")
+      .eq("floor_id", FLOOR_ID)
+      .single();
+    const putOnAir = () =>
+      service
+        .from("broadcast_state")
+        .update({ active_sponsor_id: s4?.id, active_graphic: "sponsor" })
+        .eq("floor_id", FLOOR_ID);
+    const onAir = async () =>
+      (
+        await service
+          .from("broadcast_state")
+          .select("active_sponsor_id, active_graphic")
+          .eq("floor_id", FLOOR_ID)
+          .single()
+      ).data;
+    try {
+      await putOnAir();
+      await admin
+        .from("event_sponsorships")
+        .update({ active: false })
+        .eq("id", onAirSponsorship?.id ?? "");
+      const afterSponsorshipOff = await onAir();
+      expect(
+        "switching off a sponsorship takes its sponsor off air",
+        afterSponsorshipOff?.active_sponsor_id === null &&
+          afterSponsorshipOff?.active_graphic === "none",
+        afterSponsorshipOff,
+      );
+      await admin
+        .from("event_sponsorships")
+        .update({ active: true })
+        .eq("id", onAirSponsorship?.id ?? "");
+      await putOnAir();
+      await admin
+        .from("sponsors")
+        .update({ active: false })
+        .eq("id", s4?.id ?? "");
+      const afterSponsorOff = await onAir();
+      expect(
+        "switching a sponsor off org-wide takes it off air",
+        afterSponsorOff?.active_sponsor_id === null && afterSponsorOff?.active_graphic === "none",
+        afterSponsorOff,
+      );
+      await admin
+        .from("sponsors")
+        .update({ active: true })
+        .eq("id", s4?.id ?? "");
+      await admin
+        .from("sponsors")
+        .update({ category: null })
+        .eq("id", s4?.id ?? "");
+      const { data: afterClear } = await service
+        .from("event_sponsorships")
+        .select("category_exclusive")
+        .eq("id", onAirSponsorship?.id ?? "")
+        .single();
+      expect(
+        "clearing a sponsor's category clears its exclusivity",
+        afterClear?.category_exclusive === false,
+        afterClear,
+      );
+    } finally {
+      await service
+        .from("broadcast_state")
+        .update({
+          active_sponsor_id: air?.active_sponsor_id ?? null,
+          active_graphic: air?.active_graphic ?? "none",
+        })
+        .eq("floor_id", FLOOR_ID);
+    }
   } finally {
     await service
       .from("sponsors")

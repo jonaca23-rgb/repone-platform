@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getAthletePrivateDetails } from "@/lib/db/athletePrivate";
 import { createClient } from "@/lib/db/server";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { computeAgeCategory, type Gender } from "@/lib/scoring/ageCategory";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function EventAthletesPage({ params }: Props) {
   const { eventId } = await params;
-  const ctx = await getSessionContext();
+  const { organizationId } = await requireOrgManager();
   const supabase = await createClient();
   const cookieStore = await cookies();
   const lastDivisionId = cookieStore.get(`repone_last_division_${eventId}`)?.value ?? "";
@@ -37,7 +37,7 @@ export default async function EventAthletesPage({ params }: Props) {
       supabase
         .from("athletes")
         .select("id, first_name, last_name, affiliate, gender")
-        .eq("organization_id", ctx?.organizationId ?? "")
+        .eq("organization_id", organizationId)
         .order("last_name"),
       supabase
         .from("registrations")

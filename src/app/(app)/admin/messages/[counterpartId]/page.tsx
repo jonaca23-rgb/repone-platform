@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { getSessionContext } from "@/lib/auth/session";
+import { notFound } from "next/navigation";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { getThread, markThreadRead, resolveCounterparts } from "@/lib/db/messages";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AdminBreadcrumb } from "@/components/shells/AdminBreadcrumb";
@@ -12,17 +12,16 @@ type Props = { params: Promise<{ counterpartId: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { counterpartId } = await params;
-  const ctx = await getSessionContext();
-  const labels = await resolveCounterparts([counterpartId], ctx?.organizationId ?? "");
+  const { organizationId } = await requireOrgManager();
+  const labels = await resolveCounterparts([counterpartId], organizationId);
   return { title: labels.get(counterpartId)?.name ?? "Messages" };
 }
 
 export default async function AdminThreadPage({ params }: Props) {
   const { counterpartId } = await params;
-  const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
+  const { ctx, organizationId } = await requireOrgManager();
 
-  const labels = await resolveCounterparts([counterpartId], ctx.organizationId ?? "");
+  const labels = await resolveCounterparts([counterpartId], organizationId);
   const counterpart = labels.get(counterpartId);
   if (!counterpart) notFound();
 

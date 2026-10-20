@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+
 import { MessageSquare } from "lucide-react";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireOrgManager } from "@/lib/auth/guards";
 import { getConversations } from "@/lib/db/messages";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -11,10 +11,9 @@ import { Badge } from "@/components/ui/badge";
 export const metadata: Metadata = { title: "Messages" };
 
 export default async function AdminMessagesPage() {
-  const ctx = await getSessionContext();
-  if (!ctx) redirect("/login");
+  const { ctx, organizationId } = await requireOrgManager();
 
-  const conversations = await getConversations(ctx.userId, ctx.organizationId ?? "");
+  const conversations = await getConversations(ctx.userId, organizationId);
 
   return (
     <div className="flex flex-col gap-6">
