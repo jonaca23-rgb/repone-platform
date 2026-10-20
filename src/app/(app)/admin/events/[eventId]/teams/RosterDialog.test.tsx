@@ -2,7 +2,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
@@ -15,6 +15,7 @@ vi.mock("@/lib/actions/teams", () => ({
 
 import { RosterDialog } from "./RosterDialog";
 
+beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 const team = { id: "t1", name: "Aprieta Duo", size: 4, captainId: null, roster: [] };
@@ -52,6 +53,40 @@ describe("RosterDialog", () => {
     // Ready for the next teammate: the search is cleared and has the focus back.
     await waitFor(() => expect(document.activeElement).toBe(search));
     expect(search).toHaveProperty("value", "");
+  });
+
+  it("adds the only match when Enter is pressed in the search", async () => {
+    addTeamMember.mockResolvedValue({ ok: true });
+    renderDialog();
+    await userEvent
+      .setup()
+      .type(screen.getByRole("searchbox", { name: "Find an athlete" }), "ortiz{Enter}");
+    await waitFor(() => expect(addTeamMember).toHaveBeenCalledOnce());
+    expect((addTeamMember.mock.calls[0][2] as FormData).get("athlete_id")).toBe("a3");
+  });
+
+  it("clears a failed add's message once the search changes", async () => {
+    addTeamMember.mockResolvedValue({
+      ok: false,
+      message: "That athlete is already on another team in this event.",
+    });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add Sofía Delgado" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    await user.type(screen.getByRole("searchbox", { name: "Find an athlete" }), "m");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("lists the first 50 matches and asks for more letters past that", () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({ id: `x${i}`, label: `Athlete ${i}` }));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RosterDialog eventId="e1" team={team} available={many} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getAllByRole("button", { name: /^Add Athlete/ })).toHaveLength(50);
+    expect(screen.getByText("Showing 50 of 120. Keep typing to narrow it down.")).toBeTruthy();
   });
 
   it("says so when nobody matches", async () => {
